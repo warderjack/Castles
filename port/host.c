@@ -49,40 +49,46 @@ static void die(const char *fmt, ...) {
     halted = 1; m68k_end_timeslice();
 }
 
-/* ---------------- Resource rfork ---------------- */
-typedef struct { uint32_t type; int16_t id; uint8_t attrs; uint32_t off, len; uint32_t handle; char name[64]; } Res;
+/* ---------------- Resource files ---------------- */
+typedef struct { uint32_t type; int16_t id; uint8_t attrs; uint32_t off, len; uint32_t handle; char name[64]; const uint8_t *buf; int file; int dead; } Res;
+typedef struct { int used; char path[1100]; uint8_t *buf; size_t len; int changed; } RFile;
+static RFile rfiles[32]; static int chain[32], nchain = 0, cur_rf = 0;
 static uint8_t *rfork; static size_t forklen;
-static Res *res; static int nres;
+static Res res[8192]; static int nres;
 
 static uint32_t be32(const uint8_t *p) { return ((uint32_t)p[0] << 24) | (p[1] << 16) | (p[2] << 8) | p[3]; }
 static uint32_t be16(const uint8_t *p) { return (p[0] << 8) | p[1]; }
 
-static void load_fork(const char *path) {
-    FILE *f = fopen(path, "rb"); if (!f) { perror(path); exit(1); }
-    fseek(f, 0, SEEK_END); forklen = ftell(f); fseek(f, 0, SEEK_SET);
-    rfork = malloc(forklen); if (fread(rfork, 1, forklen, f) != forklen) exit(1); fclose(f);
-    uint32_t dataoff = be32(rfork), mapoff = be32(rfork + 4);
-    const uint8_t *map = rfork + mapoff;
+static void parse_rsrc(const uint8_t *fk, size_t len, int fi) {
+    uint32_t dataoff = be32(fk), mapoff = be32(fk + 4);
+    const uint8_t *map = fk + mapoff;
     uint32_t tl = be16(map + 24);
     const uint8_t *tlist = map + tl;
     int ntypes = (int)be16(tlist) + 1;
     for (int t = 0; t < ntypes; t++) {
         const uint8_t *te = tlist + 2 + t * 8;
         int cnt = (int)be16(te + 4) + 1; uint32_t refoff = be16(te + 6);
-        for (int i = 0; i < cnt; i++) {
+        for (int i = 0; i < cnt && nres < 8192; i++) {
             const uint8_t *re = tlist + refoff + i * 12;
-            res = realloc(res, sizeof(Res) * (nres + 1));
-            Res *r = &res[nres++];
+            Res *r = &res[nres++]; memset(r, 0, sizeof *r);
             r->type = be32(te); r->id = (int16_t)be16(re); r->attrs = re[4];
             uint32_t doff = ((uint32_t)re[5] << 16) | (re[6] << 8) | re[7];
-            r->off = dataoff + doff + 4; r->len = be32(rfork + dataoff + doff); r->handle = 0; r->name[0] = 0;
+            r->off = dataoff + doff + 4; r->len = be32(fk + dataoff + doff); r->buf = fk; r->file = fi;
             { uint32_t no = be16(re + 2); if (no != 0xFFFF) { const uint8_t *np = map + be16(map + 26) + no; int nl = np[0]; if (nl > 63) nl = 63; memcpy(r->name, np + 1, nl); r->name[nl] = 0; } }
         }
     }
+}
+static void load_fork(const char *path) {
+    FILE *f = fopen(path, "rb"); if (!f) { perror(path); exit(1); }
+    fseek(f, 0, SEEK_END); forklen = ftell(f); fseek(f, 0, SEEK_SET);
+    rfork = malloc(forklen); if (fread(rfork, 1, forklen, f) != forklen) exit(1); fclose(f);
+    rfiles[0].used = 1; rfiles[0].buf = rfork; rfiles[0].len = forklen; chain[nchain++] = 0; cur_rf = 0;
+    parse_rsrc(rfork, forklen, 0);
     fprintf(stderr, "resources: %d\n", nres);
 }
-static Res *find_res(uint32_t type, int id) { for (int i = 0; i < nres; i++) if (res[i].type == type && res[i].id == id) return &res[i]; return NULL; }
-static Res *res_from_handle(uint32_t h) { for (int i = 0; i < nres; i++) if (res[i].handle == h && h) return &res[i]; return NULL; }
+static Res *find_res(uint32_t type, int id) { for (int c = nchain - 1; c >= 0; c--) for (int i = 0; i < nres; i++) if (res[i].file == chain[c] && !res[i].dead && res[i].type == type && res[i].id == id) return &res[i]; return NULL; }
+static Res *find_res_1(uint32_t type, int id) { for (int i = 0; i < nres; i++) if (res[i].file == cur_rf && !res[i].dead && res[i].type == type && res[i].id == id) return &res[i]; return NULL; }
+static Res *res_from_handle(uint32_t h) { if (!h) return NULL; for (int i = 0; i < nres; i++) if (res[i].handle == h && !res[i].dead) return &res[i]; return NULL; }
 
 /* ---------------- Memory manager ---------------- */
 static uint32_t heap_ptr = HEAP_START, next_slot = 0;
@@ -105,7 +111,7 @@ static uint32_t slot_of(uint32_t h) { return (h - MP_BASE) / 4; }
 static uint32_t res_get_handle(Res *r) {
     if (!r->handle) {
         r->handle = new_handle(r->len);
-        memcpy(ram + rd32(r->handle), rfork + r->off, r->len);
+        memcpy(ram + rd32(r->handle), r->buf + r->off, r->len);
     }
     return r->handle;
 }
@@ -119,8 +125,10 @@ static int trap_key(uint32_t w, int newtool) {
 #include "trapnames.h"
 #define tname tname_tbl
 
+static uint32_t pcring[64]; static int pcri = 0;
 static unsigned long ntraps;
-static int trace_limit = 400;
+static char tring[600][160]; static int tri = 0;
+static int trace_limit = 150;
 
 static void do_loadseg(uint32_t ret) {
     uint32_t segno = rd16(SP); setsp(SP + 2);
@@ -137,7 +145,6 @@ static void do_loadseg(uint32_t ret) {
     W(M68K_REG_PC, ret - 6);   /* stub entry + 2, now a JMP.L */
 }
 
-#include "fs.inc"
 /* Returns via W(PC) -- handler may redirect; otherwise PC=ret. */
 #include <time.h>
 #include <strings.h>
@@ -160,15 +167,22 @@ static void init_graf(uint32_t P) {
     wr32(P - 126, 1);       /* randSeed */
     wr32(P, 0);             /* thePort */
 }
+#include "fs.inc"
+#include "rm.inc"
+#include "qd.inc"
+#include "snd.inc"
+#include "tasks.inc"
 static void hle(uint16_t w, uint32_t ret) {
     ntraps++;
     int redirected = 0;
     uint16_t n = (w & 0x800) ? (w & 0xFBFF) : (w & 0xF8FF);   /* normalised trap word */
+    snprintf(tring[tri++ % 600], 160, "[trap %04X %-18s] D0=%08x A0=%08x A1=%08x SP=%06x ret=%06x", w, tname(w), D(0), A(0), A(1), SP, ret);
     if (trace_limit > 0) {
         trace_limit--;
         fprintf(stderr, "[trap %04X %-18s] D0=%08x A0=%08x A1=%08x SP=%06x ret=%06x\n", w, tname(w), D(0), A(0), A(1), SP, ret);
     }
     uint32_t sp = SP;
+    if (rm_dispatch(w, n, ret)) { W(M68K_REG_PC, ret); return; }
     switch (n) {
     /* ---- Memory Manager ---- */
     case 0xA01E: SETA(0, alloc_block(D(0))); SETD(0, 0); break;
@@ -191,6 +205,13 @@ static void hle(uint16_t w, uint32_t ret) {
     case 0xA062: SETD(0, HEAP_END - heap_ptr); SETA(0, HEAP_END - heap_ptr); break;/* PurgeSpace */
     case 0xA065: SETD(0, SP - rd32(0x130)); break;                                 /* StackSpace */
     case 0xA055: break;                                                            /* StripAddress */
+    case 0xA028: { uint32_t p = A(0), hh = 0; for (uint32_t s = 0; s < next_slot; s++) if (rd32(MP_BASE + s * 4) == p) { hh = MP_BASE + s * 4; break; } SETA(0, hh); SETD(0, hh ? 0 : (uint32_t)-111); break; }  /* RecoverHandle */
+    case 0xA01A: SETA(0, HEAP_START); SETD(0, 0); break;                           /* GetZone */
+    case 0xA01B: SETD(0, 0); break;                                                /* SetZone */
+    case 0xA026: SETA(0, HEAP_START); SETD(0, 0); break;                           /* HandleZone */
+    case 0xA019: case 0xA02C: SETD(0, 0); break;                                   /* InitZone / InitApplZone */
+    case 0xA039: wr32(0x20C, (uint32_t)(time(NULL) + 2082844800u)); SETD(0, 0); break; /* ReadDateTime */
+    case 0xA03B: SETD(0, 0); break;                                                /* Delay (handled loosely) */
     case 0xA02E: case 0xA22E: { memmove(ram + (A(1) & 0xFFFFFF), ram + (A(0) & 0xFFFFFF), D(0)); SETD(0, 0); break; }
     case 0xA9E1: { uint32_t h = A(0), s = slot_of(h); uint32_t nh = new_handle(hsize[s]); memcpy(ram + rd32(nh), ram + rd32(h), hsize[s]); SETA(0, nh); SETD(0, 0); break; }
     case 0xA9E3: { uint32_t nh = new_handle(D(0)); memcpy(ram + rd32(nh), ram + (A(0) & 0xFFFFFF), D(0)); SETA(0, nh); SETD(0, 0); break; }
@@ -224,13 +245,16 @@ static void hle(uint16_t w, uint32_t ret) {
     case 0xA99D: { uint32_t type = rd32(sp), idx = rd16(sp + 4); int c = 0; uint32_t h = 0; for (int i = 0; i < nres; i++) if (res[i].type == type && ++c == (int)idx) { h = res_get_handle(&res[i]); break; } setsp(sp + 6); wr32(sp + 6, h); break; }
     case 0xA99E: { int c = 0; uint32_t seen[64]; for (int i = 0; i < nres; i++) { int f = 0; for (int j = 0; j < c; j++) if (seen[j] == res[i].type) f = 1; if (!f && c < 64) seen[c++] = res[i].type; } wr16(sp, c); break; }
     case 0xA997: setsp(sp + 4); wr16(sp + 4, 0xFFFF); res_err = -43; break;  /* OpenResFile (not found) */
-    case 0xA000: case 0xA001: case 0xA002: case 0xA003: case 0xA008: case 0xA009: case 0xA00A: case 0xA00C: case 0xA011: case 0xA012:
+    case 0xA000: case 0xA001: case 0xA002: case 0xA003: case 0xA008: case 0xA009: case 0xA00A: case 0xA00C: case 0xA00D: case 0xA011: case 0xA012:
     case 0xA014: case 0xA015: case 0xA018: case 0xA044: case 0xA060: {
         if (trace_limit > 0) { fprintf(stderr, "    PB:"); for (int i = 0; i < 64; i += 2) fprintf(stderr, " %04x", rd16(A(0) + i)); fprintf(stderr, "\n"); }
         int err = fs_dispatch(w, n, D(0), A(0)); wr16(A(0) + 16, (uint16_t)err); SETD(0, (uint32_t)err);
         if (trace_limit > 0) fprintf(stderr, "    -> FS err=%d\n", err); break; }
+    case 0xA98B: {      /* ParamText(p0,p1,p2,p3) */
+        for (int i = 0; i < 4; i++) { uint32_t p = rd32(sp + 12 - i * 4); char b[256]; int l = p ? rd8(p) : 0; for (int k = 0; k < l; k++) b[k] = rd8(p + 1 + k); b[l] = 0; fprintf(stderr, "  ParamText[%d]=\"%s\"\n", i, b); }
+        setsp(sp + 16); break; }
+    case 0xA9B1: { uint32_t p = rd32(sp); char b[256]; int l = rd8(p); for (int k = 0; k < l; k++) b[k] = rd8(p + 1 + k); b[l] = 0; fprintf(stderr, "  CreateResFile(\"%s\")\n", b); setsp(sp + 4); res_err = 0; break; }
     /* ---- Init / environment ---- */
-    case 0xA86E: init_graf(rd32(sp)); setsp(sp + 4); break;
     case 0xA97B: case 0xA851: setsp(sp + 4); break;                        /* InitDialogs, SetCursor */
     case 0xA8FE: case 0xA912: case 0xA930: case 0xA9CC: case 0xA850: case 0xA852: case 0xA853: case 0xA856: case 0xA9E6: break;
     case 0xA9C8: case 0xA9E5: setsp(sp + 2); break;                        /* SysBeep, InitPack */
@@ -250,9 +274,12 @@ static void hle(uint16_t w, uint32_t ret) {
         SETA(0, v); SETD(0, ok ? 0 : (uint32_t)-5551); break; }
     /* ---- Segment loader / process ---- */
     case 0xA9F0: do_loadseg(ret); redirected = 1; break;
-    case 0xA9F4: die("ExitToShell (clean exit)"); redirected = 1; break;
+    case 0xA9F4: rm_flush_all(); die("ExitToShell (clean exit)"); redirected = 1; break;
     case 0xA9C9: die("SysError(%d)", (int16_t)D(0)); redirected = 1; break;
     default:
+        if (qd_dispatch(w, n, ret)) break;
+        if (snd_dispatch(w, n, ret)) break;
+        if (tasks_dispatch(w, n, ret)) break;
         die("unimplemented trap %04X %s at ret=%06x  (D0=%08x A0=%08x A1=%08x SP=%06x)", w, tname(w), ret, D(0), A(0), A(1), SP);
         redirected = 1; break;
     }
@@ -262,7 +289,12 @@ static void hle(uint16_t w, uint32_t ret) {
 static int pctrace = 0;
 void castles_instr_hook(unsigned int pc) {
     for (;;) {
-        uint32_t op = rd16(pc);
+        if (pc == SENTINEL) { call_done = 1; m68k_end_timeslice(); return; }
+        uint32_t op = rd16(pc); if (pc > 0x1000) pcring[pcri++ & 63] = pc;
+        if (pc==0x53ece||pc==0x53f4e||pc==0x53f60||pc==0x53f6a||pc==0x53f74||pc==0x53f7e||pc==0x53f88||pc==0x53f92||pc==0x53f9c||pc==0x53f58) fprintf(stderr,"[probe] pc=%06x d0=%08x\n",pc,R(M68K_REG_D0));
+        if (pc==0x5655c) { uint32_t sp_=SP, a6=R(M68K_REG_A6); fprintf(stderr,"[probe] vremove-fn ret=%06x a6=%06x ret2=%06x\n",rd32(sp_),a6,rd32(a6+4)); }
+        if (pc==0x5447c) {} if (pc==0x55478) { fprintf(stderr,"[probe] driver entry=%06x\n",A(0)); pctrace=400; }
+        if (pc==0x55480) fprintf(stderr,"[probe] driver cmd15 -> %04x\n",R(M68K_REG_D0)&0xffff);
         if (pctrace > 0) { pctrace--; fprintf(stderr, "   pc=%06x op=%04x sp=%06x a0=%08x a1=%08x\n", pc, op, SP, A(0), A(1)); }
         if ((op & 0xF000) != 0xA000 || halted) return;
         uint32_t ret;
@@ -273,6 +305,7 @@ void castles_instr_hook(unsigned int pc) {
             ret = pc + 2;
         }
         hle((uint16_t)op, ret);
+        if (!(op & 0x800) && !halted) { uint32_t d0 = R(M68K_REG_D0) & 0xFFFF; uint32_t sr = R(M68K_REG_SR) & ~0xFu; if (d0 == 0) sr |= 4; if (d0 & 0x8000) sr |= 8; W(M68K_REG_SR, sr); }  /* OS traps set CCR from D0.w */
         pc = R(M68K_REG_PC);
     }
 }
@@ -283,6 +316,7 @@ int main(int argc, char **argv) {
     load_fork(argv[1]); if (argc > 2) strncpy(game_root, argv[2], sizeof game_root - 1);
     for (uint32_t k = 0; k < 0x1000; k++) { wr16(STUB_BASE + k * 4, 0xA000 | (k >= 0x400 ? 0x800 | (k - 0x400) : k)); wr16(STUB_BASE + k * 4 + 2, 0x4E75); }
 
+    wr16(SENTINEL, 0x4E71); wr16(SENTINEL + 2, 0x4E71);
     Res *c0 = find_res(0x434F4445, 0); if (!c0) { fprintf(stderr, "no CODE 0\n"); return 1; }
     const uint8_t *p = rfork + c0->off;
     uint32_t above = be32(p), below = be32(p + 4), jtlen = be32(p + 8), jtoff = be32(p + 12);
@@ -296,7 +330,7 @@ int main(int argc, char **argv) {
     { const char *an = "Castles - Siege & Conquest"; wr8(0x910, strlen(an)); for (size_t i = 0; i < strlen(an); i++) wr8(0x911 + i, an[i]); } /* CurApName */
     wr32(0, STACK_TOP - 8); wr32(4, a5 + jtoff + 2);
 
-    m68k_set_cpu_type(M68K_CPU_TYPE_68000);
+    m68k_set_cpu_type(M68K_CPU_TYPE_68030);
     m68k_init();
     m68k_pulse_reset();
     W(M68K_REG_A5, a5);
@@ -305,7 +339,9 @@ int main(int argc, char **argv) {
     W(M68K_REG_PC, a5 + jtoff + 2);
 
     unsigned long guard = 0;
-    while (!halted && guard++ < 3000) m68k_execute(10000);
+    while (!halted && guard++ < 3000) { m68k_execute(10000); wr32(0x16A, ticks_now()); wr32(0x20C, (uint32_t)(time(NULL) + 2082844800u)); run_tasks(); }
+    { fprintf(stderr, "recent traps:\n"); for (int i = 0; i < 600; i++) { const char *l = tring[(tri + i) % 600]; if (l[0]) fprintf(stderr, "  %s\n", l); } }
+    if (!halted) { fprintf(stderr, "last pcs:"); for (int i = 0; i < 40; i++) fprintf(stderr, " %06x", pcring[(pcri - 40 + i) & 63]); fprintf(stderr, "\n"); }
     fprintf(stderr, "stopped: traps=%lu pc=%06x sp=%06x\n", ntraps, R(M68K_REG_PC), SP);
     { FILE *df = fopen("build/ram.bin", "wb"); if (df) { fwrite(ram, 1, RAM_SIZE, df); fclose(df); } }
     return halted ? 0 : 3;

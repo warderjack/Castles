@@ -54,11 +54,11 @@ static int mb_parse(const char *p, long *dlen, long *rlen) {
     *dlen = be32(h + 83); *rlen = be32(h + 87); return 1;
 }
 static int open_fork(const char *path, int rf, int wr) {
-    (void)wr; int slot = -1; for (int i = 1; i < MAXOPEN; i++) if (!ofiles[i].f) { slot = i; break; } if (slot < 0) return -42;
+    int slot = -1; for (int i = 1; i < MAXOPEN; i++) if (!ofiles[i].f) { slot = i; break; } if (slot < 0) return -42;
     OF *o = &ofiles[slot]; memset(o, 0, sizeof *o); o->rf = rf; strncpy(o->path, path, sizeof o->path - 1);
     size_t L = strlen(path); int isbin = L > 4 && !strcasecmp(path + L - 4, ".bin");
     char other[1200];
-    if (!rf && !isbin) { o->f = fopen(path, "rb"); if (!o->f) return -43; o->base = 0; o->len = fsize(path); }
+    if (!rf && !isbin) { o->f = fopen(path, wr ? "r+b" : "rb"); if (!o->f) return wr ? -61 : -43; o->base = 0; o->len = fsize(path); }
     else {
         const char *src = path;
         if (!isbin) { snprintf(other, sizeof other, "%s.bin", path); src = other; }
@@ -109,7 +109,7 @@ static int fs_dispatch(uint16_t w, uint16_t n, uint32_t sel, uint32_t pb) {
     switch (n) {
     case 0xA000: case 0xA00A: {
         e = resolve(dirid, rd32(pb + 18), path, &isdir); if (e) return e; if (isdir) return -43;
-        int s = open_fork(path, n == 0xA00A, 0); if (s < 0) return s; wr16(pb + 24, s); return 0; }
+        int perm = rd8(pb + 27); int s = open_fork(path, n == 0xA00A, perm == 2 || perm == 3 || perm == 4); if (s < 0) return s; wr16(pb + 24, s); return 0; }
     case 0xA001: { OF *o = getof(rd16(pb + 24)); if (!o) return -51; fclose(o->f); o->f = NULL; return 0; }
     case 0xA002: {
         OF *o = getof(rd16(pb + 24)); if (!o) return -51;
@@ -118,7 +118,12 @@ static int fs_dispatch(uint16_t w, uint16_t n, uint32_t sel, uint32_t pb) {
         uint32_t cnt = req < avail ? req : (uint32_t)avail;
         fseek(o->f, o->base + pos, SEEK_SET); size_t got = fread(ram + (buf & 0xFFFFFF), 1, cnt, o->f); o->mark = pos + got;
         wr32(pb + 40, got); wr32(pb + 46, o->mark); return got < req ? -39 : 0; }
-    case 0xA003: return -61;
+    case 0xA003: {
+        OF *o = getof(rd16(pb + 24)); if (!o) return -51; if (o->rf || o->base) return -61;
+        int64_t pos = posof(o, pb, rd16(pb + 44), (int32_t)rd32(pb + 46)); if (pos < 0) return -40;
+        uint32_t req = rd32(pb + 36), buf = rd32(pb + 32);
+        fseek(o->f, pos, SEEK_SET); size_t put = fwrite(ram + (buf & 0xFFFFFF), 1, req, o->f); fflush(o->f);
+        o->mark = pos + put; if (o->mark > o->len) o->len = o->mark; wr32(pb + 40, put); wr32(pb + 46, o->mark); return put < req ? -34 : 0; }
     case 0xA011: { OF *o = getof(rd16(pb + 24)); if (!o) return -51; wr32(pb + 28, o->len); return 0; }
     case 0xA012: return 0;
     case 0xA018: { OF *o = getof(rd16(pb + 24)); if (!o) return -51; wr32(pb + 46, o->mark); return 0; }
@@ -131,7 +136,17 @@ static int fs_dispatch(uint16_t w, uint16_t n, uint32_t sel, uint32_t pb) {
         if (idx > 0) { const char *base = dir_path(dirid ? dirid : cur_dir); if (!base || !enum_dir(base, idx, path)) return -43; struct stat st; stat(path, &st); isdir = S_ISDIR(st.st_mode); }
         else { e = resolve(dirid, rd32(pb + 18), path, &isdir); if (e) return e; }
         dir_of_path(path, par); fill_cat(pb, path, isdir, dir_id_for(par)); return 0; }
-    case 0xA008: return -61; case 0xA009: return -61;
+    case 0xA008: {                                   /* Create */
+        char nm[300]; pstr(rd32(pb + 18), nm, sizeof nm); const char *base = dir_path(dirid ? dirid : cur_dir); if (!base) return -120;
+        char full[1100], parent[1100]; strncpy(parent, base, sizeof parent); char *leaf = nm;
+        if (strchr(nm, ':')) { char *c = strrchr(nm, ':'); leaf = c + 1; if (c != nm) { *c = 0; char pp[1100]; int di; /* resolve prefix */ uint32_t t = rd32(pb + 18); (void)t;
+            char tmpn[300]; tmpn[0] = strlen(nm); memcpy(tmpn + 1, nm, strlen(nm)); /* resolve via scratch pascal string */ uint32_t sa = 0x3F00; wr8(sa, tmpn[0]); for (int i = 0; i < tmpn[0]; i++) wr8(sa + 1 + i, nm[i]);
+            if (resolve(dirid, sa, pp, &di) || !di) return -120; strncpy(parent, pp, sizeof parent); } }
+        snprintf(full, sizeof full, "%s/%s", parent, leaf); struct stat st; if (!stat(full, &st)) return -48;
+        FILE *f = fopen(full, "wb"); if (!f) return -61; fclose(f); return 0; }
+    case 0xA009: {                                   /* Delete */
+        e = resolve(dirid, rd32(pb + 18), path, &isdir); if (e) return e; remove(path); size_t L = strlen(path); if (!(L > 4 && !strcasecmp(path + L - 4, ".bin"))) { strcat(path, ".bin"); remove(path); } return 0; }
+    case 0xA00D: { e = resolve(dirid, rd32(pb + 18), path, &isdir); return e; }   /* SetFileInfo: accepted, finder info not stored */
     case 0xA060:
         switch (sel & 0xFFFF) {
         case 1: { uint32_t d = rd32(pb + 48); if (!d) d = cur_dir; wr16(pb + 22, 0x100 + d); return 0; }          /* OpenWD */
