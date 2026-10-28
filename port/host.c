@@ -228,6 +228,7 @@ static void init_graf(uint32_t P) {
 #include "sane.inc"
 #include "snd.inc"
 #include "tasks.inc"
+#include "sfg.inc"
 #include "movie.inc"
 static void hle(uint16_t w, uint32_t ret) {
     ntraps++;
@@ -242,6 +243,7 @@ static void hle(uint16_t w, uint32_t ret) {
     uint32_t sp = SP;
     if (rm_dispatch(w, n, ret)) { W(M68K_REG_PC, ret); return; }
     if (dlg_dispatch(w, n, ret)) { if (!wm_redirected) W(M68K_REG_PC, ret); wm_redirected = 0; return; }
+    if (sf_dispatch(w, n, ret)) { if (!wm_redirected) W(M68K_REG_PC, ret); wm_redirected = 0; return; }
     if (wm_dispatch(w, n, ret)) { if (!wm_redirected) W(M68K_REG_PC, ret); wm_redirected = 0; return; }
     switch (n) {
     /* ---- Memory Manager ---- */
@@ -350,7 +352,6 @@ static void hle(uint16_t w, uint32_t ret) {
         if (tasks_dispatch(w, n, ret)) break;
         if (qt_dispatch(w, n, ret)) break;
         if (misc_dispatch(w, n, ret)) break;
-        if (sf_dispatch(w, n, ret)) break;
         if (n == 0xA9EA) fprintf(stderr, "P3 stack: %04x %04x%04x %04x%04x %04x%04x %04x%04x %04x%04x\n", rd16(SP), rd16(SP+2), rd16(SP+4), rd16(SP+6), rd16(SP+8), rd16(SP+10), rd16(SP+12), rd16(SP+14), rd16(SP+16), rd16(SP+18), rd16(SP+20));
         die("unimplemented trap %04X %s at ret=%06x  (D0=%08x A0=%08x A1=%08x SP=%06x)", w, tname(w), ret, D(0), A(0), A(1), SP);
         redirected = 1; break;

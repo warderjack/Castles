@@ -165,7 +165,7 @@ static int sf_dispatch(uint16_t w, uint16_t n, uint32_t ret) {
         char nm[80]; pstr(orig, nm, 64); if (!*nm) strcpy(nm, "Untitled");
         wr8(reply, 1); wr8(reply + 1, 0); wr32(reply + 2, 0); wr16(reply + 6, (uint16_t)cur_vref); wr16(reply + 8, 0); int L = strlen(nm); wr8(reply + 10, L); for (int i = 0; i < L; i++) wr8(reply + 11 + i, nm[i]);
         fprintf(stderr, "  [sf] SFPutFile -> '%s'\n", nm); return 1; }
-    case 2: { uint32_t reply = rd32(sp + 2); setsp(sp + 28); wr8(reply, 0); fprintf(stderr, "  [sf] SFGetFile -> cancel\n"); return 1; }
+    case 2: { uint32_t reply = rd32(sp + 2), where = rd32(sp + 24); if (!sfg_step(ret, reply, (int16_t)(where >> 16), (int16_t)(where & 0xFFFF))) return 1; setsp(sp + 28); return 1; }
     case 4: { uint32_t reply = rd32(sp + 2); setsp(sp + 34); wr8(reply, 0); fprintf(stderr, "  [sf] SFPGetFile -> cancel\n"); return 1; }
     }
     return 0;

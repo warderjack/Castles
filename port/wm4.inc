@@ -122,7 +122,7 @@ static int wm_dispatch(uint16_t w, uint16_t n, uint32_t ret) {
     case 0xA948: { uint32_t mh = rd32(sp); setsp(sp + 4); int ww, hh; if (mh) menu_calc(mh, &ww, &hh); return 1; }
     case 0xA93D: { /* MenuSelect(startPt): long */
         int v = (int16_t)rd16(sp), h = (int16_t)rd16(sp + 2); uint32_t res = 0;
-        if (menu_select_step(h, v, &res)) { setsp(sp + 4); wr32(sp + 4, res); } else { rewind_trap(ret); idle_hint = 1; } return 1; }
+        if (menu_select_step(h, v, &res)) { if (getenv("MENUDBG")) fprintf(stderr, "  [menu] select -> %08x\n", res); setsp(sp + 4); wr32(sp + 4, res); } else { rewind_trap(ret); idle_hint = 1; } return 1; }
     case 0xA93E: {      /* MenuKey(ch): long */
         int ch = rd16(sp) & 0xFF; setsp(sp + 2); if (ch >= 'a' && ch <= 'z') ch -= 32; uint32_t res = 0;
         for (int i = 0; i < nmenus && !res; i++) { uint32_t mh = menus[i]; int c = menu_count(mh); for (int k = 1; k <= c; k++) { uint32_t p = menu_item_addr(mh, k); int key = rd8(p + 1 + rd8(p) + 1); if (key >= 'a' && key <= 'z') key -= 32; if (key && key == ch && menu_item_enabled(mh, k)) { res = ((uint32_t)menu_id(mh) << 16) | k; hilite_menu_id = menu_id(mh); menubar_draw(); gfx_dirty = 1; break; } } }

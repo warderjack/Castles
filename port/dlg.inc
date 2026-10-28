@@ -269,7 +269,7 @@ static int dlg_dispatch(uint16_t w, uint16_t n, uint32_t ret) {
     /* ---- Dialog Manager ---- */
     case 0xA97B: setsp(sp + 4); return 1;      /* InitDialogs */
     case 0xA98B: { for (int i = 0; i < 4; i++) { uint32_t p = rd32(sp + 12 - 4 * i); pstring(p, ptxt[i], 256); } setsp(sp + 16); return 1; }
-    case 0xA97C: { uint32_t behind = rd32(sp), storage = rd32(sp + 4); int id = (int16_t)rd16(sp + 8); setsp(sp + 10); uint32_t wn = 0; Res *r = find_res(0x444C4F47, id);
+    case 0xA97C: { if (getenv("DLGDBG")) fprintf(stderr, "  [dlg] GetNewDialog id=%d\n", (int16_t)rd16(SP + 8)); uint32_t behind = rd32(sp), storage = rd32(sp + 4); int id = (int16_t)rd16(sp + 8); setsp(sp + 10); uint32_t wn = 0; Res *r = find_res(0x444C4F47, id);
         if (r) { const uint8_t *b = res_bytes(r); Rc bd = {(int16_t)be16(b), (int16_t)be16(b + 2), (int16_t)be16(b + 4), (int16_t)be16(b + 6)}; int proc = (int16_t)be16(b + 8), vis = b[10] != 0, go = b[12] != 0; uint32_t ref = be32(b + 14); int iid = (int16_t)be16(b + 18);
             uint8_t tp[256]; int tl = b[20]; tp[0] = tl; memcpy(tp + 1, b + 21, tl); uint32_t tmp = alloc_block(260); for (int i = 0; i <= tl; i++) wr8(tmp + i, tp[i]);
             Res *ir = find_res(0x4449544C, iid); if (ir) { const uint8_t *ib = res_bytes(ir); wn = dlg_create(storage, bd, tmp, vis, proc, behind, go, ref, ib, slot_len(ir)); } free_block(tmp); }
