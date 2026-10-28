@@ -104,7 +104,7 @@ static int64_t posof(OF *o, uint32_t pb, int mode, int32_t off) {
 /* w = full trap word; n = normalised; returns OSErr */
 static int fs_dispatch(uint16_t w, uint16_t n, uint32_t sel, uint32_t pb) {
     char path[1100], par[1100]; int isdir, e; fs_init();
-    uint32_t dirid = rd32(pb + 48);
+    uint32_t dirid = (w & 0x200) ? rd32(pb + 48) : 0;
     if (!dirid) { int16_t v = (int16_t)rd16(pb + 22); if (v >= 0x100) dirid = v - 0x100; }
     switch (n) {
     case 0xA000: case 0xA00A: {
@@ -149,7 +149,9 @@ static int fs_dispatch(uint16_t w, uint16_t n, uint32_t sel, uint32_t pb) {
     case 0xA00D: { e = resolve(dirid, rd32(pb + 18), path, &isdir); return e; }   /* SetFileInfo: accepted, finder info not stored */
     case 0xA060:
         switch (sel & 0xFFFF) {
-        case 1: { uint32_t d = rd32(pb + 48); if (!d) d = cur_dir; wr16(pb + 22, 0x100 + d); return 0; }          /* OpenWD */
+        case 1: { uint32_t d = rd32(pb + 48); if (!d) d = dirid ? dirid : cur_dir;                                   /* OpenWD */
+            if (rd32(pb + 18) && rd8(rd32(pb + 18))) { e = resolve(d, rd32(pb + 18), path, &isdir); if (e) return e; if (!isdir) return -120; d = dir_id_for(path); }
+            wr16(pb + 22, 0x100 + d); return 0; }
         case 2: return 0;
         case 7: { int16_t v = (int16_t)rd16(pb + 22); uint32_t d = v >= 0x100 ? (uint32_t)(v - 0x100) : cur_dir; wr16(pb + 32, (uint16_t)-1); wr32(pb + 48, d); if (rd32(pb + 18)) put_pstr(rd32(pb + 18), volname); return 0; }
         case 8: {                                                                                                  /* GetFCBInfo */

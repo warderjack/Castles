@@ -54,6 +54,9 @@ static void pstring(uint32_t a, char *out, int max) { int l = a ? rd8(a) : 0; if
 static int rm_dispatch(uint16_t w, uint16_t n, uint32_t ret) {
     uint32_t sp = SP;
     switch (n) {
+    case 0xA992: { Res *r = res_from_handle(rd32(sp)); if (r) r->handle = 0; setsp(sp + 4); res_err = r ? 0 : -192; return 1; }     /* DetachResource: handle now belongs to the app */
+    case 0xA9A3: { uint32_t h = rd32(sp); Res *r = res_from_handle(h); if (r) { r->handle = 0; dispose_handle(h); } setsp(sp + 4); res_err = r ? 0 : -192; return 1; }   /* ReleaseResource */
+    case 0xA9A2: setsp(sp + 4); return 1;                                                                                              /* LoadResource */
     case 0xA997: {          /* OpenResFile(name): refnum */
         char path[1100], bin[1200]; int isdir; if (resolve(0, rd32(sp), path, &isdir) || isdir) { setsp(sp + 4); wr16(sp + 4, 0xFFFF); res_err = -43; return 1; }
         size_t L = strlen(path); const char *src = path; if (!(L > 4 && !strcasecmp(path + L - 4, ".bin"))) { snprintf(bin, sizeof bin, "%s.bin", path); src = bin; }

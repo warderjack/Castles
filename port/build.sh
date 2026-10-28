@@ -7,6 +7,9 @@ mkdir -p build
 [ -f castles_conf.h ] || { echo "castles_conf.h missing"; exit 1; }
 gcc -O2 -o build/m68kmake musashi-upstream/m68kmake.c
 (cd build && ./m68kmake . ../musashi-upstream/m68k_in.c)
-gcc -O2 -w -DMUSASHI_CNF='"castles_conf.h"' -I. -Imusashi-upstream -Ibuild -o build/castles_host \
-    host.c musashi-upstream/m68kcpu.c build/m68kops.c musashi-upstream/softfloat/softfloat.c -lm
+SDLC=""; SDLL=""
+if command -v sdl2-config >/dev/null 2>&1; then SDLC="-DHAVE_SDL $(sdl2-config --cflags)"; SDLL="$(sdl2-config --libs)"
+elif [ -x ../tools/sdl2-install/bin/sdl2-config ]; then P=$(cd ../tools/sdl2-install && pwd); SDLC="-DHAVE_SDL -I$P/include/SDL2 -D_REENTRANT"; SDLL="-L$P/lib -Wl,-rpath,$P/lib -lSDL2"; fi
+gcc -O2 -w $SDLC -DMUSASHI_CNF='"castles_conf.h"' -I. -Imusashi-upstream -Ibuild -o build/castles_host \
+    host.c musashi-upstream/m68kcpu.c build/m68kops.c musashi-upstream/softfloat/softfloat.c $SDLL -lm
 echo "built build/castles_host   (run: build/castles_host path/to/rsrc.fork)"

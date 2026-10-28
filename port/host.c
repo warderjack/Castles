@@ -44,6 +44,8 @@ static uint32_t pop32(void) { uint32_t s = SP; uint32_t v = rd32(s); setsp(s + 4
 static int halted = 0;
 static void die(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 #include <stdarg.h>
+#include <unistd.h>
+#include <time.h>
 static void die(const char *fmt, ...) {
     va_list ap; va_start(ap, fmt); fprintf(stderr, "HALT: "); vfprintf(stderr, fmt, ap); fprintf(stderr, "\n"); va_end(ap);
     halted = 1; m68k_end_timeslice();
@@ -90,23 +92,52 @@ static Res *find_res(uint32_t type, int id) { for (int c = nchain - 1; c >= 0; c
 static Res *find_res_1(uint32_t type, int id) { for (int i = 0; i < nres; i++) if (res[i].file == cur_rf && !res[i].dead && res[i].type == type && res[i].id == id) return &res[i]; return NULL; }
 static Res *res_from_handle(uint32_t h) { if (!h) return NULL; for (int i = 0; i < nres; i++) if (res[i].handle == h && !res[i].dead) return &res[i]; return NULL; }
 
-/* ---------------- Memory manager ---------------- */
-static uint32_t heap_ptr = HEAP_START, next_slot = 0;
+/* ---------------- Memory manager: first/best-fit heap with coalescing free list; handles never move ---------------- */
+static uint32_t next_slot = 0;
 static uint32_t hsize[MP_COUNT]; static uint8_t hflags[MP_COUNT];
-
+static uint32_t *free_slots; static int nfree_slots = 0, capfree_slots = 0;
+typedef struct { uint32_t a, n; } Ext;               /* a = block start (header), n = total bytes incl. 8-byte header */
+static Ext *fl; static int nfl = 0, capfl = 0; static int heap_ready = 0; static uint32_t heap_free = 0;
+static void fl_insert(uint32_t a, uint32_t n) {       /* insert sorted, coalescing */
+    int lo = 0, hi = nfl; while (lo < hi) { int m = (lo + hi) / 2; if (fl[m].a < a) lo = m + 1; else hi = m; }
+    if (lo > 0 && fl[lo - 1].a + fl[lo - 1].n == a) { fl[lo - 1].n += n; if (lo < nfl && fl[lo - 1].a + fl[lo - 1].n == fl[lo].a) { fl[lo - 1].n += fl[lo].n; memmove(&fl[lo], &fl[lo + 1], (nfl - lo - 1) * sizeof(Ext)); nfl--; } return; }
+    if (lo < nfl && a + n == fl[lo].a) { fl[lo].a = a; fl[lo].n += n; return; }
+    if (nfl == capfl) { capfl = capfl ? capfl * 2 : 256; fl = realloc(fl, capfl * sizeof(Ext)); }
+    memmove(&fl[lo + 1], &fl[lo], (nfl - lo) * sizeof(Ext)); fl[lo].a = a; fl[lo].n = n; nfl++;
+}
+static void heap_init(void) { heap_ready = 1; fl_insert(HEAP_START, HEAP_END - HEAP_START); heap_free = HEAP_END - HEAP_START; }
+static uint32_t heap_maxblock(void) { uint32_t m = 0; for (int i = 0; i < nfl; i++) if (fl[i].n > m) m = fl[i].n; return m > 8 ? m - 8 : 0; }
 static uint32_t alloc_block(uint32_t n) {
+    if (!heap_ready) heap_init();
     n = (n + 3) & ~3u; if (n == 0) n = 4;
-    uint32_t p = heap_ptr; heap_ptr += n + 8;
-    if (heap_ptr > HEAP_END) die("out of heap (n=%u)", n);
-    wr32(p, n); p += 8; memset(ram + p, 0, n);
-    return p;
+    uint32_t need = n + 8; int best = -1;
+    for (int i = 0; i < nfl; i++) if (fl[i].n >= need && (best < 0 || fl[i].n < fl[best].n)) { best = i; if (fl[i].n == need) break; }
+    if (best < 0) { fprintf(stderr, "[heap] out of memory (n=%u free=%u max=%u)\n", n, heap_free, heap_maxblock()); return 0; }
+    uint32_t b = fl[best].a, tot = fl[best].n;
+    if (tot - need >= 24) { fl[best].a += need; fl[best].n -= need; tot = need; }
+    else { memmove(&fl[best], &fl[best + 1], (nfl - best - 1) * sizeof(Ext)); nfl--; }
+    heap_free -= tot; wr32(b, tot - 8); wr32(b + 4, 1); memset(ram + b + 8, 0, tot - 8);
+    return b + 8;
+}
+static void free_block(uint32_t p) {
+    if (!p) return; uint32_t b = p - 8; if (b < HEAP_START || b >= HEAP_END || rd32(b + 4) != 1) return;
+    uint32_t tot = rd32(b) + 8; wr32(b + 4, 0); heap_free += tot; fl_insert(b, tot);
 }
 static uint32_t new_handle(uint32_t n) {
-    if (next_slot >= MP_COUNT) die("out of master pointers");
-    uint32_t s = next_slot++; wr32(MP_BASE + s * 4, alloc_block(n)); hsize[s] = n; hflags[s] = 0;
+    uint32_t s;
+    if (nfree_slots) s = free_slots[--nfree_slots]; else { if (next_slot >= MP_COUNT) { die("out of master pointers"); return 0; } s = next_slot++; }
+    uint32_t p = alloc_block(n); if (!p) { if (s == next_slot - 1) next_slot--; else free_slots[nfree_slots++] = s; return 0; }
+    wr32(MP_BASE + s * 4, p); hsize[s] = n; hflags[s] = 0;
     return MP_BASE + s * 4;
 }
 static uint32_t slot_of(uint32_t h) { return (h - MP_BASE) / 4; }
+static void dispose_handle(uint32_t h) {
+    if (h < MP_BASE || h >= MP_BASE + MP_COUNT * 4) return; uint32_t s = slot_of(h); if (s >= next_slot) return;
+    uint32_t p = rd32(h); if (!p) { return; }
+    free_block(p); wr32(h, 0); hsize[s] = 0;
+    if (nfree_slots == capfree_slots) { capfree_slots = capfree_slots ? capfree_slots * 2 : 256; free_slots = realloc(free_slots, capfree_slots * 4); }
+    free_slots[nfree_slots++] = s;
+}
 
 static uint32_t res_get_handle(Res *r) {
     if (!r->handle) {
@@ -155,7 +186,8 @@ static uint32_t cur_a5(void) { return R(M68K_REG_A5); }
 
 static uint32_t set_handle_size(uint32_t h, uint32_t n) {
     uint32_t s = slot_of(h);
-    if (n > hsize[s]) { uint32_t nb = alloc_block(n); memcpy(ram + nb, ram + rd32(h), hsize[s]); wr32(h, nb); }
+    uint32_t old = rd32(h), cap = old ? rd32(old - 8) : 0;
+    if (n > cap) { uint32_t nb = alloc_block(n); if (!nb) return (uint32_t)-108; if (old) { memcpy(ram + nb, ram + old, hsize[s] < n ? hsize[s] : n); free_block(old); } wr32(h, nb); }
     hsize[s] = n; return 0;
 }
 static void init_graf(uint32_t P) {
@@ -170,6 +202,15 @@ static void init_graf(uint32_t P) {
 #include "fs.inc"
 #include "rm.inc"
 #include "qd.inc"
+#include "gfx.inc"
+#include "gfxd.inc"
+#include "plat.inc"
+#include "wm.inc"
+#include "wm2.inc"
+#include "wm3.inc"
+#include "wm4.inc"
+#include "pal.inc"
+#include "sane.inc"
 #include "snd.inc"
 #include "tasks.inc"
 static void hle(uint16_t w, uint32_t ret) {
@@ -183,14 +224,16 @@ static void hle(uint16_t w, uint32_t ret) {
     }
     uint32_t sp = SP;
     if (rm_dispatch(w, n, ret)) { W(M68K_REG_PC, ret); return; }
+    if (wm_dispatch(w, n, ret)) { if (!wm_redirected) W(M68K_REG_PC, ret); wm_redirected = 0; return; }
     switch (n) {
     /* ---- Memory Manager ---- */
-    case 0xA01E: SETA(0, alloc_block(D(0))); SETD(0, 0); break;
-    case 0xA022: SETA(0, new_handle(D(0))); SETD(0, 0); break;
+    case 0xA01E: { uint32_t p = alloc_block(D(0)); SETA(0, p); SETD(0, p ? 0 : (uint32_t)-108); break; }
+    case 0xA022: { uint32_t h = new_handle(D(0)); SETA(0, h); SETD(0, h ? 0 : (uint32_t)-108); break; }
     case 0xA066: SETA(0, new_handle(0)); SETD(0, 0); break;        /* NewEmptyHandle */
-    case 0xA01F: case 0xA023: SETD(0, 0); break;                   /* Dispose* */
+    case 0xA01F: free_block(A(0)); SETD(0, 0); break;              /* DisposPtr */
+    case 0xA023: dispose_handle(A(0)); SETD(0, 0); break;          /* DisposHandle */
     case 0xA020: SETD(0, 0); break;                                /* SetPtrSize (no-op) */
-    case 0xA021: SETD(0, rd32(A(0) - 4)); break;                   /* GetPtrSize */
+    case 0xA021: SETD(0, rd32(A(0) - 8)); break;                   /* GetPtrSize */
     case 0xA024: SETD(0, set_handle_size(A(0), D(0))); break;      /* SetHandleSize */
     case 0xA025: SETD(0, hsize[slot_of(A(0))]); break;             /* GetHandleSize */
     case 0xA027: SETD(0, set_handle_size(A(0), D(0))); break;      /* ReallocHandle */
@@ -200,9 +243,10 @@ static void hle(uint16_t w, uint32_t ret) {
     case 0xA069: SETD(0, hflags[slot_of(A(0))]); break;
     case 0xA06A: hflags[slot_of(A(0))] = D(0) & 0xFF; SETD(0, 0); break;
     case 0xA036: case 0xA063: case 0xA02D: case 0xA04B: case 0xA040: case 0xA04D: SETD(0, 0); break; /* MoreMasters,MaxApplZone,SetApplLimit,SetGrowZone,ResrvMem,PurgeMem */
-    case 0xA01C: case 0xA04C: case 0xA061: SETD(0, HEAP_END - heap_ptr); break;   /* FreeMem, CompactMem, MaxBlock */
-    case 0xA01D: SETD(0, HEAP_END - heap_ptr); SETA(0, 0); break;                 /* MaxMem */
-    case 0xA062: SETD(0, HEAP_END - heap_ptr); SETA(0, HEAP_END - heap_ptr); break;/* PurgeSpace */
+    case 0xA01C: SETD(0, heap_free); break;                                       /* FreeMem */
+    case 0xA04C: case 0xA061: SETD(0, heap_maxblock()); break;                    /* CompactMem, MaxBlock */
+    case 0xA01D: SETD(0, heap_maxblock()); SETA(0, 0); break;                     /* MaxMem */
+    case 0xA062: SETD(0, heap_free); SETA(0, heap_maxblock()); break;            /* PurgeSpace */
     case 0xA065: SETD(0, SP - rd32(0x130)); break;                                 /* StackSpace */
     case 0xA055: break;                                                            /* StripAddress */
     case 0xA028: { uint32_t p = A(0), hh = 0; for (uint32_t s = 0; s < next_slot; s++) if (rd32(MP_BASE + s * 4) == p) { hh = MP_BASE + s * 4; break; } SETA(0, hh); SETD(0, hh ? 0 : (uint32_t)-111); break; }  /* RecoverHandle */
@@ -212,6 +256,7 @@ static void hle(uint16_t w, uint32_t ret) {
     case 0xA019: case 0xA02C: SETD(0, 0); break;                                   /* InitZone / InitApplZone */
     case 0xA039: wr32(0x20C, (uint32_t)(time(NULL) + 2082844800u)); SETD(0, 0); break; /* ReadDateTime */
     case 0xA03B: SETD(0, 0); break;                                                /* Delay (handled loosely) */
+    case 0xA013: case 0xA045: case 0xA017: case 0xA035: SETD(0, 0); break;                  /* FlushVol, FlushFile, Eject, Offline */
     case 0xA02E: case 0xA22E: { memmove(ram + (A(1) & 0xFFFFFF), ram + (A(0) & 0xFFFFFF), D(0)); SETD(0, 0); break; }
     case 0xA9E1: { uint32_t h = A(0), s = slot_of(h); uint32_t nh = new_handle(hsize[s]); memcpy(ram + rd32(nh), ram + rd32(h), hsize[s]); SETA(0, nh); SETD(0, 0); break; }
     case 0xA9E3: { uint32_t nh = new_handle(D(0)); memcpy(ram + rd32(nh), ram + (A(0) & 0xFFFFFF), D(0)); SETA(0, nh); SETD(0, 0); break; }
@@ -249,6 +294,8 @@ static void hle(uint16_t w, uint32_t ret) {
     case 0xA014: case 0xA015: case 0xA018: case 0xA044: case 0xA060: {
         if (trace_limit > 0) { fprintf(stderr, "    PB:"); for (int i = 0; i < 64; i += 2) fprintf(stderr, " %04x", rd16(A(0) + i)); fprintf(stderr, "\n"); }
         int err = fs_dispatch(w, n, D(0), A(0)); wr16(A(0) + 16, (uint16_t)err); SETD(0, (uint32_t)err);
+        { uint32_t np = rd32(A(0) + 18); char nm[80] = ""; if (np && np < RAM_SIZE) { int l = rd8(np); if (l > 70) l = 70; for (int i = 0; i < l; i++) nm[i] = rd8(np + 1 + i); nm[l] = 0; }
+          if (n != 0xA002 && n != 0xA003) fprintf(stderr, "  [fs] %04X \"%s\" vol/dir=%d/%u -> %d\n", w, nm, (int16_t)rd16(A(0) + 22), rd32(A(0) + 48), err); }
         if (trace_limit > 0) fprintf(stderr, "    -> FS err=%d\n", err); break; }
     case 0xA98B: {      /* ParamText(p0,p1,p2,p3) */
         for (int i = 0; i < 4; i++) { uint32_t p = rd32(sp + 12 - i * 4); char b[256]; int l = p ? rd8(p) : 0; for (int k = 0; k < l; k++) b[k] = rd8(p + 1 + k); b[l] = 0; fprintf(stderr, "  ParamText[%d]=\"%s\"\n", i, b); }
@@ -277,6 +324,9 @@ static void hle(uint16_t w, uint32_t ret) {
     case 0xA9F4: rm_flush_all(); die("ExitToShell (clean exit)"); redirected = 1; break;
     case 0xA9C9: die("SysError(%d)", (int16_t)D(0)); redirected = 1; break;
     default:
+        if (gfx_dispatch(w, n, ret)) break;
+        if (pal_dispatch(w, n, ret)) break;
+        if (sane_dispatch(w, n, ret)) break;
         if (qd_dispatch(w, n, ret)) break;
         if (snd_dispatch(w, n, ret)) break;
         if (tasks_dispatch(w, n, ret)) break;
@@ -304,6 +354,7 @@ void castles_instr_hook(unsigned int pc) {
             if (patched[k]) { push32(pc + 2); W(M68K_REG_PC, patched[k]); pc = patched[k]; continue; }
             ret = pc + 2;
         }
+        trap_pc = pc; trap_from_stub = (pc >= STUB_BASE && pc < STUB_END);
         hle((uint16_t)op, ret);
         if (!(op & 0x800) && !halted) { uint32_t d0 = R(M68K_REG_D0) & 0xFFFF; uint32_t sr = R(M68K_REG_SR) & ~0xFu; if (d0 == 0) sr |= 4; if (d0 & 0x8000) sr |= 8; W(M68K_REG_SR, sr); }  /* OS traps set CCR from D0.w */
         pc = R(M68K_REG_PC);
@@ -338,8 +389,16 @@ int main(int argc, char **argv) {
     push32(STUB_BASE + trap_key(0xA9F4, 0) * 4);     /* return-to-ExitToShell */
     W(M68K_REG_PC, a5 + jtoff + 2);
 
-    unsigned long guard = 0;
-    while (!halted && guard++ < 3000) { m68k_execute(10000); wr32(0x16A, ticks_now()); wr32(0x20C, (uint32_t)(time(NULL) + 2082844800u)); run_tasks(); }
+    plat_init(); wr16(0xBAA, 20);
+    unsigned long guard = 0, maxslices = getenv("MAXSLICES") ? strtoul(getenv("MAXSLICES"), NULL, 10) : 0; uint32_t last_present = 0;
+    while (!halted) {
+        m68k_execute(10000); wr32(0x16A, ticks_now()); wr32(0x20C, (uint32_t)(time(NULL) + 2082844800u)); run_tasks(); ev_pump();
+        if (quit_requested) { rm_flush_all(); fprintf(stderr, "quit requested\n"); break; }
+        uint32_t t = ticks_now(); if (t - last_present >= 2) { plat_present(); gfx_dirty = 0; last_present = t; }
+        if (idle_hint) { idle_hint = 0; usleep(1500); }
+        if (maxslices && ++guard >= maxslices) break;
+    }
+    if (getenv("CASTLES_SHOT")) { write_ppm(getenv("CASTLES_SHOT")); fprintf(stderr, "screenshot -> %s\n", getenv("CASTLES_SHOT")); }
     { fprintf(stderr, "recent traps:\n"); for (int i = 0; i < 600; i++) { const char *l = tring[(tri + i) % 600]; if (l[0]) fprintf(stderr, "  %s\n", l); } }
     if (!halted) { fprintf(stderr, "last pcs:"); for (int i = 0; i < 40; i++) fprintf(stderr, " %06x", pcring[(pcri - 40 + i) & 63]); fprintf(stderr, "\n"); }
     fprintf(stderr, "stopped: traps=%lu pc=%06x sp=%06x\n", ntraps, R(M68K_REG_PC), SP);
