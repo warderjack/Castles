@@ -25715,6 +25715,7 @@ void L_2_401e(void) {
 /* seg 2 +0x403e */
 void L_2_403e(void) {
   u32 ea = 0, ed = 0; const u32 R0 = m32(A[7]); (void)ea; (void)ed; (void)R0;
+  goto L12403e;
   L124032: ; /* 124032 move.l  d7,d0 */
   LTR(0x124032);
   {
@@ -25741,7 +25742,7 @@ void L_2_403e(void) {
   {
   LRTS();
   }
-  /* 12403e movea.w d6,a2 */
+  L12403e: ; /* 12403e movea.w d6,a2 */
   LTR(0x12403e);
   {
   A[2] = ((u32)(s32)(s16)((D[6]&0xFFFFu)));
@@ -26325,6 +26326,7 @@ void L_2_4138(void) {
 /* seg 2 +0x4158 */
 void L_2_4158(void) {
   u32 ea = 0, ed = 0; const u32 R0 = m32(A[7]); (void)ea; (void)ed; (void)R0;
+  goto L124158;
   L12414c: ; /* 12414c move.l  d7,d0 */
   LTR(0x12414c);
   {
@@ -26351,7 +26353,7 @@ void L_2_4158(void) {
   {
   LRTS();
   }
-  /* 124158 movea.w d6,a2 */
+  L124158: ; /* 124158 movea.w d6,a2 */
   LTR(0x124158);
   {
   A[2] = ((u32)(s32)(s16)((D[6]&0xFFFFu)));

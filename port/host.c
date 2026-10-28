@@ -437,7 +437,7 @@ int main(int argc, char **argv) {
     { fprintf(stderr, "trap histogram:"); for (int k = 0; k < 60; k++) { int b = -1; for (int i = 0; i < 65536; i++) if (thist[i] && (b < 0 || thist[i] > thist[b])) b = i; if (b < 0) break; fprintf(stderr, " %04X(%s)=%lu", b, tname(b), thist[b]); thist[b] = 0; } fprintf(stderr, "\n"); }
     { fprintf(stderr, "recent traps:\n"); for (int i = 0; i < 600; i++) { const char *l = tring[(tri + i) % 600]; if (l[0]) fprintf(stderr, "  %s\n", l); } }
     if (!halted) { fprintf(stderr, "last pcs:"); for (int i = 0; i < 40; i++) fprintf(stderr, " %06x", pcring[(pcri - 40 + i) & 63]); fprintf(stderr, "\n"); }
-    if (lift_check) fprintf(stderr, "[LIFTCHECK] verified=%d mismatched=%d skipped(trap/bail)=%d\n", chk_ok, chk_bad, chk_skip);
+    if (lift_check) fprintf(stderr, "[LIFTCHECK] verified=%d mismatched=%d skipped(trap/bail)=%d (verified incl. partial-to-trap: %lu)\n", chk_ok, chk_bad, chk_skip, chk_part_n);
     fprintf(stderr, "lift: calls=%lu bails=%lu traps=%lu\n", lift_calls, lift_bails, lift_traps);
     fprintf(stderr, "stopped: traps=%lu pc=%06x sp=%06x\n", ntraps, R(M68K_REG_PC), SP);
     if (getenv("CASTLES_DUMP")) { FILE *df = fopen("build/ram.bin", "wb"); if (df) { fwrite(ram, 1, RAM_SIZE, df); fclose(df); } }

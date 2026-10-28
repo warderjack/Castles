@@ -45,3 +45,5 @@ Set LIBCAPSTONE_PATH=tools/capstone/build when using scripts/m68kdis.py.
 `tools/lift.py` translates all 907 routines of the CODE segments into `port/gen/lift_seg*.c`. The interpreter hands off to translated code at routine entry; anything unsure bails back (`LBAIL`).
 `LIFTCHECK=N` (see `port/lc.sh`) runs each translated routine in a dry run, rolls back, replays it in Musashi and compares registers, flags and RAM. Current result on three scenarios (new game/visit, menus, load castle): 0 mismatches, ~2000 routines verified each.
 Gotcha fixed: relocation constants use the fixed STRS pool base (A4 at startup), not the live A4 (which game code reuses as a scratch register).
+
+Update: `LIFTCHECK` now also verifies partial runs up to the first trap or bail (previously skipped). That exposed a generator bug: routines whose entry is not their lowest address (shared tail code) must `goto` the entry first. Fixed in `tools/lift.py`. With lifting on by default the game plays the same and executes roughly 2.7x more work per wall-clock second than the pure interpreter (`NOLIFT=1` disables it; `LIFTMAX=N` caps lifted calls for bisecting; `LIFTLOG=1` logs entries and bails).

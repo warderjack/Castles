@@ -3,7 +3,7 @@ static void hle(uint16_t w, uint32_t ret);
 u32 D[8], A[8], SB[16], REL_A4, REL_A5; u32 fX, fN, fZ, fV, fC;
 static jmp_buf lift_jb; static u32 lift_bail_pc; static int lift_synced, lift_active, lift_on = 1;
 static LiftFn *lift_segtab[16]; static u32 lift_seglen[16]; static u32 lift_lo = 0xFFFFFFFF, lift_hi = 0;
-int lift_dry = 0; static unsigned long lift_calls, lift_bails, lift_traps;
+int lift_dry = 0; static u32 lift_trap_pc; static int chk_partial; static unsigned long chk_part_n; static unsigned long lift_calls, lift_bails, lift_traps;
 
 static void lift_sync_in(void) {
     for (int i = 0; i < 8; i++) { D[i] = R(M68K_REG_D0 + i); A[i] = R(M68K_REG_A0 + i); }
@@ -26,7 +26,7 @@ static LiftFn lift_lookup(uint32_t pc) {
     for (int s = 1; s < 16; s++) if (lift_segtab[s] && pc >= SB[s] && pc < SB[s] + lift_seglen[s] && !(pc & 1)) return lift_segtab[s][(pc - SB[s]) >> 1];
     return NULL;
 }
-void lift_bail(u32 pc) { if (lift_dry) longjmp(lift_jb, 3); lift_bail_pc = pc; lift_bails++; longjmp(lift_jb, 1); }
+void lift_bail(u32 pc) { if (lift_dry) { lift_trap_pc = pc; longjmp(lift_jb, 3); } if (getenv("LIFTLOG")) fprintf(stderr, "[lift] bail to %06x sp=%x\n", pc, A[7]); lift_bail_pc = pc; lift_bails++; longjmp(lift_jb, 1); }
 void lift_ret_mismatch(u32 r) { lift_bail(r); }
 static u32 lift_vis[512]; static int lift_nvis;
 void lift_note(LiftFn f) { if (lift_nvis >= 512) return; for (int i = 0; i < lift_nents; i++) if (lift_ents[i].fn == f) { lift_vis[lift_nvis++] = SB[lift_ents[i].seg] + lift_ents[i].off; return; } }
@@ -37,7 +37,7 @@ void lift_enter(u32 tgt) {
     if (f) { lift_calls++; f(); } else lift_bail(tgt);
 }
 void lift_trap(u32 w, u32 tpc, u32 ret) {
-    if (lift_dry) longjmp(lift_jb, 2);
+    if (lift_dry) { lift_trap_pc = tpc; longjmp(lift_jb, 2); }
     if (patched[trap_key(w, 0)]) { A[7] -= 4; w32(A[7], ret); lift_enter(patched[trap_key(w, 0)]); return; }
     lift_traps++; lift_sync_out(); trap_pc = tpc; trap_from_stub = 0; wm_redirected = 0;
     hle((uint16_t)w, ret);
@@ -49,7 +49,10 @@ void lift_trap(u32 w, u32 tpc, u32 ret) {
 static int lift_try_check(uint32_t pc, LiftFn f); static int lift_check = 0, lift_chk_active;
 /* called from the instruction hook when pc is a translated routine's entry; returns 1 if it ran */
 static int lift_try(uint32_t pc) {
+    static long lmax = -2; if (lmax == -2) { const char *e = getenv("LIFTMAX"); lmax = e ? atol(e) : -1; }
     LiftFn f = lift_lookup(pc); if (!f || !lift_on) return 0;
+    if (lmax >= 0 && (long)lift_calls >= lmax) return 0;
+    if (getenv("LIFTLOG")) fprintf(stderr, "[lift] enter %06x call#%lu\n", pc, lift_calls);
     if (lift_check) return lift_try_check(pc, f);
     lift_sync_in(); uint32_t r0 = m32(A[7]); lift_synced = 0; lift_calls++;
     if (setjmp(lift_jb) == 0) { f(); lift_bail_pc = r0; }
@@ -94,7 +97,9 @@ static int lift_try_check(uint32_t pc, LiftFn f) {
     int jr = setjmp(lift_jb); int ok = 0;
     if (jr == 0) { f(); ok = 1; }
     lift_dry = 0;
-    if (!ok) { memcpy(ram, chk_snap, RAM_SIZE); chk_load_regs(chk_s_D, chk_s_A, chk_s_f); chk_skip++; chk_count[si][off]++; return 0; }
+    chk_partial = 0;
+    if (!ok && jr != 2 && jr != 3) { memcpy(ram, chk_snap, RAM_SIZE); chk_load_regs(chk_s_D, chk_s_A, chk_s_f); chk_skip++; chk_count[si][off]++; return 0; }
+    if (!ok) chk_partial = 1;
     chk_count[si][off]++;
     chk_save_regs(chk_D, chk_A, chk_f); chk_nvis = lift_nvis; memcpy(chk_vis, lift_vis, sizeof(u32) * lift_nvis);
     /* diff of RAM written by the translated run (against the snapshot), then restore */
@@ -102,7 +107,8 @@ static int lift_try_check(uint32_t pc, LiftFn f) {
         if (chk_ndiff == chk_diffcap) { chk_diffcap = chk_diffcap ? chk_diffcap * 2 : 1024; chk_diff = realloc(chk_diff, chk_diffcap * sizeof(ChkDiff)); }
         chk_diff[chk_ndiff].a = i + k; chk_diff[chk_ndiff].v = ram[i + k]; chk_ndiff++; ram[i + k] = chk_snap[i + k]; }
     chk_load_regs(chk_s_D, chk_s_A, chk_s_f);
-    chk_ret = r0; chk_sp = A[7] + 4; chk_entry = pc; lift_chk_active = 1; lift_on = 0;      /* interpreter runs the routine; compare at its return */
+    if (chk_partial) { chk_ret = lift_trap_pc; chk_sp = chk_A[7]; chk_part_n++; } else { chk_ret = r0; chk_sp = A[7] + 4; }
+    chk_entry = pc; lift_chk_active = 1; lift_on = 0;      /* interpreter runs the routine; compare at its return */
 #ifdef LIFT_TRACE
     tri_record(pc);
 #endif
