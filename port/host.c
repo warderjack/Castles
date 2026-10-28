@@ -1,0 +1,312 @@
+/* Castles: Siege and Conquest -- 68k host with Toolbox HLE (milestone 1: headless boot trace) */
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include "m68k.h"
+
+#define RAM_SIZE   0x1000000u
+#define MP_BASE    0x004000u            /* master pointer table */
+#define MP_COUNT   0x10000u
+#define HEAP_START 0x050000u
+#define HEAP_END   0x0B00000u
+#define STACK_TOP  0x0C00000u           /* == CurStackBase (bottom of A5 world) */
+#define STUB_BASE  0x0F00000u           /* trap stubs: 4 bytes per key */
+#define STUB_END   (STUB_BASE + 0x1000u * 4)
+
+static uint8_t ram[RAM_SIZE];
+
+static inline uint32_t rd8(uint32_t a)  { return ram[a & 0xFFFFFF]; }
+static inline uint32_t rd16(uint32_t a) { a &= 0xFFFFFF; return (ram[a] << 8) | ram[a + 1]; }
+static inline uint32_t rd32(uint32_t a) { a &= 0xFFFFFF; return ((uint32_t)ram[a] << 24) | (ram[a + 1] << 16) | (ram[a + 2] << 8) | ram[a + 3]; }
+static inline void wr8(uint32_t a, uint32_t v)  { ram[a & 0xFFFFFF] = v; }
+static inline void wr16(uint32_t a, uint32_t v) { a &= 0xFFFFFF; ram[a] = v >> 8; ram[a + 1] = v; }
+static inline void wr32(uint32_t a, uint32_t v) { a &= 0xFFFFFF; ram[a] = v >> 24; ram[a + 1] = v >> 16; ram[a + 2] = v >> 8; ram[a + 3] = v; }
+
+unsigned int m68k_read_memory_8(unsigned int a)  { return rd8(a); }
+unsigned int m68k_read_memory_16(unsigned int a) { return rd16(a); }
+unsigned int m68k_read_memory_32(unsigned int a) { return rd32(a); }
+void m68k_write_memory_8(unsigned int a, unsigned int v)  { wr8(a, v); }
+void m68k_write_memory_16(unsigned int a, unsigned int v) { wr16(a, v); }
+void m68k_write_memory_32(unsigned int a, unsigned int v) { wr32(a, v); }
+
+static uint32_t R(int r) { return m68k_get_reg(NULL, (m68k_register_t)r); }
+static void W(int r, uint32_t v) { m68k_set_reg((m68k_register_t)r, v); }
+#define D(n) R(M68K_REG_D0 + (n))
+#define A(n) R(M68K_REG_A0 + (n))
+#define SETD(n, v) W(M68K_REG_D0 + (n), (v))
+#define SETA(n, v) W(M68K_REG_A0 + (n), (v))
+#define SP R(M68K_REG_SP)
+static void setsp(uint32_t v) { W(M68K_REG_SP, v); }
+static void push32(uint32_t v) { uint32_t s = SP - 4; setsp(s); wr32(s, v); }
+static uint32_t pop32(void) { uint32_t s = SP; uint32_t v = rd32(s); setsp(s + 4); return v; }
+
+static int halted = 0;
+static void die(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
+#include <stdarg.h>
+static void die(const char *fmt, ...) {
+    va_list ap; va_start(ap, fmt); fprintf(stderr, "HALT: "); vfprintf(stderr, fmt, ap); fprintf(stderr, "\n"); va_end(ap);
+    halted = 1; m68k_end_timeslice();
+}
+
+/* ---------------- Resource rfork ---------------- */
+typedef struct { uint32_t type; int16_t id; uint8_t attrs; uint32_t off, len; uint32_t handle; char name[64]; } Res;
+static uint8_t *rfork; static size_t forklen;
+static Res *res; static int nres;
+
+static uint32_t be32(const uint8_t *p) { return ((uint32_t)p[0] << 24) | (p[1] << 16) | (p[2] << 8) | p[3]; }
+static uint32_t be16(const uint8_t *p) { return (p[0] << 8) | p[1]; }
+
+static void load_fork(const char *path) {
+    FILE *f = fopen(path, "rb"); if (!f) { perror(path); exit(1); }
+    fseek(f, 0, SEEK_END); forklen = ftell(f); fseek(f, 0, SEEK_SET);
+    rfork = malloc(forklen); if (fread(rfork, 1, forklen, f) != forklen) exit(1); fclose(f);
+    uint32_t dataoff = be32(rfork), mapoff = be32(rfork + 4);
+    const uint8_t *map = rfork + mapoff;
+    uint32_t tl = be16(map + 24);
+    const uint8_t *tlist = map + tl;
+    int ntypes = (int)be16(tlist) + 1;
+    for (int t = 0; t < ntypes; t++) {
+        const uint8_t *te = tlist + 2 + t * 8;
+        int cnt = (int)be16(te + 4) + 1; uint32_t refoff = be16(te + 6);
+        for (int i = 0; i < cnt; i++) {
+            const uint8_t *re = tlist + refoff + i * 12;
+            res = realloc(res, sizeof(Res) * (nres + 1));
+            Res *r = &res[nres++];
+            r->type = be32(te); r->id = (int16_t)be16(re); r->attrs = re[4];
+            uint32_t doff = ((uint32_t)re[5] << 16) | (re[6] << 8) | re[7];
+            r->off = dataoff + doff + 4; r->len = be32(rfork + dataoff + doff); r->handle = 0; r->name[0] = 0;
+            { uint32_t no = be16(re + 2); if (no != 0xFFFF) { const uint8_t *np = map + be16(map + 26) + no; int nl = np[0]; if (nl > 63) nl = 63; memcpy(r->name, np + 1, nl); r->name[nl] = 0; } }
+        }
+    }
+    fprintf(stderr, "resources: %d\n", nres);
+}
+static Res *find_res(uint32_t type, int id) { for (int i = 0; i < nres; i++) if (res[i].type == type && res[i].id == id) return &res[i]; return NULL; }
+static Res *res_from_handle(uint32_t h) { for (int i = 0; i < nres; i++) if (res[i].handle == h && h) return &res[i]; return NULL; }
+
+/* ---------------- Memory manager ---------------- */
+static uint32_t heap_ptr = HEAP_START, next_slot = 0;
+static uint32_t hsize[MP_COUNT]; static uint8_t hflags[MP_COUNT];
+
+static uint32_t alloc_block(uint32_t n) {
+    n = (n + 3) & ~3u; if (n == 0) n = 4;
+    uint32_t p = heap_ptr; heap_ptr += n + 8;
+    if (heap_ptr > HEAP_END) die("out of heap (n=%u)", n);
+    wr32(p, n); p += 8; memset(ram + p, 0, n);
+    return p;
+}
+static uint32_t new_handle(uint32_t n) {
+    if (next_slot >= MP_COUNT) die("out of master pointers");
+    uint32_t s = next_slot++; wr32(MP_BASE + s * 4, alloc_block(n)); hsize[s] = n; hflags[s] = 0;
+    return MP_BASE + s * 4;
+}
+static uint32_t slot_of(uint32_t h) { return (h - MP_BASE) / 4; }
+
+static uint32_t res_get_handle(Res *r) {
+    if (!r->handle) {
+        r->handle = new_handle(r->len);
+        memcpy(ram + rd32(r->handle), rfork + r->off, r->len);
+    }
+    return r->handle;
+}
+
+/* ---------------- Trap infrastructure ---------------- */
+static uint32_t patched[0x1000];
+static int trap_key(uint32_t w, int newtool) {
+    if ((w & 0x800) || newtool) return 0x400 + (w & 0x3FF);
+    return w & 0xFF;
+}
+#include "trapnames.h"
+#define tname tname_tbl
+
+static unsigned long ntraps;
+static int trace_limit = 400;
+
+static void do_loadseg(uint32_t ret) {
+    uint32_t segno = rd16(SP); setsp(SP + 2);
+    Res *r = find_res(0x434F4445 /*CODE*/, segno);
+    if (!r) { die("LoadSeg: no CODE %u", segno); return; }
+    uint32_t h = res_get_handle(r), p = rd32(h);
+    uint32_t first = rd16(p), count = rd16(p + 2);
+    uint32_t a5 = R(M68K_REG_A5), jt = a5 + 0x20;
+    for (uint32_t i = 0; i < count; i++) {
+        uint32_t e = jt + first + i * 8, off = rd16(e);
+        wr16(e, segno); wr16(e + 2, 0x4EF9); wr32(e + 4, p + 4 + off);
+    }
+    if (trace_limit > 0) fprintf(stderr, "  LoadSeg(%u) first=%u count=%u base=%06x -> jump %06x\n", segno, first, count, p, ret - 6);
+    W(M68K_REG_PC, ret - 6);   /* stub entry + 2, now a JMP.L */
+}
+
+#include "fs.inc"
+/* Returns via W(PC) -- handler may redirect; otherwise PC=ret. */
+#include <time.h>
+#include <strings.h>
+static uint32_t ticks_now(void) { struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t); return (uint32_t)((t.tv_sec * 1000ull + t.tv_nsec / 1000000) * 60 / 1000); }
+static int16_t res_err = 0;
+#define FB_BASE 0x00A00000u
+static uint32_t cur_a5(void) { return R(M68K_REG_A5); }
+
+static uint32_t set_handle_size(uint32_t h, uint32_t n) {
+    uint32_t s = slot_of(h);
+    if (n > hsize[s]) { uint32_t nb = alloc_block(n); memcpy(ram + nb, ram + rd32(h), hsize[s]); wr32(h, nb); }
+    hsize[s] = n; return 0;
+}
+static void init_graf(uint32_t P) {
+    wr32(0x824, P);
+    for (int i = 0; i < 8; i++) { wr8(P - 8 + i, 0x00); wr8(P - 16 + i, 0xFF); }
+    static const uint8_t g[8] = {0xAA,0x55,0xAA,0x55,0xAA,0x55,0xAA,0x55}, lg[8] = {0x88,0x22,0x88,0x22,0x88,0x22,0x88,0x22}, dg[8] = {0x77,0xDD,0x77,0xDD,0x77,0xDD,0x77,0xDD};
+    for (int i = 0; i < 8; i++) { wr8(P - 24 + i, g[i]); wr8(P - 32 + i, lg[i]); wr8(P - 40 + i, dg[i]); }
+    wr32(P - 122, FB_BASE); wr16(P - 118, 640); wr16(P - 116, 0); wr16(P - 114, 0); wr16(P - 112, 480); wr16(P - 110, 640);
+    wr32(P - 126, 1);       /* randSeed */
+    wr32(P, 0);             /* thePort */
+}
+static void hle(uint16_t w, uint32_t ret) {
+    ntraps++;
+    int redirected = 0;
+    uint16_t n = (w & 0x800) ? (w & 0xFBFF) : (w & 0xF8FF);   /* normalised trap word */
+    if (trace_limit > 0) {
+        trace_limit--;
+        fprintf(stderr, "[trap %04X %-18s] D0=%08x A0=%08x A1=%08x SP=%06x ret=%06x\n", w, tname(w), D(0), A(0), A(1), SP, ret);
+    }
+    uint32_t sp = SP;
+    switch (n) {
+    /* ---- Memory Manager ---- */
+    case 0xA01E: SETA(0, alloc_block(D(0))); SETD(0, 0); break;
+    case 0xA022: SETA(0, new_handle(D(0))); SETD(0, 0); break;
+    case 0xA066: SETA(0, new_handle(0)); SETD(0, 0); break;        /* NewEmptyHandle */
+    case 0xA01F: case 0xA023: SETD(0, 0); break;                   /* Dispose* */
+    case 0xA020: SETD(0, 0); break;                                /* SetPtrSize (no-op) */
+    case 0xA021: SETD(0, rd32(A(0) - 4)); break;                   /* GetPtrSize */
+    case 0xA024: SETD(0, set_handle_size(A(0), D(0))); break;      /* SetHandleSize */
+    case 0xA025: SETD(0, hsize[slot_of(A(0))]); break;             /* GetHandleSize */
+    case 0xA027: SETD(0, set_handle_size(A(0), D(0))); break;      /* ReallocHandle */
+    case 0xA029: hflags[slot_of(A(0))] |= 0x80; SETD(0, 0); break;
+    case 0xA02A: hflags[slot_of(A(0))] &= ~0x80; SETD(0, 0); break;
+    case 0xA049: case 0xA04A: case 0xA02B: case 0xA064: case 0xA067: case 0xA068: SETD(0, 0); break; /* HPurge,HNoPurge,EmptyHandle,MoveHHi,HSet/ClrRBit */
+    case 0xA069: SETD(0, hflags[slot_of(A(0))]); break;
+    case 0xA06A: hflags[slot_of(A(0))] = D(0) & 0xFF; SETD(0, 0); break;
+    case 0xA036: case 0xA063: case 0xA02D: case 0xA04B: case 0xA040: case 0xA04D: SETD(0, 0); break; /* MoreMasters,MaxApplZone,SetApplLimit,SetGrowZone,ResrvMem,PurgeMem */
+    case 0xA01C: case 0xA04C: case 0xA061: SETD(0, HEAP_END - heap_ptr); break;   /* FreeMem, CompactMem, MaxBlock */
+    case 0xA01D: SETD(0, HEAP_END - heap_ptr); SETA(0, 0); break;                 /* MaxMem */
+    case 0xA062: SETD(0, HEAP_END - heap_ptr); SETA(0, HEAP_END - heap_ptr); break;/* PurgeSpace */
+    case 0xA065: SETD(0, SP - rd32(0x130)); break;                                 /* StackSpace */
+    case 0xA055: break;                                                            /* StripAddress */
+    case 0xA02E: case 0xA22E: { memmove(ram + (A(1) & 0xFFFFFF), ram + (A(0) & 0xFFFFFF), D(0)); SETD(0, 0); break; }
+    case 0xA9E1: { uint32_t h = A(0), s = slot_of(h); uint32_t nh = new_handle(hsize[s]); memcpy(ram + rd32(nh), ram + rd32(h), hsize[s]); SETA(0, nh); SETD(0, 0); break; }
+    case 0xA9E3: { uint32_t nh = new_handle(D(0)); memcpy(ram + rd32(nh), ram + (A(0) & 0xFFFFFF), D(0)); SETA(0, nh); SETD(0, 0); break; }
+    case 0xA9E2: case 0xA9EF: { uint32_t h = A(1), s = slot_of(h), old = hsize[s], cnt = D(0); set_handle_size(h, old + cnt); memcpy(ram + rd32(h) + old, ram + (A(0) & 0xFFFFFF), cnt); SETD(0, 0); break; }
+    case 0xA9E4: { uint32_t src = A(0), dst = A(1), ss = hsize[slot_of(src)], ds = hsize[slot_of(dst)]; set_handle_size(dst, ds + ss); memcpy(ram + rd32(dst) + ds, ram + rd32(src), ss); SETD(0, 0); break; }
+    /* ---- Trap table ---- */
+    case 0xA046: { uint32_t k = trap_key(D(0), (w & 0x200) != 0); SETA(0, patched[k] ? patched[k] : STUB_BASE + k * 4); break; }
+    case 0xA047: { uint32_t k = trap_key(D(0), (w & 0x200) != 0); patched[k] = A(0); if (trace_limit > 0) fprintf(stderr, "  SetTrapAddress key=%03x -> %06x\n", k, A(0)); break; }
+    /* ---- Resource Manager ---- */
+    case 0xA9A0: { uint32_t id = rd16(sp), type = rd32(sp + 2); Res *r = find_res(type, (int16_t)id); setsp(sp + 6); wr32(sp + 6, r ? res_get_handle(r) : 0); res_err = r ? 0 : -192; break; }
+    case 0xA9A1: case 0xA820: {      /* GetNamedResource / Get1NamedResource(type, name) : Handle */
+        char nm[256]; uint32_t np = rd32(sp), type = rd32(sp + 4); int l = rd8(np); for (int i = 0; i < l; i++) nm[i] = rd8(np + 1 + i); nm[l] = 0;
+        uint32_t hh = 0; for (int i = 0; i < nres; i++) if (res[i].type == type && !strcasecmp(res[i].name, nm)) { hh = res_get_handle(&res[i]); break; }
+        setsp(sp + 8); wr32(sp + 8, hh); res_err = hh ? 0 : -192; break; }
+    case 0xA81F: { uint32_t id = rd16(sp), type = rd32(sp + 2); Res *r = find_res(type, (int16_t)id); setsp(sp + 6); wr32(sp + 6, r ? res_get_handle(r) : 0); res_err = r ? 0 : -192; break; }  /* Get1Resource */
+    case 0xA80D: { uint32_t type = rd32(sp); int c = 0; for (int i = 0; i < nres; i++) if (res[i].type == type) c++; setsp(sp + 4); wr16(sp + 4, c); break; }                           /* Count1Resources */
+    case 0xA80E: { uint32_t type = rd32(sp), idx = rd16(sp + 4); int c = 0; uint32_t hh = 0; for (int i = 0; i < nres; i++) if (res[i].type == type && ++c == (int)idx) { hh = res_get_handle(&res[i]); break; } setsp(sp + 6); wr32(sp + 6, hh); break; } /* Get1IndResource */
+    case 0xA9B8: case 0xA9B9: case 0xA9BA: case 0xA9BB: case 0xA9BC: {      /* GetPattern/Cursor/String/Icon/Picture */
+        static const uint32_t ty[] = {0x50415420, 0x43555253, 0x53545220, 0x49434F4E, 0x50494354};
+        uint32_t id = rd16(sp); Res *r = find_res(ty[n - 0xA9B8], (int16_t)id); setsp(sp + 2); wr32(sp + 2, r ? res_get_handle(r) : 0); break; }
+    case 0xA9A2: case 0xA9A3: case 0xA992: setsp(sp + 4); break;            /* Load/Release/Detach */
+    case 0xA9A5: { Res *r = res_from_handle(rd32(sp)); setsp(sp + 4); wr32(sp + 4, r ? r->len : 0xFFFFFFFF); break; }
+    case 0xA9A6: { Res *r = res_from_handle(rd32(sp)); setsp(sp + 4); wr16(sp + 4, r ? r->attrs : 0); break; }
+    case 0xA9A7: setsp(sp + 6); break;                                      /* SetResAttrs */
+    case 0xA9AA: setsp(sp + 4); break;                                      /* ChangedResource */
+    case 0xA993: case 0xA998: case 0xA99B: setsp(sp + 2); break;           /* SetResPurge, UseResFile, SetResLoad */
+    case 0xA994: setsp(sp); wr16(sp, 1); break;                             /* CurResFile */
+    case 0xA9AF: wr16(sp, (uint16_t)res_err); break;                        /* ResError */
+    case 0xA9A4: setsp(sp + 4); wr16(sp + 4, 1); break;                     /* HomeResFile */
+    case 0xA99C: { uint32_t type = rd32(sp); int c = 0; for (int i = 0; i < nres; i++) if (res[i].type == type) c++; setsp(sp + 4); wr16(sp + 4, c); break; }
+    case 0xA99D: { uint32_t type = rd32(sp), idx = rd16(sp + 4); int c = 0; uint32_t h = 0; for (int i = 0; i < nres; i++) if (res[i].type == type && ++c == (int)idx) { h = res_get_handle(&res[i]); break; } setsp(sp + 6); wr32(sp + 6, h); break; }
+    case 0xA99E: { int c = 0; uint32_t seen[64]; for (int i = 0; i < nres; i++) { int f = 0; for (int j = 0; j < c; j++) if (seen[j] == res[i].type) f = 1; if (!f && c < 64) seen[c++] = res[i].type; } wr16(sp, c); break; }
+    case 0xA997: setsp(sp + 4); wr16(sp + 4, 0xFFFF); res_err = -43; break;  /* OpenResFile (not found) */
+    case 0xA000: case 0xA001: case 0xA002: case 0xA003: case 0xA008: case 0xA009: case 0xA00A: case 0xA00C: case 0xA011: case 0xA012:
+    case 0xA014: case 0xA015: case 0xA018: case 0xA044: case 0xA060: {
+        if (trace_limit > 0) { fprintf(stderr, "    PB:"); for (int i = 0; i < 64; i += 2) fprintf(stderr, " %04x", rd16(A(0) + i)); fprintf(stderr, "\n"); }
+        int err = fs_dispatch(w, n, D(0), A(0)); wr16(A(0) + 16, (uint16_t)err); SETD(0, (uint32_t)err);
+        if (trace_limit > 0) fprintf(stderr, "    -> FS err=%d\n", err); break; }
+    /* ---- Init / environment ---- */
+    case 0xA86E: init_graf(rd32(sp)); setsp(sp + 4); break;
+    case 0xA97B: case 0xA851: setsp(sp + 4); break;                        /* InitDialogs, SetCursor */
+    case 0xA8FE: case 0xA912: case 0xA930: case 0xA9CC: case 0xA850: case 0xA852: case 0xA853: case 0xA856: case 0xA9E6: break;
+    case 0xA9C8: case 0xA9E5: setsp(sp + 2); break;                        /* SysBeep, InitPack */
+    case 0xA032: SETD(0, 0); break;                                         /* FlushEvents */
+    case 0xA03F: break;
+    case 0xA975: setsp(sp); wr32(sp, ticks_now()); break;                  /* TickCount */
+    case 0xA861: { uint32_t sd = rd32(cur_a5() - 4 - 126); sd = sd * 16807u % 2147483647u; wr32(cur_a5() - 4 - 126, sd); wr16(sp, (int16_t)(sd & 0xFFFF)); break; }
+    case 0xA970: case 0xA971: { uint32_t ev = rd32(sp); for (int i = 0; i < 16; i++) wr8(ev + i, 0); wr32(ev + 10, ticks_now()); setsp(sp + 6); wr16(sp + 6, 0); break; }
+    case 0xA860: { uint32_t ev = rd32(sp + 8); for (int i = 0; i < 16; i++) wr8(ev + i, 0); wr32(ev + 10, ticks_now()); setsp(sp + 14); wr16(sp + 14, 0); break; }
+    case 0xA974: case 0xA973: wr16(sp, 0); break;                           /* Button, StillDown */
+    case 0xA972: { uint32_t pt = rd32(sp); wr32(pt, 0); setsp(sp + 4); break; }
+    case 0xA090: { uint32_t p = A(0); wr16(p, 2); wr16(p + 2, 6); wr16(p + 4, 0x0710); wr16(p + 6, 3); wr8(p + 8, 1); wr8(p + 9, 1); wr16(p + 10, 3); wr16(p + 12, 0); wr16(p + 14, 0); SETD(0, 0); break; }
+    case 0xA0AD: {
+        uint32_t sel = D(0), v = 0; int ok = 1;
+        switch (sel) { case 0x73797376: v = 0x0710; break; case 0x71642020: v = 0x0300; break; case 0x70726F63: v = 4; break;
+                       case 0x66707520: v = 3; break; case 0x6D616368: v = 25; break; case 0x6B626420: v = 3; break; default: ok = 0; }
+        SETA(0, v); SETD(0, ok ? 0 : (uint32_t)-5551); break; }
+    /* ---- Segment loader / process ---- */
+    case 0xA9F0: do_loadseg(ret); redirected = 1; break;
+    case 0xA9F4: die("ExitToShell (clean exit)"); redirected = 1; break;
+    case 0xA9C9: die("SysError(%d)", (int16_t)D(0)); redirected = 1; break;
+    default:
+        die("unimplemented trap %04X %s at ret=%06x  (D0=%08x A0=%08x A1=%08x SP=%06x)", w, tname(w), ret, D(0), A(0), A(1), SP);
+        redirected = 1; break;
+    }
+    if (!redirected) W(M68K_REG_PC, ret);
+}
+
+static int pctrace = 0;
+void castles_instr_hook(unsigned int pc) {
+    for (;;) {
+        uint32_t op = rd16(pc);
+        if (pctrace > 0) { pctrace--; fprintf(stderr, "   pc=%06x op=%04x sp=%06x a0=%08x a1=%08x\n", pc, op, SP, A(0), A(1)); }
+        if ((op & 0xF000) != 0xA000 || halted) return;
+        uint32_t ret;
+        if (pc >= STUB_BASE && pc < STUB_END) ret = pop32();
+        else {
+            uint32_t k = trap_key(op, 0);
+            if (patched[k]) { push32(pc + 2); W(M68K_REG_PC, patched[k]); pc = patched[k]; continue; }
+            ret = pc + 2;
+        }
+        hle((uint16_t)op, ret);
+        pc = R(M68K_REG_PC);
+    }
+}
+
+/* ---------------- Launch ---------------- */
+int main(int argc, char **argv) {
+    if (argc < 2) { fprintf(stderr, "usage: %s rsrc.fork\n", argv[0]); return 2; }
+    load_fork(argv[1]); if (argc > 2) strncpy(game_root, argv[2], sizeof game_root - 1);
+    for (uint32_t k = 0; k < 0x1000; k++) { wr16(STUB_BASE + k * 4, 0xA000 | (k >= 0x400 ? 0x800 | (k - 0x400) : k)); wr16(STUB_BASE + k * 4 + 2, 0x4E75); }
+
+    Res *c0 = find_res(0x434F4445, 0); if (!c0) { fprintf(stderr, "no CODE 0\n"); return 1; }
+    const uint8_t *p = rfork + c0->off;
+    uint32_t above = be32(p), below = be32(p + 4), jtlen = be32(p + 8), jtoff = be32(p + 12);
+    uint32_t a5 = STACK_TOP + below;
+    memcpy(ram + a5 + jtoff, p + 16, jtlen);
+    fprintf(stderr, "A5=%06x below=%u above=%u jt=%u@+%u\n", a5, below, above, jtlen, jtoff);
+
+    wr32(0x904, a5); wr32(0x908, STACK_TOP); wr32(0x130, HEAP_END);
+    wr32(0x2AA, HEAP_START); wr32(0x2A6, HEAP_START); wr32(0x108, RAM_SIZE); wr16(0x28E, 0);
+    wr16(0x900, 1); /* CurApRefNum */
+    { const char *an = "Castles - Siege & Conquest"; wr8(0x910, strlen(an)); for (size_t i = 0; i < strlen(an); i++) wr8(0x911 + i, an[i]); } /* CurApName */
+    wr32(0, STACK_TOP - 8); wr32(4, a5 + jtoff + 2);
+
+    m68k_set_cpu_type(M68K_CPU_TYPE_68000);
+    m68k_init();
+    m68k_pulse_reset();
+    W(M68K_REG_A5, a5);
+    setsp(STACK_TOP);
+    push32(STUB_BASE + trap_key(0xA9F4, 0) * 4);     /* return-to-ExitToShell */
+    W(M68K_REG_PC, a5 + jtoff + 2);
+
+    unsigned long guard = 0;
+    while (!halted && guard++ < 3000) m68k_execute(10000);
+    fprintf(stderr, "stopped: traps=%lu pc=%06x sp=%06x\n", ntraps, R(M68K_REG_PC), SP);
+    { FILE *df = fopen("build/ram.bin", "wb"); if (df) { fwrite(ram, 1, RAM_SIZE, df); fclose(df); } }
+    return halted ? 0 : 3;
+}
