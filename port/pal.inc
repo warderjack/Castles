@@ -8,10 +8,10 @@ static void activate_palette(uint32_t ph) {
     uint8_t used[256]; memset(used, 0, sizeof used); used[0] = 1; used[255] = 1; int next = 1;
     for (int i = 0; i < n; i++) {
         RGB c = pal_color(ph, i); int usage = rd16(rd32(ph) + 16 + i * 24 + 6); int found = -1;
-        if ((usage & 8) && i < 256) { found = i; }                                  /* pmExplicit: same device index */
+        if ((usage & 8) && i > 0 && i < 255) { found = i; }                                  /* pmExplicit: same device index */
         else for (int j = 0; j < 256; j++) { RGB d = ct_entry(main_ct, j); if (d.r == c.r && d.g == c.g && d.b == c.b) { found = j; break; } }
         if (found < 0) { while (next < 255 && used[next]) next++; if (next >= 255) { found = rgb_px(&(Surf){.depth = 8, .ctab = main_ct}, c); } else found = next; }
-        if (found >= 0 && found < 256) { used[found] = 1; uint32_t e = ct + 8 + found * 8; wr16(e + 2, c.r); wr16(e + 4, c.g); wr16(e + 6, c.b); }
+        if (found > 0 && found < 255) { used[found] = 1; uint32_t e = ct + 8 + found * 8; wr16(e + 2, c.r); wr16(e + 4, c.g); wr16(e + 6, c.b); }
     }
     wr32(ct, ++ctseed); gfx_dirty = 1;
 }

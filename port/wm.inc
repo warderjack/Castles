@@ -2,7 +2,8 @@
 static int wm_redirected = 0;               /* set when a handler rewound PC (blocking trap re-executes next slice) */
 static int idle_hint = 0;
 static uint32_t trap_pc = 0; static int trap_from_stub = 0;
-static void rewind_trap(uint32_t ret) { if (trap_from_stub) push32(ret); W(M68K_REG_PC, trap_pc); wm_redirected = 1; m68k_end_timeslice(); }
+static void gc_resume(void);
+static void rewind_trap(uint32_t ret) { if (trap_from_stub) push32(ret); yield_resume = trap_pc; W(M68K_REG_PC, YIELD_PC); wm_redirected = 1; m68k_end_timeslice(); }
 
 /* ---------- region helpers ---------- */
 static void rl_offset(RL *l, int dx, int dy) { for (int i = 0; i < l->n; i++) { l->r[i].l += dx; l->r[i].r += dx; l->r[i].t += dy; l->r[i].b += dy; } }

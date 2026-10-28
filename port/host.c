@@ -13,6 +13,9 @@
 #define STACK_TOP  0x0C00000u           /* == CurStackBase (bottom of A5 world) */
 #define STUB_BASE  0x0F00000u           /* trap stubs: 4 bytes per key */
 #define STUB_END   (STUB_BASE + 0x1000u * 4)
+#define GCONT_PC   (STUB_BASE + 0x5008u)        /* guest-call continuation: proc returns here */
+#define YIELD_PC   (STUB_BASE + 0x5010u)        /* two NOPs: rewound traps resume at +2 after the slice ends */
+static uint32_t yield_resume = 0;
 
 static uint8_t ram[RAM_SIZE];
 
@@ -209,6 +212,7 @@ static void init_graf(uint32_t P) {
 #include "wm2.inc"
 #include "wm3.inc"
 #include "wm4.inc"
+#include "dlg.inc"
 #include "pal.inc"
 #include "sane.inc"
 #include "snd.inc"
@@ -225,6 +229,7 @@ static void hle(uint16_t w, uint32_t ret) {
     }
     uint32_t sp = SP;
     if (rm_dispatch(w, n, ret)) { W(M68K_REG_PC, ret); return; }
+    if (dlg_dispatch(w, n, ret)) { if (!wm_redirected) W(M68K_REG_PC, ret); wm_redirected = 0; return; }
     if (wm_dispatch(w, n, ret)) { if (!wm_redirected) W(M68K_REG_PC, ret); wm_redirected = 0; return; }
     switch (n) {
     /* ---- Memory Manager ---- */
@@ -341,6 +346,8 @@ static int pctrace = 0;
 void castles_instr_hook(unsigned int pc) {
     for (;;) {
         if (pc == SENTINEL) { call_done = 1; m68k_end_timeslice(); return; }
+        if (pc == YIELD_PC + 2) { pc = yield_resume; W(M68K_REG_PC, pc); }
+        else if (pc == GCONT_PC) { gc_resume(); pc = R(M68K_REG_PC); }
         uint32_t op = rd16(pc); if (pc > 0x1000) pcring[pcri++ & 63] = pc;
         if (pc==0x53ece||pc==0x53f4e||pc==0x53f60||pc==0x53f6a||pc==0x53f74||pc==0x53f7e||pc==0x53f88||pc==0x53f92||pc==0x53f9c||pc==0x53f58) fprintf(stderr,"[probe] pc=%06x d0=%08x\n",pc,R(M68K_REG_D0));
         if (pc==0x5655c) { uint32_t sp_=SP, a6=R(M68K_REG_A6); fprintf(stderr,"[probe] vremove-fn ret=%06x a6=%06x ret2=%06x\n",rd32(sp_),a6,rd32(a6+4)); }
@@ -368,7 +375,7 @@ int main(int argc, char **argv) {
     load_fork(argv[1]); if (argc > 2) strncpy(game_root, argv[2], sizeof game_root - 1);
     for (uint32_t k = 0; k < 0x1000; k++) { wr16(STUB_BASE + k * 4, 0xA000 | (k >= 0x400 ? 0x800 | (k - 0x400) : k)); wr16(STUB_BASE + k * 4 + 2, 0x4E75); }
 
-    wr16(SENTINEL, 0x4E71); wr16(SENTINEL + 2, 0x4E71);
+    wr16(SENTINEL, 0x4E71); wr16(SENTINEL + 2, 0x4E71); wr16(GCONT_PC, 0x4E71); wr16(GCONT_PC + 2, 0x4E71); wr16(YIELD_PC, 0x4E71); wr16(YIELD_PC + 2, 0x4E71);
     Res *c0 = find_res(0x434F4445, 0); if (!c0) { fprintf(stderr, "no CODE 0\n"); return 1; }
     const uint8_t *p = rfork + c0->off;
     uint32_t above = be32(p), below = be32(p + 4), jtlen = be32(p + 8), jtoff = be32(p + 12);

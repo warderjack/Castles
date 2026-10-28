@@ -8,8 +8,11 @@ static void ensure_pixpat(uint32_t port, uint32_t fieldoff, const uint8_t *p8) {
 }
 static void set_fore_rgb(uint32_t port, RGB c) { if (port_is_color(port)) { wr16(port + 36, c.r); wr16(port + 38, c.g); wr16(port + 40, c.b); } else wr32(port + 80, (c.r + c.g + c.b) / 3 < 0x8000 ? 33 : 30); }
 static void set_back_rgb(uint32_t port, RGB c) { if (port_is_color(port)) { wr16(port + 42, c.r); wr16(port + 44, c.g); wr16(port + 46, c.b); } else wr32(port + 84, (c.r + c.g + c.b) / 3 < 0x8000 ? 33 : 30); }
+static int rgn_rec_on = 0; static RL rgn_rec;
+static void rgn_rec_shape(int kind, Rc r, int ow, int oh) { for (int y = r.t; y < r.b; y++) { int a, b; if (shape_span(kind, r, ow, oh, y, &a, &b)) rl_add(&rgn_rec, (Rc){y, a, y + 1, b}); } }
 static int shape_op(DC *d, int which, int kind, Rc r, int ow, int oh) {      /* which: 0 frame,1 paint,2 erase,3 invert */
-    uint32_t port = d->port; int pw = (int16_t)rd16(port + 54), ph = (int16_t)rd16(port + 52); if (pw < 1) pw = 1; if (ph < 1) ph = 1;
+    uint32_t port = d->port;
+    if (rgn_rec_on && which == 0) { rgn_rec_shape(kind, r, ow, oh); return 1; } int pw = (int16_t)rd16(port + 54), ph = (int16_t)rd16(port + 52); if (pw < 1) pw = 1; if (ph < 1) ph = 1;
     switch (which) {
     case 0: if (!pen_hidden(port)) shape_frame(d, kind, r, ow, oh, pw, ph); break;
     case 1: if (!pen_hidden(port)) shape_paint(d, kind, r, ow, oh); break;
@@ -40,6 +43,8 @@ static int gfx_dispatch(uint16_t w, uint16_t n, uint32_t ret) {
     if (n < 0xA800) return 0;
     #define NEEDPORT() if (!port) { if (trace_limit > 0) fprintf(stderr, "  [gfx] %04X with no port\n", n); }
     switch (n) {
+    case 0xA8DA: memset(&rgn_rec, 0, sizeof rgn_rec); rgn_rec_on = 1; return 1;               /* OpenRgn */
+    case 0xA8DB: { uint32_t dst = rd32(sp); setsp(sp + 4); rgn_rec_on = 0; RL m = {0}; for (int i = 0; i < rgn_rec.n; i++) { RL one = {0}, t = {0}; rl_add(&one, rgn_rec.r[i]); rl_union(&m, &one, &t); rl_free(&m); rl_free(&one); m = t; } rgn_set(dst, &m); rl_free(&m); rl_free(&rgn_rec); return 1; }     /* CloseRgn */
     /* ---- rect / oval / roundrect: frame paint erase invert (4-byte arg) ---- */
     case 0xA8A1: case 0xA8A2: case 0xA8A3: case 0xA8A4: case 0xA8B7: case 0xA8B8: case 0xA8B9: case 0xA8BA: {
         int rect = n < 0xA8B0; int which = rect ? n - 0xA8A1 : n - 0xA8B7; Rc r = rc_get(rd32(sp)); setsp(sp + 4); if (!port) return 1;
@@ -153,6 +158,8 @@ static int gfx_dispatch(uint16_t w, uint16_t n, uint32_t ret) {
         dc_free(&d); return 1; }
     case 0xA8EF: { uint32_t upd = rd32(sp); int dv = (int16_t)rd16(sp + 4), dh = (int16_t)rd16(sp + 6); uint32_t rp = rd32(sp + 8); setsp(sp + 12); if (port) do_scroll(rp, dh, dv, upd); return 1; }   /* ScrollRect */
     case 0xA8F6: { uint32_t rp = rd32(sp); uint32_t ph = rd32(sp + 4); setsp(sp + 8); if (port && ph && rd32(ph)) draw_pict(ph, rc_get(rp)); return 1; }          /* DrawPicture(pic, rect*) */
+    case 0xA8F3: { Rc fr = rc_get(rd32(sp)); setsp(sp + 4); uint32_t ph = new_handle(10 + 12); uint32_t a = rd32(ph); wr16(a, 10 + 12); rc_put(a + 2, fr); wr16(a + 10, 0x0011); wr16(a + 12, 0x02FF); wr16(a + 14, 0x0C00); wr16(a + 16, 0); wr16(a + 18, 0); wr16(a + 20, 0x00FF); wr32(sp + 4, ph); fprintf(stderr, "  [pict] OpenPicture\n"); return 1; }
+    case 0xA8F4: fprintf(stderr, "  [pict] ClosePicture\n"); return 1;
     case 0xA8F5: { uint32_t ph = rd32(sp); setsp(sp + 4); dispose_handle(ph); return 1; }                                                                          /* KillPicture */
     case 0xA875: { uint32_t bm = rd32(sp); setsp(sp + 4); if (port) memcpy(ram + port + 2, ram + bm, 14); return 1; }                                               /* SetPortBits */
     case 0xA94B: {      /* PlotIcon(rect*, iconHandle) -- 32x32 1-bit icon */
