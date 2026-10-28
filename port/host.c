@@ -1,4 +1,5 @@
 /* Castles: Siege and Conquest -- 68k host with Toolbox HLE (milestone 1: headless boot trace) */
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -83,9 +84,18 @@ static void parse_rsrc(const uint8_t *fk, size_t len, int fi) {
         }
     }
 }
+static char game_root[1024] = ".";
 static void load_fork(const char *path) {
+    char alt[1200]; struct stat sb; size_t pl = strlen(path); long skip = 0; int isbin = pl > 4 && !strcasecmp(path + pl - 4, ".bin");
+    if (stat(path, &sb) == 0 && S_ISDIR(sb.st_mode)) {      /* game folder: find the application's MacBinary file */
+        static const char *names[] = {"Castles - Siege & Conquest.bin", "Castles - Siege and Conquest.bin", "Castles.bin", NULL}; int ok = 0;
+        for (int i = 0; names[i] && !ok; i++) { snprintf(alt, sizeof alt, "%s/%s", path, names[i]); ok = stat(alt, &sb) == 0; }
+        if (!ok) { fprintf(stderr, "no application .bin found in %s\n", path); exit(1); }
+        strncpy(game_root, path, sizeof game_root - 1); path = alt; isbin = 1;
+    }
     FILE *f = fopen(path, "rb"); if (!f) { perror(path); exit(1); }
     fseek(f, 0, SEEK_END); forklen = ftell(f); fseek(f, 0, SEEK_SET);
+    if (isbin) { uint8_t hd[128]; if (fread(hd, 1, 128, f) != 128) exit(1); uint32_t dl = be32(hd + 83), rl = be32(hd + 87); skip = 128 + ((dl + 127) & ~127u); forklen = rl; fseek(f, skip, SEEK_SET); }
     rfork = malloc(forklen); if (fread(rfork, 1, forklen, f) != forklen) exit(1); fclose(f);
     rfiles[0].used = 1; rfiles[0].buf = rfork; rfiles[0].len = forklen; chain[nchain++] = 0; cur_rf = 0;
     parse_rsrc(rfork, forklen, 0);
@@ -377,7 +387,7 @@ void castles_instr_hook(unsigned int pc) {
 
 /* ---------------- Launch ---------------- */
 int main(int argc, char **argv) {
-    if (argc < 2) { fprintf(stderr, "usage: %s rsrc.fork\n", argv[0]); return 2; }
+    if (argc < 2) { fprintf(stderr, "usage: %s <game folder | app.bin | rsrc.fork> [game folder]\n", argv[0]); return 2; }
     load_fork(argv[1]); if (argc > 2) strncpy(game_root, argv[2], sizeof game_root - 1);
     for (uint32_t k = 0; k < 0x1000; k++) { wr16(STUB_BASE + k * 4, 0xA000 | (k >= 0x400 ? 0x800 | (k - 0x400) : k)); wr16(STUB_BASE + k * 4 + 2, 0x4E75); }
 
@@ -417,6 +427,6 @@ int main(int argc, char **argv) {
     { fprintf(stderr, "recent traps:\n"); for (int i = 0; i < 600; i++) { const char *l = tring[(tri + i) % 600]; if (l[0]) fprintf(stderr, "  %s\n", l); } }
     if (!halted) { fprintf(stderr, "last pcs:"); for (int i = 0; i < 40; i++) fprintf(stderr, " %06x", pcring[(pcri - 40 + i) & 63]); fprintf(stderr, "\n"); }
     fprintf(stderr, "stopped: traps=%lu pc=%06x sp=%06x\n", ntraps, R(M68K_REG_PC), SP);
-    { FILE *df = fopen("build/ram.bin", "wb"); if (df) { fwrite(ram, 1, RAM_SIZE, df); fclose(df); } }
+    if (getenv("CASTLES_DUMP")) { FILE *df = fopen("build/ram.bin", "wb"); if (df) { fwrite(ram, 1, RAM_SIZE, df); fclose(df); } }
     return halted ? 0 : 3;
 }

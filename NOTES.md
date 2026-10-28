@@ -35,3 +35,8 @@ Boots through the THINK C runtime and into the game's init (105 traps). Next: Fi
 PyPI and apt are blocked in the cloud workspace; public GitHub clones work. Tools built from source:
 Capstone (tools/capstone), SDL2 (tools/sdl2-install), python-rsrcfork (tools/rsrcfork).
 Set LIBCAPSTONE_PATH=tools/capstone/build when using scripts/m68kdis.py.
+
+## Status update
+- Boots through init, SANE, title screen, intro movie (QuickTime Cinepak via `port/movie.inc`), New Game dialog, strategic map, menus (incl. hierarchical), pictures, dialogs/controls.
+- Stubs: AppleEvents (A816), FindFolder (A823), FSMakeFSSpec (AA52), TrackBox, PtToAngle, Debugger.
+- TODO: real audio, Standard File (Pack3), convert CODE segments to C.

@@ -5,7 +5,7 @@
 #include <unistd.h>
 #define MAXDIRS 256
 #define MAXOPEN 64
-static char game_root[1024] = ".";
+
 static const char *volname = "Castles";
 static char *dirpath[MAXDIRS]; static int ndirs = 0;          /* dirID = 2 + index */
 typedef struct { FILE *f; char path[1100]; int rf; long base, len, mark; } OF;
