@@ -133,6 +133,7 @@ static int gfx_dispatch(uint16_t w, uint16_t n, uint32_t ret) {
     case 0xA8EC: {      /* CopyBits(src, dst, srcRect, dstRect, mode, maskRgn) */
         uint32_t mask = rd32(sp); int mode = rd16(sp + 4); Rc dr = rc_get(rd32(sp + 6)), sr = rc_get(rd32(sp + 10)); uint32_t dst = rd32(sp + 14), src = rd32(sp + 18); setsp(sp + 22);
         Surf ss, ds; surf_from_pm(src, &ss); surf_from_pm(dst, &ds); if (!port) return 1;
+        if (getenv("CBDBG")) fprintf(stderr, "[CopyBits] src=%06x base=%06x rb=%d bnd=(%d,%d,%d,%d) -> dst=%06x base=%06x rb=%d bnd=(%d,%d,%d,%d) sr=(%d,%d,%d,%d) dr=(%d,%d,%d,%d) mode=%d mask=%06x port=%06x\n", src, ss.base, ss.rb, ss.bnd.t, ss.bnd.l, ss.bnd.b, ss.bnd.r, dst, ds.base, ds.rb, ds.bnd.t, ds.bnd.l, ds.bnd.b, ds.bnd.r, sr.t, sr.l, sr.b, sr.r, dr.t, dr.l, dr.b, dr.r, mode, mask, port);
         DC d; dc_init(&d, port);
         if (ds.base != d.s.base || ds.rb != d.s.rb) { rl_free(&d.clip); d.clip = (RL){0}; rl_add(&d.clip, ds.bnd); }
         d.s = ds; dc_port_colors(port, &ds, &d.fg, &d.bg);

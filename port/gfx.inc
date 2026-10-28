@@ -9,6 +9,7 @@ static int gfx_dirty = 0;
 
 static void surf_from_pm(uint32_t pm, Surf *s) {
     uint32_t rbw = rd16(pm + 4);
+    if ((rbw & 0xC000) == 0xC000) { pm = rd32(rd32(pm)); rbw = rd16(pm + 4); }      /* &cgrafport->portPixMap passed as a BitMap* */
     s->base = rd32(pm); s->rb = rbw & 0x3FFF; s->bnd = rc_get(pm + 6);
     if (rbw & 0x8000) { s->depth = rd16(pm + 32); s->ctab = rd32(pm + 42); s->color = 1; } else { s->depth = 1; s->ctab = 0; s->color = 0; }
     if (s->depth == 0) s->depth = 1;

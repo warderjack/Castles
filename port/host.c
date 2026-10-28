@@ -158,8 +158,8 @@ static int trap_key(uint32_t w, int newtool) {
 
 static uint32_t pcring[64]; static int pcri = 0;
 static unsigned long ntraps;
-static char tring[600][160]; static int tri = 0;
-static int trace_limit = 150;
+static unsigned long thist[65536]; static char tring[600][160]; static int tri = 0;
+static int trace_limit = 150; static int trace_init_done;
 
 static void do_loadseg(uint32_t ret) {
     uint32_t segno = rd16(SP); setsp(SP + 2);
@@ -179,7 +179,7 @@ static void do_loadseg(uint32_t ret) {
 /* Returns via W(PC) -- handler may redirect; otherwise PC=ret. */
 #include <time.h>
 #include <strings.h>
-static uint32_t ticks_now(void) { struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t); return (uint32_t)((t.tv_sec * 1000ull + t.tv_nsec / 1000000) * 60 / 1000); }
+static uint32_t ticks_now(void) { static uint64_t t0; struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t); uint64_t ms = t.tv_sec * 1000ull + t.tv_nsec / 1000000; if (!t0) t0 = ms; return (uint32_t)((ms - t0 + 3000) * 60 / 1000); }
 static int16_t res_err = 0;
 #define FB_BASE 0x00A00000u
 static uint32_t cur_a5(void) { return R(M68K_REG_A5); }
@@ -217,6 +217,7 @@ static void hle(uint16_t w, uint32_t ret) {
     ntraps++;
     int redirected = 0;
     uint16_t n = (w & 0x800) ? (w & 0xFBFF) : (w & 0xF8FF);   /* normalised trap word */
+    thist[w]++; if (!trace_init_done) { trace_init_done = 1; if (getenv("TRACEN")) trace_limit = atoi(getenv("TRACEN")); }
     snprintf(tring[tri++ % 600], 160, "[trap %04X %-18s] D0=%08x A0=%08x A1=%08x SP=%06x ret=%06x", w, tname(w), D(0), A(0), A(1), SP, ret);
     if (trace_limit > 0) {
         trace_limit--;
@@ -399,6 +400,7 @@ int main(int argc, char **argv) {
         if (maxslices && ++guard >= maxslices) break;
     }
     if (getenv("CASTLES_SHOT")) { write_ppm(getenv("CASTLES_SHOT")); fprintf(stderr, "screenshot -> %s\n", getenv("CASTLES_SHOT")); }
+    { fprintf(stderr, "trap histogram:"); for (int k = 0; k < 60; k++) { int b = -1; for (int i = 0; i < 65536; i++) if (thist[i] && (b < 0 || thist[i] > thist[b])) b = i; if (b < 0) break; fprintf(stderr, " %04X(%s)=%lu", b, tname(b), thist[b]); thist[b] = 0; } fprintf(stderr, "\n"); }
     { fprintf(stderr, "recent traps:\n"); for (int i = 0; i < 600; i++) { const char *l = tring[(tri + i) % 600]; if (l[0]) fprintf(stderr, "  %s\n", l); } }
     if (!halted) { fprintf(stderr, "last pcs:"); for (int i = 0; i < 40; i++) fprintf(stderr, " %06x", pcring[(pcri - 40 + i) & 63]); fprintf(stderr, "\n"); }
     fprintf(stderr, "stopped: traps=%lu pc=%06x sp=%06x\n", ntraps, R(M68K_REG_PC), SP);

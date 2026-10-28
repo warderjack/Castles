@@ -19,7 +19,8 @@ static int wm_dispatch(uint16_t w, uint16_t n, uint32_t ret) {
     switch (n) {
     /* ---------------- events ---------------- */
     case 0xA970: case 0xA971: { uint32_t evp = rd32(sp); int mask = rd16(sp + 4); int r = get_event(evp, mask, n == 0xA970); setsp(sp + 6); wr_bool(sp + 6, r); if (!r) idle_hint = 1; return 1; }
-    case 0xA860: { uint32_t evp = rd32(sp + 8); int mask = rd16(sp + 12); uint32_t sleep = rd32(sp + 4); int r = get_event(evp, mask, 1); setsp(sp + 14); wr_bool(sp + 14, r); if (!r && sleep) idle_hint = 1; return 1; }
+    case 0xA860: { uint32_t evp = rd32(sp + 8); int mask = rd16(sp + 12); uint32_t sleep = rd32(sp + 4); int r = get_event(evp, mask, 1);
+        { static int wn; if (getenv("WNEDBG") && (wn++ % 20000) == 0) { fprintf(stderr, "[wne] mask=%04x r=%d what=%d front=%06x active=%06x\n", mask, r, rd16(evp), win_list_head(), active_win); for (uint32_t p = win_list_head(); p; p = rd32(p + WR_NEXT)) { RL u = {0}; rgn_get(rd32(p + WR_UPDATE), &u); fprintf(stderr, "   win %06x vis=%d hil=%d upd_empty=%d\n", p, win_visible(p), rd8(p + WR_HILITED), rl_isempty(&u)); rl_free(&u); } } } setsp(sp + 14); wr_bool(sp + 14, r); if (!r && sleep) idle_hint = 1; return 1; }
     case 0xA974: { ev_pump(); wr_bool(sp, plat_btn); return 1; }
     case 0xA973: { ev_pump(); wr_bool(sp, plat_btn); if (plat_btn) idle_hint = 1; return 1; }
     case 0xA977: { ev_pump(); if (plat_btn) { rewind_trap(ret); return 1; } for (int i = 0; i < evq_n; i++) if (evq[(evq_h + i) & 255].what == 2) { for (int j = i; j + 1 < evq_n; j++) evq[(evq_h + j) & 255] = evq[(evq_h + j + 1) & 255]; evq_n--; break; } wr_bool(sp, 0); return 1; }
