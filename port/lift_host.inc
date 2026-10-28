@@ -2,6 +2,7 @@
 static void hle(uint16_t w, uint32_t ret);
 u32 D[8], A[8], SB[16], REL_A4, REL_A5; u32 fX, fN, fZ, fV, fC;
 static jmp_buf lift_jb; static u32 lift_bail_pc; static int lift_synced, lift_active, lift_on = 1;
+u32 lift_mid, lift_mid_r0; static const LiftMid **lift_midtab[16];
 static LiftFn *lift_segtab[16]; static u32 lift_seglen[16]; static u32 lift_lo = 0xFFFFFFFF, lift_hi = 0;
 int lift_dry = 0; static u32 lift_trap_pc; static int chk_partial; static unsigned long chk_part_n; static unsigned long lift_calls, lift_bails, lift_traps;
 
@@ -18,8 +19,15 @@ static void lift_register_seg(int segno, uint32_t base, uint32_t len) {
     if (segno < 0 || segno > 15 || !lift_nents) return;
     SB[segno] = base; lift_seglen[segno] = len; free(lift_segtab[segno]); lift_segtab[segno] = calloc(len / 2 + 2, sizeof(LiftFn));
     for (int i = 0; i < lift_nents; i++) if (lift_ents[i].seg == segno && lift_ents[i].off < len) lift_segtab[segno][lift_ents[i].off >> 1] = lift_ents[i].fn;
+    free(lift_midtab[segno]); lift_midtab[segno] = calloc(len / 2 + 2, sizeof(LiftMid *));
+    for (int i = 0; i < lift_nmids; i++) if (lift_mids[i].seg == segno && lift_mids[i].off < len) lift_midtab[segno][lift_mids[i].off >> 1] = &lift_mids[i];
     if (base < lift_lo) lift_lo = base; if (base + len > lift_hi) lift_hi = base + len;
     if (!REL_A4) { REL_A4 = R(M68K_REG_A4); REL_A5 = R(M68K_REG_A5); fprintf(stderr, "[lift] REL_A4=%x REL_A5=%x\n", REL_A4, REL_A5); }
+}
+static const LiftMid *lift_midlookup(uint32_t pc) {
+    if (pc < lift_lo || pc >= lift_hi || (pc & 1)) return NULL;
+    for (int s = 1; s < 16; s++) if (lift_midtab[s] && pc >= SB[s] && pc < SB[s] + lift_seglen[s]) return lift_midtab[s][(pc - SB[s]) >> 1];
+    return NULL;
 }
 static LiftFn lift_lookup(uint32_t pc) {
     if (pc < lift_lo || pc >= lift_hi) return NULL;
@@ -46,15 +54,19 @@ void lift_trap(u32 w, u32 tpc, u32 ret) {
     if (pc2 != ret || halted) { lift_synced = 1; lift_bail_pc = pc2; lift_bails++; longjmp(lift_jb, 1); }
     lift_sync_in();
 }
-static int lift_try_check(uint32_t pc, LiftFn f); static int lift_check = 0, lift_chk_active;
+static void lift_check_finish(void);
+static int lift_try_check(uint32_t pc, LiftFn f, u32 midoff, u32 midr0); static int lift_check = 0, lift_chk_active;
 /* called from the instruction hook when pc is a translated routine's entry; returns 1 if it ran */
 static int lift_try(uint32_t pc) {
     static long lmax = -2; if (lmax == -2) { const char *e = getenv("LIFTMAX"); lmax = e ? atol(e) : -1; }
-    LiftFn f = lift_lookup(pc); if (!f || !lift_on) return 0;
+    LiftFn f = lift_lookup(pc); const LiftMid *mm = NULL; u32 midoff = 0, midr0 = 0;
+    if (!f && lift_on && !getenv("NOMID")) { mm = lift_midlookup(pc); if (mm && mm->haslink) { f = mm->fn; midoff = pc - SB[mm->seg]; midr0 = m32(R(M68K_REG_A6) + 4); } }
+    if (!f || !lift_on) return 0;
     if (lmax >= 0 && (long)lift_calls >= lmax) return 0;
-    if (getenv("LIFTLOG")) fprintf(stderr, "[lift] enter %06x call#%lu\n", pc, lift_calls);
-    if (lift_check) return lift_try_check(pc, f);
-    lift_sync_in(); uint32_t r0 = m32(A[7]); lift_synced = 0; lift_calls++;
+    if (getenv("LIFTLOG")) fprintf(stderr, "[lift] enter %06x%s call#%lu\n", pc, midoff ? " (mid)" : "", lift_calls);
+    if (lift_check) return lift_try_check(pc, f, midoff, midr0);
+    lift_sync_in(); uint32_t r0 = midoff ? midr0 : m32(A[7]); lift_synced = 0; lift_calls++;
+    lift_mid = midoff; lift_mid_r0 = midr0;
     if (setjmp(lift_jb) == 0) { f(); lift_bail_pc = r0; }
     if (!lift_synced) lift_sync_out();
     W(M68K_REG_PC, lift_bail_pc); return 1;
@@ -85,17 +97,18 @@ static u32 chk_vis[512]; static int chk_nvis; static u32 chk_s_D[8], chk_s_A[8],
 typedef struct { u32 a; u8 v; } ChkDiff; static ChkDiff *chk_diff; static int chk_ndiff, chk_diffcap;
 static void chk_save_regs(u32 *d, u32 *a, u32 *f) { memcpy(d, D, 32); memcpy(a, A, 32); f[0] = fX; f[1] = fN; f[2] = fZ; f[3] = fV; f[4] = fC; }
 static void chk_load_regs(u32 *d, u32 *a, u32 *f) { memcpy(D, d, 32); memcpy(A, a, 32); fX = f[0]; fN = f[1]; fZ = f[2]; fV = f[3]; fC = f[4]; }
-static int lift_try_check(uint32_t pc, LiftFn f) {
+static int lift_try_check(uint32_t pc, LiftFn f, u32 midoff, u32 midr0) {
     int si = 0, off = 0; for (int s = 1; s < 16; s++) if (lift_segtab[s] && pc >= SB[s] && pc < SB[s] + lift_seglen[s]) { si = s; off = (pc - SB[s]) >> 1; }
     if (chk_count[si][off] >= lift_chk_max) return 0;
-    lift_sync_in(); uint32_t r0 = m32(A[7]); chk_save_regs(chk_s_D, chk_s_A, chk_s_f);
+    lift_sync_in(); uint32_t r0 = midoff ? midr0 : m32(A[7]); chk_save_regs(chk_s_D, chk_s_A, chk_s_f);
     if (!chk_snap) chk_snap = malloc(RAM_SIZE); memcpy(chk_snap, ram, RAM_SIZE);
     extern int lift_dry; lift_dry = 1; lift_nvis = 0;
 #ifdef LIFT_TRACE
     ntrl = 0; ntri = 0;
 #endif
     int jr = setjmp(lift_jb); int ok = 0;
-    if (jr == 0) { f(); ok = 1; }
+    if (jr == 0) { lift_mid = midoff; lift_mid_r0 = midr0; f(); ok = 1; }
+    lift_mid = 0;
     lift_dry = 0;
     chk_partial = 0;
     if (!ok && jr != 2 && jr != 3) { memcpy(ram, chk_snap, RAM_SIZE); chk_load_regs(chk_s_D, chk_s_A, chk_s_f); chk_skip++; chk_count[si][off]++; return 0; }
@@ -107,8 +120,9 @@ static int lift_try_check(uint32_t pc, LiftFn f) {
         if (chk_ndiff == chk_diffcap) { chk_diffcap = chk_diffcap ? chk_diffcap * 2 : 1024; chk_diff = realloc(chk_diff, chk_diffcap * sizeof(ChkDiff)); }
         chk_diff[chk_ndiff].a = i + k; chk_diff[chk_ndiff].v = ram[i + k]; chk_ndiff++; ram[i + k] = chk_snap[i + k]; }
     chk_load_regs(chk_s_D, chk_s_A, chk_s_f);
-    if (chk_partial) { chk_ret = lift_trap_pc; chk_sp = chk_A[7]; chk_part_n++; } else { chk_ret = r0; chk_sp = A[7] + 4; }
+    if (chk_partial) { chk_ret = lift_trap_pc; chk_sp = chk_A[7]; chk_part_n++; } else { chk_ret = r0; chk_sp = midoff ? A[6] + 8 : A[7] + 4; }
     chk_entry = pc; lift_chk_active = 1; lift_on = 0;      /* interpreter runs the routine; compare at its return */
+    if (chk_partial && chk_ret == pc && chk_sp == SP) lift_check_finish();
 #ifdef LIFT_TRACE
     tri_record(pc);
 #endif

@@ -363,8 +363,10 @@ static void hle(uint16_t w, uint32_t ret) {
 }
 
 static int pctrace = 0;
+unsigned long interp_insns; static unsigned *pchist;
 void castles_instr_hook(unsigned int pc) {
     for (;;) {
+        interp_insns++; if (getenv("PCHIST")) { if (!pchist) pchist = calloc(RAM_SIZE / 2, 4); if (pc < RAM_SIZE) pchist[pc >> 1]++; }
         if (pc == SENTINEL) { call_done = 1; m68k_end_timeslice(); return; }
         if (pc == YIELD_PC + 2) { pc = yield_resume; W(M68K_REG_PC, pc); }
         else if (pc == GCONT_PC) { gc_resume(); pc = R(M68K_REG_PC); }
@@ -438,7 +440,8 @@ int main(int argc, char **argv) {
     { fprintf(stderr, "recent traps:\n"); for (int i = 0; i < 600; i++) { const char *l = tring[(tri + i) % 600]; if (l[0]) fprintf(stderr, "  %s\n", l); } }
     if (!halted) { fprintf(stderr, "last pcs:"); for (int i = 0; i < 40; i++) fprintf(stderr, " %06x", pcring[(pcri - 40 + i) & 63]); fprintf(stderr, "\n"); }
     if (lift_check) fprintf(stderr, "[LIFTCHECK] verified=%d mismatched=%d skipped(trap/bail)=%d (verified incl. partial-to-trap: %lu)\n", chk_ok, chk_bad, chk_skip, chk_part_n);
-    fprintf(stderr, "lift: calls=%lu bails=%lu traps=%lu\n", lift_calls, lift_bails, lift_traps);
+    if (pchist) { for (int k = 0; k < 25; k++) { unsigned best = 0; uint32_t bi = 0; for (uint32_t i = 0; i < RAM_SIZE / 2; i++) if (pchist[i] > best) { best = pchist[i]; bi = i; } if (!best) break; fprintf(stderr, "  hot %06x x%u\n", bi * 2, best); pchist[bi] = 0; } }
+    fprintf(stderr, "interp hook insns=%lu\n", interp_insns), fprintf(stderr, "lift: calls=%lu bails=%lu traps=%lu\n", lift_calls, lift_bails, lift_traps);
     fprintf(stderr, "stopped: traps=%lu pc=%06x sp=%06x\n", ntraps, R(M68K_REG_PC), SP);
     if (getenv("CASTLES_DUMP")) { FILE *df = fopen("build/ram.bin", "wb"); if (df) { fwrite(ram, 1, RAM_SIZE, df); fclose(df); } }
     return halted ? 0 : 3;

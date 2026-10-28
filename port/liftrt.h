@@ -20,6 +20,9 @@ static inline void w32(u32 a, u32 v) { a &= 0xFFFFFF; ram[a] = v >> 24; ram[a + 
 typedef void (*LiftFn)(void);
 typedef struct { int seg; u32 off; LiftFn fn; } LiftEnt;
 extern const LiftEnt lift_ents[]; extern const int lift_nents;
+typedef struct { int seg; u32 off; LiftFn fn; int haslink; } LiftMid;
+extern const LiftMid lift_mids[]; extern const int lift_nmids;
+extern u32 lift_mid, lift_mid_r0;
 
 /* host glue (port/lift_host.inc) */
 void lift_enter(u32 target);                    /* run translated routine at runtime address, or bail to the interpreter */
