@@ -18,7 +18,9 @@
 #define YIELD_PC   (STUB_BASE + 0x5010u)        /* two NOPs: rewound traps resume at +2 after the slice ends */
 static uint32_t yield_resume = 0;
 
-static uint8_t ram[RAM_SIZE];
+uint8_t ram[RAM_SIZE];
+#include "liftrt.h"
+static void lift_register_seg(int segno, uint32_t base, uint32_t len);
 
 static inline uint32_t rd8(uint32_t a)  { return ram[a & 0xFFFFFF]; }
 static inline uint32_t rd16(uint32_t a) { a &= 0xFFFFFF; return (ram[a] << 8) | ram[a + 1]; }
@@ -45,7 +47,7 @@ static void setsp(uint32_t v) { W(M68K_REG_SP, v); }
 static void push32(uint32_t v) { uint32_t s = SP - 4; setsp(s); wr32(s, v); }
 static uint32_t pop32(void) { uint32_t s = SP; uint32_t v = rd32(s); setsp(s + 4); return v; }
 
-static int halted = 0;
+static int halted = 0; static int chk_slices = 0;
 static void die(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 #include <stdarg.h>
 #include <unistd.h>
@@ -185,7 +187,7 @@ static void do_loadseg(uint32_t ret) {
         uint32_t e = jt + first + i * 8, off = rd16(e);
         wr16(e, segno); wr16(e + 2, 0x4EF9); wr32(e + 4, p + 4 + off);
     }
-    if (trace_limit > 0) fprintf(stderr, "  LoadSeg(%u) first=%u count=%u base=%06x -> jump %06x\n", segno, first, count, p, ret - 6);
+    fprintf(stderr, "  [seg] LoadSeg(%u) base=%06x\n", segno, p); lift_register_seg(segno, p, r->len); if (trace_limit > 0) fprintf(stderr, "  LoadSeg(%u) first=%u count=%u base=%06x -> jump %06x\n", segno, first, count, p, ret - 6);
     W(M68K_REG_PC, ret - 6);   /* stub entry + 2, now a JMP.L */
 }
 
@@ -230,6 +232,7 @@ static void init_graf(uint32_t P) {
 #include "tasks.inc"
 #include "sfg.inc"
 #include "movie.inc"
+#include "lift_host.inc"
 static void hle(uint16_t w, uint32_t ret) {
     ntraps++;
     int redirected = 0;
@@ -365,6 +368,11 @@ void castles_instr_hook(unsigned int pc) {
         if (pc == SENTINEL) { call_done = 1; m68k_end_timeslice(); return; }
         if (pc == YIELD_PC + 2) { pc = yield_resume; W(M68K_REG_PC, pc); }
         else if (pc == GCONT_PC) { gc_resume(); pc = R(M68K_REG_PC); }
+        if (lift_chk_active && pc == chk_ret && SP == chk_sp) lift_check_finish();
+#ifdef LIFT_TRACE
+        if (lift_chk_active) tri_record(pc);
+#endif
+        if (pc >= lift_lo && pc < lift_hi && lift_try(pc)) { pc = R(M68K_REG_PC); continue; }
         uint32_t op = rd16(pc); if (pc > 0x1000) pcring[pcri++ & 63] = pc;
         if (pc==0x53ece||pc==0x53f4e||pc==0x53f60||pc==0x53f6a||pc==0x53f74||pc==0x53f7e||pc==0x53f88||pc==0x53f92||pc==0x53f9c||pc==0x53f58) fprintf(stderr,"[probe] pc=%06x d0=%08x\n",pc,R(M68K_REG_D0));
         if (pc==0x5655c) { uint32_t sp_=SP, a6=R(M68K_REG_A6); fprintf(stderr,"[probe] vremove-fn ret=%06x a6=%06x ret2=%06x\n",rd32(sp_),a6,rd32(a6+4)); }
@@ -389,6 +397,8 @@ void castles_instr_hook(unsigned int pc) {
 /* ---------------- Launch ---------------- */
 int main(int argc, char **argv) {
     if (argc < 2) { fprintf(stderr, "usage: %s <game folder | app.bin | rsrc.fork> [game folder]\n", argv[0]); return 2; }
+    if (getenv("LIFTCHECK")) { lift_check = 1; if (atoi(getenv("LIFTCHECK")) > 1) lift_chk_max = atoi(getenv("LIFTCHECK")); }
+    if (getenv("NOLIFT")) lift_on = 0;
     load_fork(argv[1]); if (argc > 2) strncpy(game_root, argv[2], sizeof game_root - 1);
     for (uint32_t k = 0; k < 0x1000; k++) { wr16(STUB_BASE + k * 4, 0xA000 | (k >= 0x400 ? 0x800 | (k - 0x400) : k)); wr16(STUB_BASE + k * 4 + 2, 0x4E75); }
 
@@ -417,7 +427,7 @@ int main(int argc, char **argv) {
     plat_init(); wr16(0xBAA, 20);
     unsigned long guard = 0, maxslices = getenv("MAXSLICES") ? strtoul(getenv("MAXSLICES"), NULL, 10) : 0; uint32_t last_present = 0;
     while (!halted) {
-        m68k_execute(10000); wr32(0x16A, ticks_now()); wr32(0x20C, (uint32_t)(time(NULL) + 2082844800u)); run_tasks(); ev_pump();
+        m68k_execute(10000); if (lift_chk_active && ++chk_slices > 300) { lift_chk_active = 0; lift_on = 1; chk_skip++; chk_slices = 0; } if (!lift_chk_active) { chk_slices = 0; wr32(0x16A, ticks_now()); wr32(0x20C, (uint32_t)(time(NULL) + 2082844800u)); run_tasks(); ev_pump(); }
         if (quit_requested) { rm_flush_all(); fprintf(stderr, "quit requested\n"); break; }
         uint32_t t = ticks_now(); if (t - last_present >= 2) { plat_present(); gfx_dirty = 0; last_present = t; }
         if (idle_hint) { idle_hint = 0; usleep(1500); }
@@ -427,6 +437,8 @@ int main(int argc, char **argv) {
     { fprintf(stderr, "trap histogram:"); for (int k = 0; k < 60; k++) { int b = -1; for (int i = 0; i < 65536; i++) if (thist[i] && (b < 0 || thist[i] > thist[b])) b = i; if (b < 0) break; fprintf(stderr, " %04X(%s)=%lu", b, tname(b), thist[b]); thist[b] = 0; } fprintf(stderr, "\n"); }
     { fprintf(stderr, "recent traps:\n"); for (int i = 0; i < 600; i++) { const char *l = tring[(tri + i) % 600]; if (l[0]) fprintf(stderr, "  %s\n", l); } }
     if (!halted) { fprintf(stderr, "last pcs:"); for (int i = 0; i < 40; i++) fprintf(stderr, " %06x", pcring[(pcri - 40 + i) & 63]); fprintf(stderr, "\n"); }
+    if (lift_check) fprintf(stderr, "[LIFTCHECK] verified=%d mismatched=%d skipped(trap/bail)=%d\n", chk_ok, chk_bad, chk_skip);
+    fprintf(stderr, "lift: calls=%lu bails=%lu traps=%lu\n", lift_calls, lift_bails, lift_traps);
     fprintf(stderr, "stopped: traps=%lu pc=%06x sp=%06x\n", ntraps, R(M68K_REG_PC), SP);
     if (getenv("CASTLES_DUMP")) { FILE *df = fopen("build/ram.bin", "wb"); if (df) { fwrite(ram, 1, RAM_SIZE, df); fclose(df); } }
     return halted ? 0 : 3;
