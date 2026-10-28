@@ -17,15 +17,27 @@ static void call68k(uint32_t addr, uint32_t a0, uint32_t a1) {
     for (int i = 0; i < 8; i++) { W(M68K_REG_D0 + i, sv[i]); W(M68K_REG_A0 + i, sv[8 + i]); } setsp(sv[15]); W(M68K_REG_PC, sv[16]); W(M68K_REG_SR, sv[17]);
     if (!call_done) fprintf(stderr, "  [tasks] routine %06x did not return\n", addr);
 }
+#ifdef HAVE_SDL
+static SDL_AudioDeviceID aud_dev; static int aud_tried;
+static void snd_out(uint32_t buf, uint32_t hdr) {
+    if (headless) return; uint32_t rate = rd32(hdr + 8) >> 16; if (!rate) rate = 22254;
+    if (!aud_tried) { aud_tried = 1; SDL_AudioSpec w = {0}, g; w.freq = rate; w.format = AUDIO_U8; w.channels = 1; w.samples = 1024; aud_dev = SDL_OpenAudioDevice(NULL, 0, &w, &g, SDL_AUDIO_ALLOW_ANY_CHANGE);
+        if (!aud_dev) fprintf(stderr, "  [snd] no audio device: %s\n", SDL_GetError()); else SDL_PauseAudioDevice(aud_dev, 0); }
+    if (!aud_dev) return; uint32_t n = rd32(buf); int ch = rd16(hdr) ? rd16(hdr) : 1; n *= ch; if (n > 65536) n = 65536; if (SDL_GetQueuedAudioSize(aud_dev) > rate) return;
+    SDL_QueueAudio(aud_dev, ram + buf + 16, n);
+}
+#else
+static void snd_out(uint32_t buf, uint32_t hdr) {}
+#endif
 static void snd_tick(void) {
     if (!dbp.on) return; double ms = now_ms(); uint32_t hdr = dbp.hdr, buf = rd32(hdr + 12 + 4 * dbp.cur);
-    if (dbp.t_end < 0) { if (!(rd32(buf + 4) & 1)) { dbp.on = 0; return; } dbp.t_end = ms + snd_buf_ms(buf, hdr); return; }
+    if (dbp.t_end < 0) { if (!(rd32(buf + 4) & 1)) { dbp.on = 0; return; } snd_out(buf, hdr); dbp.t_end = ms + snd_buf_ms(buf, hdr); return; }
     for (int g = 0; g < 4 && ms >= dbp.t_end; g++) {
         uint32_t fl = rd32(buf + 4);
         if (fl & 4) { dbp.on = 0; fprintf(stderr, "  [snd] double buffer finished\n"); return; }
         wr32(buf + 4, fl & ~1u); call_args[0] = dbp.chan; call_args[1] = buf; call_nargs = 2; call68k(rd32(hdr + 20), 0, 0);
         dbp.cur ^= 1; buf = rd32(hdr + 12 + 4 * dbp.cur);
-        if (rd32(buf + 4) & 1) dbp.t_end += snd_buf_ms(buf, hdr); else { dbp.t_end = ms + 1; break; }
+        if (rd32(buf + 4) & 1) { snd_out(buf, hdr); dbp.t_end += snd_buf_ms(buf, hdr); } else { dbp.t_end = ms + 1; break; }
     }
 }
 static void run_tasks(void) {
