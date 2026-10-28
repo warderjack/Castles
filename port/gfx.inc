@@ -156,14 +156,24 @@ static inline uint32_t apply_mode(int mode, uint32_t src, uint32_t dst, uint32_t
     case 4: return ~src & m; case 5: return dst | (~src & m); case 6: return dst ^ (~src & m); default: return dst & ~(~src & m);
     }
 }
+static RGB port_opcolor(uint32_t port) { RGB o = {0x8000, 0x8000, 0x8000}; if (port_is_color(port)) { uint32_t gv = rd32(port + 8); if (gv && rd32(gv)) { uint32_t g = rd32(gv); o.r = rd16(g); o.g = rd16(g + 2); o.b = rd16(g + 4); } } return o; }
+static uint32_t arith_px(const Surf *ds, int mode, uint32_t srcpx, uint32_t dstpx, RGB op) {
+    RGB sc = px_rgb(ds, srcpx), dc = px_rgb(ds, dstpx); int s3[3] = {sc.r, sc.g, sc.b}, d3[3] = {dc.r, dc.g, dc.b}, o3[3] = {op.r, op.g, op.b}, r3[3];
+    for (int i = 0; i < 3; i++) { int s_ = s3[i], d_ = d3[i], r_;
+        switch (mode) { case 32: r_ = (int)(((int64_t)s_ * o3[i] + (int64_t)d_ * (65535 - o3[i])) / 65535); break; case 33: r_ = s_ + d_; if (r_ > 65535) r_ = 65535; break; case 34: r_ = (s_ + d_) & 0xFFFF; break;
+        case 35: r_ = d_ - s_; if (r_ < 0) r_ = 0; break; case 37: r_ = s_ > d_ ? s_ : d_; break; case 38: r_ = (d_ - s_) & 0xFFFF; break; default: r_ = s_ < d_ ? s_ : d_; break; }
+        r3[i] = r_; }
+    RGB o = {r3[0], r3[1], r3[2]}; return rgb_px(ds, o);
+}
 static void dc_span(DC *d, int y, int x0, int x1) {          /* pattern fill with d->mode into [x0,x1) at row y, honoring clip */
-    uint32_t m = depth_mask(d->s.depth); int md = d->mode & 7;
+    uint32_t m = depth_mask(d->s.depth); int md = d->mode & 7; int arith = d->mode >= 32 && d->mode < 64; RGB opc = {0x8000, 0x8000, 0x8000}; if (arith) opc = port_opcolor(d->port);
     for (int i = 0; i < d->clip.n; i++) {
         Rc c = d->clip.r[i]; if (y < c.t || y >= c.b) continue;
         int a = x0 > c.l ? x0 : c.l, b = x1 < c.r ? x1 : c.r; if (a >= b) continue;
-        if (d->solid && d->s.depth == 8 && md == 0) { memset(ram + ((d->s.base + (uint32_t)(y - d->s.bnd.t) * d->s.rb + (a - d->s.bnd.l)) & 0xFFFFFF), d->solid_px, b - a); continue; }
+        if (d->solid && d->s.depth == 8 && md == 0 && !arith) { memset(ram + ((d->s.base + (uint32_t)(y - d->s.bnd.t) * d->s.rb + (a - d->s.bnd.l)) & 0xFFFFFF), d->solid_px, b - a); continue; }
         for (int x = a; x < b; x++) {
             uint32_t src = d->solid ? d->solid_px : dc_patpx(d, x, y);
+            if (arith) { if (d->mode == 36) { pp(&d->s, x, y, src); continue; } pp(&d->s, x, y, arith_px(&d->s, d->mode, src, gp(&d->s, x, y), opc)); continue; }
             pp(&d->s, x, y, md == 0 ? src : apply_mode(d->mode, src, gp(&d->s, x, y), m));
         }
     }
@@ -355,63 +365,5 @@ static void copybits(const Surf *src, DC *d, Rc sr, Rc dr, int mode, uint32_t ma
     rl_free(&clip);
 }
 
-/* ---- PICT playback (PackBitsRect/BitsRect-centered subset + simple shape ops) ---- */
-static void draw_pict(uint32_t pich, Rc dest) {
-    uint32_t pic = rd32(pich); if (!pic) return;
-    uint32_t sz = rd32(MP_BASE + 0) ? 0 : 0; (void)sz;
-    uint32_t hs = hsize[slot_of(pich)]; Rc frame = rc_get(pic + 2); uint32_t p = pic + 10, end = pic + hs;
-    int fw = frame.r - frame.l, fh = frame.b - frame.t; if (fw <= 0) fw = 1; if (fh <= 0) fh = 1;
-    int dw = dest.r - dest.l, dh = dest.b - dest.t;
-    uint32_t port = the_port(); DC d; dc_init(&d, port); int v2 = 0;
-    if (rd16(p) == 0x0011 && rd16(p + 2) == 0x02FF) { v2 = 1; p += 4; } else if (rd8(p) == 0x11) p += 2;
-    #define MAPX(x) (dest.l + (int)(((int64_t)((x) - frame.l)) * dw / fw))
-    #define MAPY(y) (dest.t + (int)(((int64_t)((y) - frame.t)) * dh / fh))
-    while (p + 2 <= end) {
-        uint32_t op;
-        if (v2) { if ((p - pic) & 1) p++; op = rd16(p); p += 2; } else { op = rd8(p); p += 1; }
-        if (op == 0xFF) break;
-        if (op == 0x0C00) { p += 24; continue; }
-        if (op == 0x00 || op == 0x1E) continue;
-        if (op == 0x01) { p += rd16(p); continue; }
-        if (op == 0x03 || op == 0x04 || op == 0x08 || op == 0x0D || op == 0x15 || op == 0x16 || op == 0xA0) { p += 2; continue; }
-        if (op == 0x07 || op == 0x21 || op == 0x22) { p += op == 0x22 ? 6 : 4; if (op == 0x21) p += 4; continue; }
-        if (op == 0x1A || op == 0x1B || op == 0x1D || op == 0x1F || op == 0x1C) { if (op == 0x1A) { /* RGBFgCol */ } p += 6; continue; }
-        if (op == 0x02 || op == 0x09 || op == 0x0A) { p += 8; continue; }
-        if (op == 0xA1) { p += 2; p += 2 + rd16(p); continue; }
-        if (op >= 0x30 && op <= 0x34) { Rc r = rc_get(p); p += 8; r = (Rc){MAPY(r.t), MAPX(r.l), MAPY(r.b), MAPX(r.r)}; int sm = d.mode; if (op == 0x31) { dc_rect(&d, r); } d.mode = sm; continue; }
-        if (op == 0x98 || op == 0x99 || op == 0x90 || op == 0x91) {
-            uint32_t rbw = rd16(p); Surf s; uint32_t pm = p; int packed = (op == 0x98 || op == 0x99);
-            int ispix = (rbw & 0x8000) != 0; uint32_t rowb = rbw & 0x3FFF; Rc bnd = rc_get(p + 2); int depth = 1; uint32_t ctab = 0; uint32_t q = p;
-            int pack = 0; Rc srcr, dstr; uint32_t maskh = 0;
-            if (ispix) {
-                pack = (int16_t)rd16(pm + 12); depth = rd16(pm + 28); int cmp = rd16(pm + 30); (void)cmp; q = pm + 46;
-                uint32_t ctsize = rd16(q + 6) + 1; ctab = new_handle(8 + 8 * ctsize); uint32_t cp = rd32(ctab); wr32(cp, ++ctseed); wr16(cp + 6, ctsize - 1);
-                for (uint32_t i = 0; i < ctsize; i++) { for (int k = 0; k < 8; k += 2) wr16(cp + 8 + i * 8 + k, rd16(q + 8 + i * 8 + k)); wr16(cp + 8 + i * 8, i); }
-                q += 8 + ctsize * 8;
-            } else q = p + 10;
-            srcr = rc_get(q); dstr = rc_get(q + 8); int pmode = rd16(q + 16); q += 18;
-            if (op == 0x99 || op == 0x91) { uint32_t rs = rd16(q); maskh = new_handle(rs); memcpy(ram + rd32(maskh), ram + q, rs); q += rs; }
-            int h = bnd.b - bnd.t, w = bnd.r - bnd.l; uint32_t outrb = ((w * depth + 31) / 32) * 4; uint32_t buf = alloc_block(outrb * (h ? h : 1));
-            if (!buf) { if (ctab) dispose_handle(ctab); break; }
-            for (int y = 0; y < h; y++) {
-                if (!packed || (pack == 1) || (rowb < 8)) { memcpy(ram + buf + y * outrb, ram + q, rowb < outrb ? rowb : outrb); q += rowb; }
-                else {
-                    uint32_t n; if (rowb > 250) { n = rd16(q); q += 2; } else { n = rd8(q); q += 1; }
-                    if (depth == 16 && pack == 3) { uint8_t tmp[4096]; unpack_bits(ram + q, n, tmp, w * 2); memcpy(ram + buf + y * outrb, tmp, w * 2 < (int)outrb ? w * 2 : outrb); }
-                    else unpack_bits(ram + q, n, ram + buf + y * outrb, outrb);
-                    q += n;
-                }
-            }
-            s.base = buf; s.rb = outrb; s.depth = depth; s.bnd = bnd; s.ctab = ctab; s.color = ispix;
-            Rc ddr = {MAPY(dstr.t), MAPX(dstr.l), MAPY(dstr.b), MAPX(dstr.r)};
-            if (depth == 1 && !ispix) { s.depth = 1; }
-            copybits(&s, &d, srcr, ddr, pmode & 0x3F, maskh);
-            free_block(buf); if (ctab) dispose_handle(ctab); if (maskh) dispose_handle(maskh);
-            p = q; continue;
-        }
-        if (op == 0x9A || op == 0x9B) { /* DirectBitsRect: not used by game; skip rest */ fprintf(stderr, "  [pict] DirectBits not supported\n"); break; }
-        if (op >= 0x100 && op < 0x8000) { p += (op >> 8) * 2; continue; }
-        fprintf(stderr, "  [pict] unhandled op %04x at %06x\n", op, p); break;
-    }
-    dc_free(&d);
-}
+/* ---- PICT playback / recording live in pict.inc ---- */
+static int pic_on = 0; static int pic_record(uint16_t n, uint32_t sp); static void draw_pict(uint32_t pich, Rc dest); static uint32_t pic_open(Rc frame); static void pic_close(void);

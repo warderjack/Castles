@@ -41,6 +41,7 @@ static void do_scroll(uint32_t rp, int dh, int dv, uint32_t updRgn) {
 static int gfx_dispatch(uint16_t w, uint16_t n, uint32_t ret) {
     uint32_t sp = SP; uint32_t port = the_port();
     if (n < 0xA800) return 0;
+    if (pic_on && pic_record(n, sp)) return 1;
     #define NEEDPORT() if (!port) { if (trace_limit > 0) fprintf(stderr, "  [gfx] %04X with no port\n", n); }
     switch (n) {
     case 0xA8DA: memset(&rgn_rec, 0, sizeof rgn_rec); rgn_rec_on = 1; return 1;               /* OpenRgn */
@@ -125,7 +126,7 @@ static int gfx_dispatch(uint16_t w, uint16_t n, uint32_t ret) {
     case 0xAA14: { uint32_t p = rd32(sp); setsp(sp + 4); if (port) { RGB c = {rd16(p), rd16(p + 2), rd16(p + 4)}; set_fore_rgb(port, c); } return 1; }
     case 0xAA15: { uint32_t p = rd32(sp); setsp(sp + 4); if (port) { RGB c = {rd16(p), rd16(p + 2), rd16(p + 4)}; set_back_rgb(port, c); } return 1; }
     case 0xAA19: case 0xAA1A: { uint32_t p = rd32(sp); setsp(sp + 4); if (port) { uint32_t o = n == 0xAA19 ? 36 : 42; if (port_is_color(port)) { wr16(p, rd16(port + o)); wr16(p + 2, rd16(port + o + 2)); wr16(p + 4, rd16(port + o + 4)); } else { RGB c = qd_color_const(rd32(port + (n == 0xAA19 ? 80 : 84))); wr16(p, c.r); wr16(p + 2, c.g); wr16(p + 4, c.b); } } return 1; }
-    case 0xAA21: case 0xAA22: { uint32_t p = rd32(sp); setsp(sp + 4); (void)p; return 1; }       /* OpColor / HiliteColor (opColor tracked per-port lazily) */
+    case 0xAA21: case 0xAA22: { uint32_t p = rd32(sp); setsp(sp + 4); if (port && port_is_color(port)) { uint32_t gv = rd32(port + 8); if (!gv) { gv = new_handle(20); memset(ram + rd32(gv), 0, 20); wr32(port + 8, gv); } uint32_t g = rd32(gv) + (n == 0xAA22 ? 6 : 0); wr16(g, rd16(p)); wr16(g + 2, rd16(p + 2)); wr16(g + 4, rd16(p + 4)); } return 1; }       /* OpColor / HiliteColor (opColor tracked per-port lazily) */
     case 0xAA16: { uint32_t p = rd32(sp); int v = (int16_t)rd16(sp + 4), h = (int16_t)rd16(sp + 6); setsp(sp + 8); if (port) { Surf s; surf_from_port(port, &s); RGB c = {rd16(p), rd16(p + 2), rd16(p + 4)}; if (h >= s.bnd.l && h < s.bnd.r && v >= s.bnd.t && v < s.bnd.b) pp(&s, h, v, rgb_px(&s, c)); gfx_dirty = 1; } return 1; }  /* SetCPixel(h,v,RGBColor*) */
     case 0xAA17: { uint32_t p = rd32(sp); int v = (int16_t)rd16(sp + 4), h = (int16_t)rd16(sp + 6); setsp(sp + 8); if (port) { Surf s; surf_from_port(port, &s); RGB c = {0, 0, 0}; if (h >= s.bnd.l && h < s.bnd.r && v >= s.bnd.t && v < s.bnd.b) c = px_rgb(&s, gp(&s, h, v)); wr16(p, c.r); wr16(p + 2, c.g); wr16(p + 4, c.b); } return 1; }
     case 0xA865: { int v = (int16_t)rd16(sp), h = (int16_t)rd16(sp + 2); setsp(sp + 4); int bl = 0; if (port) { Surf s; surf_from_port(port, &s); if (h >= s.bnd.l && h < s.bnd.r && v >= s.bnd.t && v < s.bnd.b) { RGB c = px_rgb(&s, gp(&s, h, v)); bl = (c.r + c.g + c.b) / 3 < 0x8000; } } wr_bool(sp + 4, bl); return 1; }  /* GetPixel */
@@ -158,8 +159,8 @@ static int gfx_dispatch(uint16_t w, uint16_t n, uint32_t ret) {
         dc_free(&d); return 1; }
     case 0xA8EF: { uint32_t upd = rd32(sp); int dv = (int16_t)rd16(sp + 4), dh = (int16_t)rd16(sp + 6); uint32_t rp = rd32(sp + 8); setsp(sp + 12); if (port) do_scroll(rp, dh, dv, upd); return 1; }   /* ScrollRect */
     case 0xA8F6: { uint32_t rp = rd32(sp); uint32_t ph = rd32(sp + 4); setsp(sp + 8); if (port && ph && rd32(ph)) draw_pict(ph, rc_get(rp)); return 1; }          /* DrawPicture(pic, rect*) */
-    case 0xA8F3: { Rc fr = rc_get(rd32(sp)); setsp(sp + 4); uint32_t ph = new_handle(10 + 12); uint32_t a = rd32(ph); wr16(a, 10 + 12); rc_put(a + 2, fr); wr16(a + 10, 0x0011); wr16(a + 12, 0x02FF); wr16(a + 14, 0x0C00); wr16(a + 16, 0); wr16(a + 18, 0); wr16(a + 20, 0x00FF); wr32(sp + 4, ph); fprintf(stderr, "  [pict] OpenPicture\n"); return 1; }
-    case 0xA8F4: fprintf(stderr, "  [pict] ClosePicture\n"); return 1;
+    case 0xA8F3: { Rc fr = rc_get(rd32(sp)); setsp(sp + 4); wr32(sp + 4, pic_open(fr)); return 1; }          /* OpenPicture */
+    case 0xA8F4: if (pic_on) pic_close(); return 1;                                                           /* ClosePicture */
     case 0xA8F5: { uint32_t ph = rd32(sp); setsp(sp + 4); dispose_handle(ph); return 1; }                                                                          /* KillPicture */
     case 0xA875: { uint32_t bm = rd32(sp); setsp(sp + 4); if (port) memcpy(ram + port + 2, ram + bm, 14); return 1; }                                               /* SetPortBits */
     case 0xA94B: {      /* PlotIcon(rect*, iconHandle) -- 32x32 1-bit icon */

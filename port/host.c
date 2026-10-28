@@ -207,6 +207,7 @@ static void init_graf(uint32_t P) {
 #include "qd.inc"
 #include "gfx.inc"
 #include "gfxd.inc"
+#include "pict.inc"
 #include "plat.inc"
 #include "wm.inc"
 #include "wm2.inc"
