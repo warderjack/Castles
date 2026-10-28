@@ -2,7 +2,7 @@
 #define SFG_MAX 256
 static struct {
     int active; Rc box, sa; uint8_t *saved; int n, top, sel, def_open; char dir[1100]; char name[SFG_MAX][64]; uint8_t isdir[SFG_MAX];
-    uint32_t last_tick; int last_item; int result; char rootdir[1100]; int btn; int track;
+    uint32_t last_tick; int last_item; int result; char rootdir[1100]; int btn; int track; int put; char nin[64]; char prompt[80];
 } sfg;
 #define SFG_ROWS 7
 static int sfg_cmp(const void *a, const void *b) { return strcasecmp((const char *)a, (const char *)b); }
@@ -30,6 +30,7 @@ static void sfg_draw(void) {
     Rc lr = sfg_list_rc(); fill_rect_dc(&d, lr, 0); frame_rect_dc(&d, lr, 1);
     for (int i = 0; i < SFG_ROWS; i++) { int k = sfg.top + i; if (k >= sfg.n) break; Rc row = {lr.t + i * 16, lr.l + 1, lr.t + i * 16 + 16, lr.r - 1};
         char nm[70]; snprintf(nm, sizeof nm, "%s", sfg.name[k]); text_at(&d, row.l + 4, row.b - 4, nm, 0, 12, 0);
+        if (sfg.put && !sfg.isdir[k]) { for (int y = row.t; y < row.b; y++) for (int x = row.l + (y & 1); x < row.r; x += 2) fill_rect_dc(&d, (Rc){y, x, y + 1, x + 1}, 0); }
         if (sfg.isdir[k]) { for (int j = 0; j < 9; j++) { int w = (j < 5 ? j : 8 - j) + 1; fill_rect_dc(&d, (Rc){row.t + 4 + j, row.r - 14, row.t + 5 + j, row.r - 14 + w}, 1); } }
         if (k == sfg.sel) invert_rect_dc(&d, row); }
     Rc sb = {lr.t, lr.r, lr.b, lr.r + 16}; fill_rect_dc(&d, sb, 0); frame_rect_dc(&d, sb, 1);
@@ -37,8 +38,9 @@ static void sfg_draw(void) {
     for (int j = 0; j < 4; j++) { fill_rect_dc(&d, (Rc){up.t + 5 + j, up.l + 8 - j, up.t + 6 + j, up.l + 8 + j + 1}, 1); fill_rect_dc(&d, (Rc){dn2.b - 6 - j, dn2.l + 8 - j, dn2.b - 5 - j, dn2.l + 8 + j + 1}, 1); }
     if (sfg.n > SFG_ROWS) { int track = sb.b - sb.t - 32; int th = track * SFG_ROWS / sfg.n; if (th < 16) th = 16; int maxtop = sfg.n - SFG_ROWS; int ty = sb.t + 16 + (track - th) * sfg.top / maxtop; fill_rect_dc(&d, (Rc){ty, sb.l + 1, ty + th, sb.r - 1}, 1); fill_rect_dc(&d, (Rc){ty + 1, sb.l + 2, ty + th - 1, sb.r - 2}, 0); }
     else { RL none = {0}; (void)none; }
-    static const char *lab[4] = {"Eject", "Desktop", "Open", "Cancel"};
-    for (int k = 0; k < 4; k++) { Rc r = sfg_btn_rc(k); int en = !(k < 2) && !(k == 2 && sfg.sel < 0);
+    static const char *lab[4] = {"Eject", "Desktop", "Open", "Cancel"}; if (sfg.put) lab[2] = "Save";
+    if (sfg.put) { Rc nf = {lr.b + 20, lr.l, lr.b + 38, lr.r + 16}; text_at(&d, nf.l, nf.t - 4, sfg.prompt[0] ? sfg.prompt : "Save as:", 0, 12, 0); fill_rect_dc(&d, nf, 0); frame_rect_dc(&d, nf, 1); text_at(&d, nf.l + 4, nf.b - 5, sfg.nin, 0, 12, 0); int cw = text_w(sfg.nin, 0, 12, 0); fill_rect_dc(&d, (Rc){nf.t + 3, nf.l + 4 + cw, nf.b - 3, nf.l + 5 + cw}, 1); }
+    for (int k = 0; k < 4; k++) { Rc r = sfg_btn_rc(k); int en = !(k < 2) && !(k == 2 && (sfg.put ? !sfg.nin[0] : sfg.sel < 0));
         if (k == 2) { Rc ring = {r.t - 4, r.l - 4, r.b + 4, r.r + 4}; if (en) { frame_rect_dc(&d, ring, 1); frame_rect_dc(&d, (Rc){ring.t + 1, ring.l + 1, ring.b - 1, ring.r - 1}, 1); frame_rect_dc(&d, (Rc){ring.t + 2, ring.l + 2, ring.b - 2, ring.r - 2}, 1); fill_rect_dc(&d, (Rc){r.t, r.l, r.b, r.r}, 0); } }
         frame_rect_dc(&d, r, 1); sfg_ctext(&d, r, lab[k], 0);
         if (!en) { /* dim: overdraw with 50% checker */ for (int y = r.t + 1; y < r.b - 1; y++) for (int x = r.l + 1 + (y & 1); x < r.r - 1; x += 2) fill_rect_dc(&d, (Rc){y, x, y + 1, x + 1}, 0); }
@@ -46,11 +48,11 @@ static void sfg_draw(void) {
     dc_free(&d); rl_free(&all);
 }
 static void sfg_enter(const char *nm) { char nd[1100]; snprintf(nd, sizeof nd, "%s/%s", sfg.dir, nm); strncpy(sfg.dir, nd, 1099); sfg_scan(); }
-static int sfg_step(uint32_t ret, uint32_t reply, int vv, int hh) {
+static int sfg_step(uint32_t ret, uint32_t reply, int vv, int hh, int put, uint32_t prompt, uint32_t orig) {
     if (!sfg.active) {
-        memset(&sfg, 0, sizeof sfg); sfg.active = 1; const char *base = dir_path(cur_dir); strncpy(sfg.dir, base ? base : ".", 1099); strncpy(sfg.rootdir, sfg.dir, 1099); sfg_scan();
+        memset(&sfg, 0, sizeof sfg); sfg.active = 1; sfg.put = put; if (put) { pstr(prompt, sfg.prompt, 80); pstr(orig, sfg.nin, 32); } const char *base = dir_path(cur_dir); strncpy(sfg.dir, base ? base : ".", 1099); strncpy(sfg.rootdir, sfg.dir, 1099); sfg_scan();
         int T = vv, L = hh; if (T < mbar_height + 4 || T > SCR_H - 200) T = (SCR_H - 190) / 2 + 10; if (L < 0 || L > SCR_W - 350) L = (SCR_W - 340) / 2;
-        sfg.box = (Rc){T, L, T + 170, L + 340}; sfg.sa = (Rc){sfg.box.t, sfg.box.l, sfg.box.b + 3, sfg.box.r + 3}; if (sfg.sa.b > SCR_H) sfg.sa.b = SCR_H;
+        sfg.box = (Rc){T, L, T + (sfg.put ? 200 : 170), L + 340}; sfg.sa = (Rc){sfg.box.t, sfg.box.l, sfg.box.b + 3, sfg.box.r + 3}; if (sfg.sa.b > SCR_H) sfg.sa.b = SCR_H;
         int sw = sfg.sa.r - sfg.sa.l, sh = sfg.sa.b - sfg.sa.t; sfg.saved = malloc(sw * sh);
         for (int y = 0; y < sh; y++) memcpy(sfg.saved + y * sw, ram + FB_BASE + (sfg.sa.t + y) * SCR_W + sfg.sa.l, sw);
         sfg.last_item = -1; sfg_draw(); swallow_up = 0;
@@ -60,17 +62,18 @@ static int sfg_step(uint32_t ret, uint32_t reply, int vv, int hh) {
     if (sfg.track == 1) {      /* tracking a button press */
         Rc r = sfg_btn_rc(sfg.btn - 1); int inside = plat_mx >= r.l && plat_mx < r.r && plat_my >= r.t && plat_my < r.b;
         if (plat_btn) { if (!inside) { if (sfg.btn > 0) { sfg.btn = -sfg.btn; sfg_draw(); } } else if (sfg.btn < 0) { sfg.btn = -sfg.btn; sfg_draw(); } idle_hint = 1; rewind_trap(ret); return 0; }
-        int k = sfg.btn; sfg.btn = 0; sfg.track = 0; if (k > 0) { if (k == 4) { sfg.result = 0; done = 1; } else if (k == 3) openit = 1; } sfg_draw();
+        int k = sfg.btn; sfg.btn = 0; sfg.track = 0; if (k > 0) { if (k == 4) { sfg.result = 0; done = 1; } else if (k == 3) { if (sfg.put) { sfg.result = 1; done = 1; } else openit = 1; } } sfg_draw();
     } else if (get_event(evp, (1 << 1) | (1 << 3) | (1 << 5), 1)) {
         int what = rd16(evp); if (getenv("SFGDBG")) fprintf(stderr, "  [sfg] event %d v=%d h=%d\n", what, (int16_t)rd16(evp + 10), (int16_t)rd16(evp + 12));
         if (what == 1) {
             int gv = (int16_t)rd16(evp + 10), gh = (int16_t)rd16(evp + 12); Rc lr = sfg_list_rc();
-            if (gh >= lr.l && gh < lr.r && gv >= lr.t && gv < lr.b) { int k = sfg.top + (gv - lr.t) / 16; if (k < sfg.n) { uint32_t t = ticks_now(); int dbl = (k == sfg.last_item && t - sfg.last_tick < 25); sfg.sel = k; sfg.last_item = k; sfg.last_tick = t; sfg_draw(); if (dbl) openit = 1; } }
+            if (gh >= lr.l && gh < lr.r && gv >= lr.t && gv < lr.b) { int k = sfg.top + (gv - lr.t) / 16; if (k < sfg.n && (!sfg.put || sfg.isdir[k])) { uint32_t t = ticks_now(); int dbl = (k == sfg.last_item && t - sfg.last_tick < 25); sfg.sel = k; sfg.last_item = k; sfg.last_tick = t; sfg_draw(); if (dbl) openit = 1; } }
             else if (gh >= lr.r && gh < lr.r + 16 && gv >= lr.t && gv < lr.b) { int maxtop = sfg.n > SFG_ROWS ? sfg.n - SFG_ROWS : 0; if (gv < lr.t + 16) sfg.top--; else if (gv >= lr.b - 16) sfg.top++; else if (gv < lr.t + 16 + (lr.b - lr.t - 32) * sfg.top / (maxtop ? maxtop : 1)) sfg.top -= SFG_ROWS - 1; else sfg.top += SFG_ROWS - 1; if (sfg.top < 0) sfg.top = 0; if (sfg.top > maxtop) sfg.top = maxtop; sfg_draw(); }
-            else { for (int k = 2; k < 4; k++) { Rc r = sfg_btn_rc(k); if (gh >= r.l && gh < r.r && gv >= r.t && gv < r.b && !(k == 2 && sfg.sel < 0)) { sfg.btn = k + 1; sfg.track = 1; sfg_draw(); } }
+            else { for (int k = 2; k < 4; k++) { Rc r = sfg_btn_rc(k); if (gh >= r.l && gh < r.r && gv >= r.t && gv < r.b && !(k == 2 && (sfg.put ? !sfg.nin[0] : sfg.sel < 0))) { sfg.btn = k + 1; sfg.track = 1; sfg_draw(); } }
                 Rc tr = {sfg.box.t + 6, sfg.box.l + 14, sfg.box.t + 28, sfg.box.l + 226}; if (gh >= tr.l && gh < tr.r && gv >= tr.t && gv < tr.b && strcmp(sfg.dir, sfg.rootdir)) { char *sl = strrchr(sfg.dir, '/'); if (sl) { *sl = 0; sfg_scan(); sfg_draw(); } } }
         } else { int ch = rd32(evp + 2) & 0xFF, mods = rd16(evp + 14);
-            if (ch == 13 || ch == 3) { if (sfg.sel >= 0) openit = 1; }
+            if (sfg.put && ch != 13 && ch != 3 && ch != 27 && !(ch == '.' && (mods & 0x100)) && ch != 0x1E && ch != 0x1F) { int L = strlen(sfg.nin); if (ch == 8) { if (L) sfg.nin[L - 1] = 0; } else if (ch >= 32 && ch != 127 && !(mods & 0x100) && L < 31 && ch != ':') { sfg.nin[L] = ch; sfg.nin[L + 1] = 0; } sfg_draw(); }
+            else if (ch == 13 || ch == 3) { if (sfg.put) { if (sfg.nin[0]) { sfg.result = 1; done = 1; } } else if (sfg.sel >= 0) openit = 1; }
             else if (ch == 27 || (ch == '.' && (mods & 0x100))) { sfg.result = 0; done = 1; }
             else if (ch == 0x1F || ch == 0x1E) { int k = sfg.sel < 0 ? 0 : sfg.sel + (ch == 0x1F ? 1 : -1); if (k >= 0 && k < sfg.n) { sfg.sel = k; if (k < sfg.top) sfg.top = k; if (k >= sfg.top + SFG_ROWS) sfg.top = k - SFG_ROWS + 1; sfg_draw(); } }
             else if (ch >= 32 && ch < 127) { for (int k = 0; k < sfg.n; k++) if (toupper((unsigned char)sfg.name[k][0]) >= toupper(ch)) { sfg.sel = k; if (k < sfg.top || k >= sfg.top + SFG_ROWS) sfg.top = k < sfg.n - SFG_ROWS ? k : (sfg.n > SFG_ROWS ? sfg.n - SFG_ROWS : 0); sfg_draw(); break; } } }
@@ -81,6 +84,6 @@ static int sfg_step(uint32_t ret, uint32_t reply, int vv, int hh) {
     int sw = sfg.sa.r - sfg.sa.l, sh = sfg.sa.b - sfg.sa.t; for (int y = 0; y < sh; y++) memcpy(ram + FB_BASE + (sfg.sa.t + y) * SCR_W + sfg.sa.l, sfg.saved + y * sw, sw);
     free(sfg.saved); sfg.saved = NULL; gfx_dirty = 1; sfg.active = 0;
     wr8(reply, sfg.result); wr8(reply + 1, 0); wr32(reply + 2, 0); wr16(reply + 8, 1);
-    if (sfg.result) { wr16(reply + 6, 0x100 + dir_id_for(sfg.dir)); const char *nm = sfg.name[sfg.sel]; int L = strlen(nm); if (L > 31) L = 31; wr8(reply + 10, L); for (int i = 0; i < L; i++) wr8(reply + 11 + i, nm[i]); }
+    if (sfg.result) { wr16(reply + 6, 0x100 + dir_id_for(sfg.dir)); const char *nm = sfg.put ? sfg.nin : sfg.name[sfg.sel]; int L = strlen(nm); if (L > 31) L = 31; wr8(reply + 10, L); for (int i = 0; i < L; i++) wr8(reply + 11 + i, nm[i]); }
     return 1;
 }
