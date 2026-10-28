@@ -218,6 +218,7 @@ static void init_graf(uint32_t P) {
 #include "sane.inc"
 #include "snd.inc"
 #include "tasks.inc"
+#include "movie.inc"
 static void hle(uint16_t w, uint32_t ret) {
     ntraps++;
     int redirected = 0;
@@ -337,6 +338,8 @@ static void hle(uint16_t w, uint32_t ret) {
         if (qd_dispatch(w, n, ret)) break;
         if (snd_dispatch(w, n, ret)) break;
         if (tasks_dispatch(w, n, ret)) break;
+        if (qt_dispatch(w, n, ret)) break;
+        if (misc_dispatch(w, n, ret)) break;
         die("unimplemented trap %04X %s at ret=%06x  (D0=%08x A0=%08x A1=%08x SP=%06x)", w, tname(w), ret, D(0), A(0), A(1), SP);
         redirected = 1; break;
     }

@@ -126,6 +126,7 @@ static int qd_dispatch(uint16_t w, uint16_t n, uint32_t ret) {
     uint32_t sp = SP;
     switch (n) {
     /* ---- GDevice ---- */
+    case 0xAA27: setsp(sp + 4); wr32(sp + 4, main_gd); return 1;                                   /* GetMaxDevice(rect*) */
     case 0xAA29: setsp(sp); wr32(sp, main_gd); return 1;                    /* GetDeviceList */
     case 0xAA2A: setsp(sp); wr32(sp, main_gd); return 1;                    /* GetMainDevice */
     case 0xAA2B: setsp(sp + 4); wr32(sp + 4, 0); return 1;                  /* GetNextDevice */
