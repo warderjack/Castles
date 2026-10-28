@@ -61,7 +61,11 @@ static void draw_apple(DC *d, int x, int y, int inv) {            /* tiny apple 
     uint32_t px = rgb_px(&d->s, inv ? (RGB){0xFFFF, 0xFFFF, 0xFFFF} : (RGB){0, 0, 0});
     for (int j = 0; j < 14; j++) for (int i = 0; i < 13; i++) if (g[j] & (0x1000 >> i)) { Rc r = {y + j, x + i, y + j + 1, x + i + 1}; (void)r; for (int k = 0; k < d->clip.n; k++) { Rc c = d->clip.r[k]; if (x + i >= c.l && x + i < c.r && y + j >= c.t && y + j < c.b) { pp(&d->s, x + i, y + j, px); break; } } }
 }
-static void invert_rect_dc(DC *d, Rc r) { uint8_t b[8]; memset(b, 0xFF, 8); uint32_t f = d->fg; d->fg = depth_mask(8); dc_set_pat8(d, b); d->mode = 10; dc_rect(d, r); d->fg = f; }
+static void invert_rect_dc(DC *d, Rc r) {
+    for (int y = r.t; y < r.b; y++) for (int x = r.l; x < r.r; x++) {
+        int in = 0; for (int i = 0; i < d->clip.n; i++) { Rc c = d->clip.r[i]; if (x >= c.l && x < c.r && y >= c.t && y < c.b) { in = 1; break; } }
+        if (!in) continue; uint32_t px = gp(&d->s, x, y); if (d->s.depth == 8) { RGB c = px_rgb(&d->s, px); c.r = 65535 - c.r; c.g = 65535 - c.g; c.b = 65535 - c.b; pp(&d->s, x, y, rgb_px(&d->s, c)); } else pp(&d->s, x, y, px ^ depth_mask(d->s.depth)); }
+}
 static void menubar_draw(void) {
     mbar_height = rd16(0xBAA); if (!mbar_height || !screen_port) return;
     RL all = {0}; rl_add(&all, (Rc){0, 0, mbar_height, SCR_W}); DC d; screen_dc(&d, &all); fill_rect_dc(&d, (Rc){0, 0, mbar_height - 1, SCR_W}, 0); fill_rect_dc(&d, (Rc){mbar_height - 1, 0, mbar_height, SCR_W}, 1);
@@ -74,13 +78,13 @@ static void menubar_draw(void) {
     dc_free(&d); rl_free(&all);
 }
 /* ---- dropdown ---- */
-typedef struct { int active, sticky, midx, item; Rc area; uint8_t *saved; } MSel; static MSel msel;
+typedef struct { int active, sticky, midx, item; Rc area; uint8_t *saved; uint32_t sub; Rc sbox, sarea; uint8_t *ssaved; int sitem; } MSel; static MSel msel;
 static void dd_item_draw(DC *d, uint32_t mh, int i, Rc box, int hil) {
     uint32_t p = menu_item_addr(mh, i); char t[256]; menu_cstr(p, t); Rc row = {box.t + (i - 1) * 16, box.l + 1, box.t + i * 16, box.r - 1}; int en = menu_item_enabled(mh, i);
     fill_rect_dc(d, row, 0);
     if (t[0] == '-' && !t[1]) { for (int x = row.l + 2; x < row.r - 2; x += 2) fill_rect_dc(d, (Rc){row.t + 8, x, row.t + 9, x + 1}, 1); return; }
     uint32_t sfg = d->fg; RGB grey = {0x8888, 0x8888, 0x8888};
-    int tl = rd8(p); int mark = rd8(p + 1 + tl + 2), key = rd8(p + 1 + tl + 1), style = rd8(p + 1 + tl + 3);
+    int tl = rd8(p); int mark = rd8(p + 1 + tl + 2), key = rd8(p + 1 + tl + 1), style = rd8(p + 1 + tl + 3); int hier = (key == 0x1B); if (hier) { mark = 0; key = 0; }
     DC *dd = d; uint32_t port = dd->port; uint32_t f0 = rd32(port + 80); (void)f0; (void)sfg;
     if (!en) { /* disabled: draw text in grey by temporarily switching port fg */ uint16_t sv[3] = {rd16(port + 36), rd16(port + 38), rd16(port + 40)}; wr16(port + 36, grey.r); wr16(port + 38, grey.g); wr16(port + 40, grey.b); DC d2; d2 = *d; dc_port_colors(port, &d2.s, &d2.fg, &d2.bg); text_at(&d2, row.l + 16, row.b - 4, t, 0, 12, style & 1); wr16(port + 36, sv[0]); wr16(port + 38, sv[1]); wr16(port + 40, sv[2]); }
     else text_at(d, row.l + 16, row.b - 4, t, 0, 12, style & 1);
@@ -88,6 +92,7 @@ static void dd_item_draw(DC *d, uint32_t mh, int i, Rc box, int hil) {
     else if (mark) { char m[2] = {(char)mark, 0}; text_at(d, row.l + 4, row.b - 4, m, 0, 12, 0); }
     if (key) { static const uint8_t cm[7] = {0x6C, 0x92, 0x7C, 0x44, 0x7C, 0x92, 0x6C}; int kx = row.r - 24; for (int j = 0; j < 7; j++) for (int k = 0; k < 7; k++) if (cm[j] & (0x80 >> k)) fill_rect_dc(d, (Rc){row.t + 4 + j, kx + k, row.t + 5 + j, kx + k + 1}, 1);
         char kc[2] = {(char)key, 0}; text_at(d, kx + 9, row.b - 4, kc, 0, 12, 0); }
+    if (hier) { for (int j = 0; j < 9; j++) { int w = (j < 5 ? j : 8 - j) + 1; fill_rect_dc(d, (Rc){row.t + 4 + j, row.r - 12, row.t + 5 + j, row.r - 12 + w}, 1); } }
     if (hil && en) invert_rect_dc(d, row);
 }
 static Rc dd_box(int midx) { int w, h; uint32_t mh = mbt[midx].mh; menu_calc(mh, &w, &h); int x = mbt[midx].x0; if (x + w > SCR_W - 2) x = SCR_W - 2 - w; return (Rc){mbar_height, x, mbar_height + h + 1, x + w + 1}; }
@@ -115,6 +120,24 @@ static void dd_hilite(int item, int on) {
     RL all = {0}; rl_add(&all, row); DC d; screen_dc(&d, &all); invert_rect_dc(&d, row); dc_free(&d); rl_free(&all); (void)on;
 }
 static int mbar_title_at(int x) { for (int i = 0; i < nmbt; i++) if (x >= mbt[i].x0 && x < mbt[i].x1) return i; return -1; }
+static uint32_t menu_by_id(int id) { for (int i = 0; i < nmenus; i++) if (menu_id(menus[i]) == id) return menus[i]; for (int i = 0; i < nhmenus; i++) if (menu_id(hmenus[i]) == id) return hmenus[i]; return 0; }
+static void box_row_invert(Rc box, int item) { Rc row = {box.t + (item - 1) * 16, box.l + 1, box.t + item * 16, box.r - 1}; RL all = {0}; rl_add(&all, row); DC d; screen_dc(&d, &all); invert_rect_dc(&d, row); dc_free(&d); rl_free(&all); }
+static void sub_close(void) {
+    if (!msel.ssaved) return; Rc sa = msel.sarea; int w = sa.r - sa.l, h = sa.b - sa.t;
+    for (int y = 0; y < h; y++) memcpy(ram + FB_BASE + (sa.t + y) * SCR_W + sa.l, msel.ssaved + y * w, w);
+    free(msel.ssaved); msel.ssaved = NULL; msel.sub = 0; msel.sitem = 0; gfx_dirty = 1;
+}
+static void sub_open(uint32_t mh, Rc parent_row) {
+    int w, h; menu_calc(mh, &w, &h); int x = parent_row.r - 2, y = parent_row.t - 1; if (x + w + 2 > SCR_W) x = parent_row.l - w + 2; if (y + h + 2 > SCR_H) y = SCR_H - h - 2;
+    msel.sub = mh; msel.sbox = (Rc){y, x, y + h + 1, x + w + 1}; msel.sarea = (Rc){msel.sbox.t, msel.sbox.l, msel.sbox.b + 1, msel.sbox.r + 1}; msel.sitem = 0;
+    Rc sa = msel.sarea; int sw = sa.r - sa.l, sh = sa.b - sa.t; msel.ssaved = malloc(sw * sh);
+    for (int yy = 0; yy < sh; yy++) memcpy(msel.ssaved + yy * sw, ram + FB_BASE + (sa.t + yy) * SCR_W + sa.l, sw);
+    RL all = {0}; rl_add(&all, sa); DC d; screen_dc(&d, &all);
+    fill_rect_dc(&d, (Rc){msel.sbox.b, msel.sbox.l + 1, msel.sbox.b + 1, msel.sbox.r + 1}, 1); fill_rect_dc(&d, (Rc){msel.sbox.t + 1, msel.sbox.r, msel.sbox.b + 1, msel.sbox.r + 1}, 1);
+    fill_rect_dc(&d, msel.sbox, 0); frame_rect_dc(&d, msel.sbox, 1); int n = menu_count(mh); for (int i = 1; i <= n; i++) dd_item_draw(&d, mh, i, msel.sbox, 0);
+    dc_free(&d); rl_free(&all);
+}
+static uint32_t hier_sub_of(uint32_t mh, int item) { if (item < 1) return 0; uint32_t p = menu_item_addr(mh, item); if (!p) return 0; int tl = rd8(p); if (rd8(p + 1 + tl + 1) != 0x1B) return 0; return menu_by_id(rd8(p + 1 + tl + 2)); }
 static int menu_select_step(int startx, int starty, uint32_t *result) {      /* returns 1 when finished (result set) */
     if (!msel.active) {
         mb_layout(); ev_pump(); for (int i = 0; i < evq_n; i++) if (evq[(evq_h + i) & 255].what == 2) { for (int j = i; j + 1 < evq_n; j++) evq[(evq_h + j) & 255] = evq[(evq_h + j + 1) & 255]; evq_n--; break; }
@@ -128,9 +151,18 @@ static int menu_select_step(int startx, int starty, uint32_t *result) {      /* 
         int t = (my < mbar_height) ? mbar_title_at(mx) : -1;
         if (t >= 0 && t != msel.midx && btn) { if (msel.midx >= 0) dd_close(); msel.midx = t; msel.item = 0; dd_open(t); }
         else if (msel.midx >= 0) {
-            Rc b = dd_box(msel.midx); int it = 0;
-            if (mx >= b.l && mx < b.r - 1 && my >= b.t && my < b.b - 1) it = (my - b.t) / 16 + 1;
-            if (it != msel.item) { dd_hilite(msel.item, 0); msel.item = it; dd_hilite(it, 1); }
+            Rc b = dd_box(msel.midx); int it = 0; uint32_t mh = mbt[msel.midx].mh;
+            int in_sub = msel.sub && mx >= msel.sbox.l && mx < msel.sbox.r - 1 && my >= msel.sbox.t && my < msel.sbox.b - 1;
+            if (in_sub) { int si = (my - msel.sbox.t) / 16 + 1; if (!menu_item_enabled(msel.sub, si)) si = 0; if (si != msel.sitem) { if (msel.sitem) box_row_invert(msel.sbox, msel.sitem); msel.sitem = si; if (si) box_row_invert(msel.sbox, si); } }
+            else {
+                if (mx >= b.l && mx < b.r - 1 && my >= b.t && my < b.b - 1) it = (my - b.t) / 16 + 1;
+                if (msel.sub && it == msel.item) { if (msel.sitem) { box_row_invert(msel.sbox, msel.sitem); msel.sitem = 0; } }
+                else if (it != msel.item) {
+                    if (msel.sub) sub_close();
+                    dd_hilite(msel.item, 0); msel.item = it; dd_hilite(it, 1);
+                    uint32_t sm = menu_item_enabled(mh, it) ? hier_sub_of(mh, it) : 0; if (sm) sub_open(sm, (Rc){b.t + (it - 1) * 16, b.l + 1, b.t + it * 16, b.r - 1});
+                }
+            }
         }
     }
     if (btn) { if (msel.sticky) { /* second press: choose or cancel */ if (msel.item && menu_item_enabled(mbt[msel.midx].mh, msel.item)) { swallow_up = 1; goto finish; } else if (msel.item == 0 && (my >= mbar_height || mbar_title_at(mx) < 0)) { swallow_up = 1; msel.item = 0; goto finish; } } return 0; }
@@ -138,9 +170,10 @@ static int menu_select_step(int startx, int starty, uint32_t *result) {      /* 
     if (!msel.sticky && msel.item == 0 && msel.midx >= 0 && my < mbar_height) { msel.sticky = 1; return 0; }       /* released on title: keep menu open */
     if (msel.sticky) return 0;
 finish: {
-        int mid = 0, item = 0;
-        if (msel.midx >= 0 && msel.item && menu_item_enabled(mbt[msel.midx].mh, msel.item)) { mid = menu_id(mbt[msel.midx].mh); item = msel.item; }
+        int mid = 0, item = 0, topid = 0;
+        if (msel.midx >= 0 && msel.item && menu_item_enabled(mbt[msel.midx].mh, msel.item)) { mid = menu_id(mbt[msel.midx].mh); item = msel.item; topid = mid; if (msel.sub) { if (msel.sitem) { mid = menu_id(msel.sub); item = msel.sitem; } else { mid = 0; item = 0; topid = 0; } } }
+        sub_close();
         int midx = msel.midx; dd_close(); msel.midx = -1; (void)midx;
-        if (mid) { hilite_menu_id = mid; menubar_draw(); gfx_dirty = 1; }
+        if (mid) { hilite_menu_id = topid; menubar_draw(); gfx_dirty = 1; }
         *result = ((uint32_t)mid << 16) | (uint32_t)item; msel.active = 0; swallow_up = 0; return 1; }
 }
