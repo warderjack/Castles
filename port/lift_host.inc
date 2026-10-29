@@ -21,7 +21,7 @@ static void lift_register_seg(int segno, uint32_t base, uint32_t len) {
     SB[segno] = base; lift_seglen[segno] = len; free(lift_segtab[segno]); lift_segtab[segno] = calloc(len / 2 + 2, sizeof(LiftFn));
     for (int i = 0; i < lift_nents; i++) if (lift_ents[i].seg == segno && lift_ents[i].off < len && !lift_skipped(segno, lift_ents[i].off)) lift_segtab[segno][lift_ents[i].off >> 1] = lift_ents[i].fn;
     free(lift_midtab[segno]); lift_midtab[segno] = calloc(len / 2 + 2, sizeof(LiftMid *));
-    for (int i = 0; i < lift_nmids; i++) if (lift_mids[i].seg == segno && lift_mids[i].off < len) lift_midtab[segno][lift_mids[i].off >> 1] = &lift_mids[i];
+    for (int i = 0; i < lift_nmids; i++) if (lift_mids[i].seg == segno && lift_mids[i].off < len) { const LiftMid **sl = &lift_midtab[segno][lift_mids[i].off >> 1]; if (!*sl || !(*sl)->haslink || lift_mids[i].haslink) *sl = &lift_mids[i]; }
     if (base < lift_lo) lift_lo = base; if (base + len > lift_hi) lift_hi = base + len;
     if (!REL_A4) { REL_A4 = R(M68K_REG_A4); REL_A5 = R(M68K_REG_A5); fprintf(stderr, "[lift] REL_A4=%x REL_A5=%x\n", REL_A4, REL_A5); }
 }
@@ -96,14 +96,14 @@ static int lift_try(uint32_t pc) {
     if (getenv("LIFTLOG")) fprintf(stderr, "[lift] enter %06x%s call#%lu\n", pc, midoff ? " (mid)" : "", lift_calls);
     { static unsigned clo = 1, chi = 0; static int ci; if (!ci) { ci = 1; const char *e = getenv("CHKPC"); if (e) { if (sscanf(e, "%x:%x", &clo, &chi) < 2) chi = clo + 1; lift_chk_max = 100000; } }
       if (lift_check || (pc >= clo && pc < chi && !lift_chk_active)) { int sv = lift_check; lift_check = 1; int rr = lift_try_check(pc, f, midoff, midr0); lift_check = sv; return rr; } }
-    lift_sync_in(); uint32_t r0 = midoff ? midr0 : m32(A[7]); lift_synced = 0; lift_calls++;
+    lift_sync_in(); uint32_t r0 = midoff ? midr0 : m32(A[7]); lift_synced = 0; lift_calls++; unsigned long calls0 = lift_calls;
     lift_mid = midoff; lift_mid_r0 = midr0;
     volatile int rsp_sv = lift_rsp; lift_rsp = 0; jmp_buf jb_sv; memcpy(jb_sv, lift_jb, sizeof jb_sv);
     if (setjmp(lift_jb) == 0) { f(); lift_bail_pc = lift_ret_pc; }
     lift_rsp = rsp_sv; memcpy(lift_jb, jb_sv, sizeof jb_sv);
     { static unsigned bl, bh; static int bi; if (!bi) { bi = 1; const char *e = getenv("BAILW"); if (e) sscanf(e, "%x:%x", &bl, &bh); } if (bh && lift_bail_pc >= bl && lift_bail_pc < bh) { static int bn; if (bn++ < 5) fprintf(stderr, "[bailw] entry=%06x bail_pc=%06x synced=%d trapbail? A7=%x\n", pc, lift_bail_pc, lift_synced, lift_synced ? R(M68K_REG_A7) : A[7]); } }
     if (!lift_synced) lift_sync_out();
-    if (midoff && lift_bail_pc == pc && lift_ndead < 64) { lift_dead_pcs[lift_ndead++] = pc; fprintf(stderr, "[lift] mid %06x made no progress; disabled\n", pc); }
+    if (midoff && lift_bail_pc == pc && lift_calls == calls0 && lift_ndead < 64 && !getenv("NOMIDDEAD")) { lift_dead_pcs[lift_ndead++] = pc; fprintf(stderr, "[lift] mid %06x made no progress; disabled\n", pc); }
     W(M68K_REG_PC, lift_bail_pc); return 1;
 }
 
