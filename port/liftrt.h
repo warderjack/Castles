@@ -34,6 +34,8 @@ void lift_ret_mismatch(u32 r) __attribute__((noreturn)); void lift_ret_mismatch2
 
 #define LPUSH(ret)      do { A[7] -= 4; w32(A[7], (ret)); } while (0)
 extern u32 lift_rs[256]; extern int lift_rsp; extern u32 lift_ret_pc;
+extern int lift_loopcnt; void lift_poll(u32 resume_pc);
+#define LLOOP(pc) do { if (++lift_loopcnt > 3000) lift_poll(pc); } while (0)
 #define LCALL(tgt, ret) do { u32 t_ = (tgt); LPUSH(ret); lift_rs[lift_rsp++ & 255] = (ret); lift_enter(t_); lift_rsp--; } while (0)
 extern int lift_dry; void lift_note(LiftFn f);
 #ifdef LIFT_TRACE

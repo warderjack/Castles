@@ -308,7 +308,7 @@ void L_9_48(void) {
   /* 19007e bgt.s   $19005c */
   LTR(0x19007e);
   {
-  if (LC_GT) { goto L19005c; }
+  if (LC_GT) { LLOOP((SB[9]+0x5c)); goto L19005c; }
   }
   /* 190080 jsr     -$7e(pc) */
   LTR(0x190080);
@@ -2211,7 +2211,7 @@ void L_9_3ce(void) {
   /* 19040a bne.s   $1903e4 */
   LTR(0x19040a);
   {
-  if (LC_NE) { goto L1903e4; }
+  if (LC_NE) { LLOOP((SB[9]+0x3e4)); goto L1903e4; }
   }
   /* 19040c move.b  d7,d0 */
   LTR(0x19040c);
@@ -2744,7 +2744,7 @@ void L_9_494(void) {
   /* 190518 bcs.s   $1904f4 */
   LTR(0x190518);
   {
-  if (LC_CS) { goto L1904f4; }
+  if (LC_CS) { LLOOP((SB[9]+0x4f4)); goto L1904f4; }
   }
   /* 19051a move.w  #$1,-$2a38(a5) */
   LTR(0x19051a);
@@ -4464,7 +4464,7 @@ void L_9_6ca(void) {
   /* 19081a bne.w   $190712 */
   LTR(0x19081a);
   {
-  if (LC_NE) { goto L190712; }
+  if (LC_NE) { LLOOP((SB[9]+0x712)); goto L190712; }
   }
   /* 19081e addq.w  #$1,-$1a(a6) */
   LTR(0x19081e);
@@ -4487,7 +4487,7 @@ void L_9_6ca(void) {
   /* 19082a blt.w   $1906f6 */
   LTR(0x19082a);
   {
-  if (LC_LT) { goto L1906f6; }
+  if (LC_LT) { LLOOP((SB[9]+0x6f6)); goto L1906f6; }
   }
   /* 19082e movem.l (sp)+,d3/d4/d5/d6/d7/a2/a3/a4 */
   LTR(0x19082e);
@@ -4691,7 +4691,7 @@ void L_9_836(void) {
   /* 19088a blt.s   $19087e */
   LTR(0x19088a);
   {
-  if (LC_LT) { goto L19087e; }
+  if (LC_LT) { LLOOP((SB[9]+0x87e)); goto L19087e; }
   }
   /* 19088c move.b  #$4,$29(a2) */
   LTR(0x19088c);
@@ -5122,7 +5122,7 @@ void L_9_8f6(void) {
   /* 190950 bcs.s   $19092e */
   LTR(0x190950);
   {
-  if (LC_CS) { goto L19092e; }
+  if (LC_CS) { LLOOP((SB[9]+0x92e)); goto L19092e; }
   }
   /* 190952 move.l  a3,-(sp) */
   LTR(0x190952);
@@ -5431,7 +5431,7 @@ void L_9_978(void) {
   /* 1909e0 bne.s   $19099c */
   LTR(0x1909e0);
   {
-  if (LC_NE) { goto L19099c; }
+  if (LC_NE) { LLOOP((SB[9]+0x99c)); goto L19099c; }
   }
   L1909e2: ; /* 1909e2 move.l  a4,-(sp) */
   LTR(0x1909e2);
@@ -5556,7 +5556,7 @@ void L_9_978(void) {
   /* 190a1a bne.s   $1909f6 */
   LTR(0x190a1a);
   {
-  if (LC_NE) { goto L1909f6; }
+  if (LC_NE) { LLOOP((SB[9]+0x9f6)); goto L1909f6; }
   }
   L190a1c: ; /* 190a1c tst.b   d5 */
   LTR(0x190a1c);
@@ -5615,7 +5615,7 @@ void L_9_978(void) {
   /* 190a34 bne.w   $190996 */
   LTR(0x190a34);
   {
-  if (LC_NE) { goto L190996; }
+  if (LC_NE) { LLOOP((SB[9]+0x996)); goto L190996; }
   }
   /* 190a38 movem.l (sp)+,d5/d6/d7/a3/a4 */
   LTR(0x190a38);
@@ -5762,7 +5762,7 @@ void L_9_a40(void) {
   /* 190a70 blt.s   $190a58 */
   LTR(0x190a70);
   {
-  if (LC_LT) { goto L190a58; }
+  if (LC_LT) { LLOOP((SB[9]+0xa58)); goto L190a58; }
   }
   /* 190a72 clr.w   (a3) */
   LTR(0x190a72);
@@ -6221,7 +6221,7 @@ void L_9_b08(void) {
   /* 190b42 bgt.s   $190b28 */
   LTR(0x190b42);
   {
-  if (LC_GT) { goto L190b28; }
+  if (LC_GT) { LLOOP((SB[9]+0xb28)); goto L190b28; }
   }
   /* 190b44 movea.l d7,a0 */
   LTR(0x190b44);
@@ -6517,7 +6517,7 @@ void L_9_b76(void) {
   /* 190bca bne.s   $190b9a */
   LTR(0x190bca);
   {
-  if (LC_NE) { goto L190b9a; }
+  if (LC_NE) { LLOOP((SB[9]+0xb9a)); goto L190b9a; }
   }
   L190bcc: ; /* 190bcc pea.l   $9f2(a5) */
   LTR(0x190bcc);
@@ -6807,7 +6807,7 @@ void L_9_b76(void) {
   /* 190c58 bgt.s   $190bf0 */
   LTR(0x190c58);
   {
-  if (LC_GT) { goto L190bf0; }
+  if (LC_GT) { LLOOP((SB[9]+0xbf0)); goto L190bf0; }
   }
   /* 190c5a tst.w   d4 */
   LTR(0x190c5a);
@@ -7145,7 +7145,7 @@ void L_9_c6a(void) {
   /* 190cec bgt.s   $190cd8 */
   LTR(0x190cec);
   {
-  if (LC_GT) { goto L190cd8; }
+  if (LC_GT) { LLOOP((SB[9]+0xcd8)); goto L190cd8; }
   }
   /* 190cee clr.l   (a2) */
   LTR(0x190cee);
@@ -7772,7 +7772,7 @@ void L_9_de4(void) {
   /* 190e04 bne.s   $190dfe */
   LTR(0x190e04);
   {
-  if (LC_NE) { goto L190dfe; }
+  if (LC_NE) { LLOOP((SB[9]+0xdfe)); goto L190dfe; }
   }
   L190e06: ; /* 190e06 move.w  $c(a4),d0 */
   LTR(0x190e06);
@@ -8035,7 +8035,7 @@ void L_9_e38(void) {
   /* 190e7c blt.s   $190e64 */
   LTR(0x190e7c);
   {
-  if (LC_LT) { goto L190e64; }
+  if (LC_LT) { LLOOP((SB[9]+0xe64)); goto L190e64; }
   }
   /* 190e7e clr.b   (a2) */
   LTR(0x190e7e);
@@ -8361,7 +8361,7 @@ void L_9_ed2(void) {
   /* 190f08 bne.s   $190efe */
   LTR(0x190f08);
   {
-  if (LC_NE) { goto L190efe; }
+  if (LC_NE) { LLOOP((SB[9]+0xefe)); goto L190efe; }
   }
   /* 190f0a move.w  d6,d7 */
   LTR(0x190f0a);
@@ -8411,7 +8411,7 @@ void L_9_ed2(void) {
   /* 190f20 blt.s   $190f10 */
   LTR(0x190f20);
   {
-  if (LC_LT) { goto L190f10; }
+  if (LC_LT) { LLOOP((SB[9]+0xf10)); goto L190f10; }
   }
   L190f22: ; /* 190f22 cmpi.w  #$10,d7 */
   LTR(0x190f22);
@@ -8582,7 +8582,7 @@ void L_9_ed2(void) {
   /* 190f74 blt.s   $190f46 */
   LTR(0x190f74);
   {
-  if (LC_LT) { goto L190f46; }
+  if (LC_LT) { LLOOP((SB[9]+0xf46)); goto L190f46; }
   }
   /* 190f76 addq.l  #$2,a3 */
   LTR(0x190f76);
@@ -9139,7 +9139,7 @@ void L_9_fc4(void) {
   /* 191064 bgt.s   $19101a */
   LTR(0x191064);
   {
-  if (LC_GT) { goto L19101a; }
+  if (LC_GT) { LLOOP((SB[9]+0x101a)); goto L19101a; }
   }
   L191066: ; /* 191066 moveq.l #$a,d0 */
   LTR(0x191066);
@@ -9377,7 +9377,7 @@ void L_9_1094(void) {
   /* 1910ca bne.s   $1910ba */
   LTR(0x1910ca);
   {
-  if (LC_NE) { goto L1910ba; }
+  if (LC_NE) { LLOOP((SB[9]+0x10ba)); goto L1910ba; }
   }
   /* 1910cc addq.w  #$1,d6 */
   LTR(0x1910cc);
@@ -9399,7 +9399,7 @@ void L_9_1094(void) {
   /* 1910d6 blt.s   $1910b0 */
   LTR(0x1910d6);
   {
-  if (LC_LT) { goto L1910b0; }
+  if (LC_LT) { LLOOP((SB[9]+0x10b0)); goto L1910b0; }
   }
   /* 1910d8 move.l  d7,d6 */
   LTR(0x1910d8);
@@ -9552,7 +9552,7 @@ void L_9_10ec(void) {
   /* 19111a blt.s   $1910fc */
   LTR(0x19111a);
   {
-  if (LC_LT) { goto L1910fc; }
+  if (LC_LT) { LLOOP((SB[9]+0x10fc)); goto L1910fc; }
   }
   /* 19111c moveq.l #$0,d7 */
   LTR(0x19111c);
@@ -9642,7 +9642,7 @@ void L_9_10ec(void) {
   /* 191142 blt.s   $191124 */
   LTR(0x191142);
   {
-  if (LC_LT) { goto L191124; }
+  if (LC_LT) { LLOOP((SB[9]+0x1124)); goto L191124; }
   }
   /* 191144 moveq.l #$0,d0 */
   LTR(0x191144);
@@ -10030,7 +10030,7 @@ void L_9_1150(void) {
   /* 1911e6 blt.s   $1911a6 */
   LTR(0x1911e6);
   {
-  if (LC_LT) { goto L1911a6; }
+  if (LC_LT) { LLOOP((SB[9]+0x11a6)); goto L1911a6; }
   }
   /* 1911e8 addq.w  #$1,d3 */
   LTR(0x1911e8);
@@ -10065,7 +10065,7 @@ void L_9_1150(void) {
   /* 1911f4 blt.s   $19118a */
   LTR(0x1911f4);
   {
-  if (LC_LT) { goto L19118a; }
+  if (LC_LT) { LLOOP((SB[9]+0x118a)); goto L19118a; }
   }
   L1911f6: ; /* 1911f6 move.w  -$c(a6),-(sp) */
   LTR(0x1911f6);
@@ -10643,7 +10643,7 @@ void L_9_128a(void) {
   /* 1912e4 bgt.s   $1912b8 */
   LTR(0x1912e4);
   {
-  if (LC_GT) { goto L1912b8; }
+  if (LC_GT) { LLOOP((SB[9]+0x12b8)); goto L1912b8; }
   }
   L1912e6: ; /* 1912e6 movem.l (sp)+,d5/d6/d7/a3/a4 */
   LTR(0x1912e6);
@@ -10802,7 +10802,7 @@ void L_9_12aa(void) {
   /* 1912e4 bgt.s   $1912b8 */
   LTR(0x1912e4);
   {
-  if (LC_GT) { goto L1912b8; }
+  if (LC_GT) { LLOOP((SB[9]+0x12b8)); goto L1912b8; }
   }
   L1912e6: ; /* 1912e6 movem.l (sp)+,d5/d6/d7/a3/a4 */
   LTR(0x1912e6);
@@ -12520,7 +12520,7 @@ void L_9_1448(void) {
   /* 1914de bra.w   $19145a */
   LTR(0x1914de);
   {
-  goto L19145a;
+  LLOOP((SB[9]+0x145a)); goto L19145a;
   }
   L1914e2: ; /* 1914e2 movem.l -$16(a6),d3/d4/d5/d6/d7 */
   LTR(0x1914e2);
@@ -12928,7 +12928,7 @@ void L_9_14ec(void) {
   /* 191570 bgt.s   $19150c */
   LTR(0x191570);
   {
-  if (LC_GT) { goto L19150c; }
+  if (LC_GT) { LLOOP((SB[9]+0x150c)); goto L19150c; }
   }
   /* 191572 movem.l (sp)+,d3/d4/d5/d6/d7/a2/a3/a4 */
   LTR(0x191572);
@@ -14117,7 +14117,7 @@ void L_9_157a(void) {
   /* 19176e blt.w   $1916d8 */
   LTR(0x19176e);
   {
-  if (LC_LT) { goto L1916d8; }
+  if (LC_LT) { LLOOP((SB[9]+0x16d8)); goto L1916d8; }
   }
   L191772: ; /* 191772 dc.w    $a8f4   ; A-line */
   LTR(0x191772);
@@ -14927,7 +14927,7 @@ void L_9_1666(void) {
   /* 19176e blt.w   $1916d8 */
   LTR(0x19176e);
   {
-  if (LC_LT) { goto L1916d8; }
+  if (LC_LT) { LLOOP((SB[9]+0x16d8)); goto L1916d8; }
   }
   L191772: ; /* 191772 dc.w    $a8f4   ; A-line */
   LTR(0x191772);
@@ -15412,7 +15412,7 @@ void L_9_1800(void) {
   /* 191838 bge.s   $19181a */
   LTR(0x191838);
   {
-  if (LC_GE) { goto L19181a; }
+  if (LC_GE) { LLOOP((SB[9]+0x181a)); goto L19181a; }
   }
   /* 19183a moveq.l #$0,d0 */
   LTR(0x19183a);
@@ -15589,7 +15589,7 @@ void L_9_1844(void) {
   /* 191888 bge.s   $19186e */
   LTR(0x191888);
   {
-  if (LC_GE) { goto L19186e; }
+  if (LC_GE) { LLOOP((SB[9]+0x186e)); goto L19186e; }
   }
   /* 19188a move.l  -$4(a6),-(sp) */
   LTR(0x19188a);
@@ -15921,7 +15921,7 @@ void L_9_18dc(void) {
   /* 19191c bne.s   $1918f2 */
   LTR(0x19191c);
   {
-  if (LC_NE) { goto L1918f2; }
+  if (LC_NE) { LLOOP((SB[9]+0x18f2)); goto L1918f2; }
   }
   L19191e: ; /* 19191e tst.l   $6(a4) */
   LTR(0x19191e);
@@ -16480,7 +16480,7 @@ void L_9_1946(void) {
   /* 191a18 bne.w   $19198a */
   LTR(0x191a18);
   {
-  if (LC_NE) { goto L19198a; }
+  if (LC_NE) { LLOOP((SB[9]+0x198a)); goto L19198a; }
   }
   /* 191a1c move.l  a3,d0 */
   LTR(0x191a1c);
@@ -17950,7 +17950,7 @@ void L_9_1c2a(void) {
   /* 191c82 bhi.s   $191c6e */
   LTR(0x191c82);
   {
-  if (LC_HI) { goto L191c6e; }
+  if (LC_HI) { LLOOP((SB[9]+0x1c6e)); goto L191c6e; }
   }
   L191c84: ; /* 191c84 clr.b   -(sp) */
   LTR(0x191c84);

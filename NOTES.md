@@ -78,3 +78,10 @@ RNDLOG=1 (log Random calls), DUMPRAM=file (dump A5 world at exit).
   return to whatever address `rts` popped (`lift_ret_pc`). This makes mid-function fragments and Pascal glue (`jmp (a1)` returns)
   work without bailing. Bails in the c1 scenario: 1.45M -> 7k; interpreted instructions 55M -> 11M.
 - `top bail targets` is printed at exit (where the interpreter still takes over).
+- Jump tables (`lea T(pc),a1; adda.w 0(a1,d0.w*2),a1; jmp (a1)` guarded by `cmpi.w #N,d0`) are resolved by the analyzer
+  (`jump_table()`), and lifted as a switch on the target offset.
+- Mid-entry resume no longer requires a link frame (return handling is shadow-stack based).
+- Backward branches call `LLOOP()`; every 3000 back-edges `lift_poll()` syncs state and runs the same housekeeping as the
+  main loop (ticks, VBL/Time Manager tasks, SDL events, presenting). Without this, lifted busy-wait loops never yield.
+  `NOPOLL=1` disables it, `MIDLINK=1` restores the old link-only mid entries (debugging).
+- `lift_jb` is saved/restored around nested `lift_try` calls (tasks running guest code inside lifted code).
