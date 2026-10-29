@@ -46,6 +46,7 @@ void lift_enter(u32 tgt) {
 }
 void lift_trap(u32 w, u32 tpc, u32 ret) {
     if (lift_dry) { lift_trap_pc = tpc; longjmp(lift_jb, 2); }
+    if (det && ntraps >= det_next && !call_depth) lift_bail(tpc);
     if (patched[trap_key(w, 0)]) { A[7] -= 4; w32(A[7], ret); lift_enter(patched[trap_key(w, 0)]); return; }
     lift_traps++; lift_sync_out(); trap_pc = tpc; trap_from_stub = 0; wm_redirected = 0;
     hle((uint16_t)w, ret);

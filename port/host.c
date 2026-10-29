@@ -194,7 +194,8 @@ static void do_loadseg(uint32_t ret) {
 /* Returns via W(PC) -- handler may redirect; otherwise PC=ret. */
 #include <time.h>
 #include <strings.h>
-static uint32_t ticks_now(void) { static uint64_t t0; struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t); uint64_t ms = t.tv_sec * 1000ull + t.tv_nsec / 1000000; if (!t0) t0 = ms; return (uint32_t)((ms - t0 + 3000) * 60 / 1000); }
+static int det; static unsigned long det_stop, det_every, det_ymax; static unsigned long det_slices, det_next = 128; static int det_yield;
+static uint32_t ticks_now(void) { if (det) return (uint32_t)(180 + det_slices / 25); static uint64_t t0; struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t); uint64_t ms = t.tv_sec * 1000ull + t.tv_nsec / 1000000; if (!t0) t0 = ms; return (uint32_t)((ms - t0 + 3000) * 60 / 1000); }
 static int16_t res_err = 0;
 #define FB_BASE 0x00A00000u
 static uint32_t cur_a5(void) { return R(M68K_REG_A5); }
@@ -277,7 +278,7 @@ static void hle(uint16_t w, uint32_t ret) {
     case 0xA01B: SETD(0, 0); break;                                                /* SetZone */
     case 0xA026: SETA(0, HEAP_START); SETD(0, 0); break;                           /* HandleZone */
     case 0xA019: case 0xA02C: SETD(0, 0); break;                                   /* InitZone / InitApplZone */
-    case 0xA039: wr32(0x20C, (uint32_t)(time(NULL) + 2082844800u)); SETD(0, 0); break; /* ReadDateTime */
+    case 0xA039: wr32(0x20C, (uint32_t)((det ? 3900000000u - 2082844800u : (uint32_t)time(NULL)) + 2082844800u)); SETD(0, 0); break; /* ReadDateTime */
     case 0xA03B: SETD(0, 0); break;                                                /* Delay (handled loosely) */
     case 0xA013: case 0xA045: case 0xA017: case 0xA035: SETD(0, 0); break;                  /* FlushVol, FlushFile, Eject, Offline */
     case 0xA02E: case 0xA22E: { memmove(ram + (A(1) & 0xFFFFFF), ram + (A(0) & 0xFFFFFF), D(0)); SETD(0, 0); break; }
@@ -364,6 +365,10 @@ static void hle(uint16_t w, uint32_t ret) {
 
 static int pctrace = 0;
 unsigned long interp_insns; static unsigned *pchist;
+static void det_report(void) {
+    if (det_stop && ntraps >= det_stop) { quit_requested = 1; }
+    if (det_every && det_slices % det_every == 0) { uint64_t hsh = 1469598103934665603ull; for (uint32_t i = 0; i < 0xC00000; i += 8) hsh = (hsh ^ *(uint64_t *)(ram + i)) * 1099511628211ull; fprintf(stderr, "[det] slice=%lu traps=%lu ram=%016llx\n", det_slices, ntraps, (unsigned long long)hsh); }
+}
 void castles_instr_hook(unsigned int pc) {
     for (;;) {
         interp_insns++; if (getenv("PCHIST")) { if (!pchist) pchist = calloc(RAM_SIZE / 2, 4); if (pc < RAM_SIZE) pchist[pc >> 1]++; }
@@ -374,6 +379,7 @@ void castles_instr_hook(unsigned int pc) {
 #ifdef LIFT_TRACE
         if (lift_chk_active) tri_record(pc);
 #endif
+        if (det && ntraps >= det_next && (!det_ymax || det_slices < det_ymax) && !call_depth && !lift_dry && !halted && (rd16(pc) & 0xF000) == 0xA000) { det_next = ntraps + 128; det_slices++; det_yield = 1; det_report(); if (getenv("DET_VERB") && det_slices >= 47) fprintf(stderr, "[yield %lu] pc=%06x op=%04x sp=%06x stub=%d wmred=%d\n", det_slices, pc, rd16(pc), SP, pc >= STUB_BASE && pc < STUB_END, wm_redirected); yield_resume = pc; W(M68K_REG_PC, YIELD_PC); m68k_end_timeslice(); return; }
         if (pc >= lift_lo && pc < lift_hi && lift_try(pc)) { pc = R(M68K_REG_PC); continue; }
         uint32_t op = rd16(pc); if (pc > 0x1000) pcring[pcri++ & 63] = pc;
         if (pc==0x53ece||pc==0x53f4e||pc==0x53f60||pc==0x53f6a||pc==0x53f74||pc==0x53f7e||pc==0x53f88||pc==0x53f92||pc==0x53f9c||pc==0x53f58) fprintf(stderr,"[probe] pc=%06x d0=%08x\n",pc,R(M68K_REG_D0));
@@ -399,6 +405,7 @@ void castles_instr_hook(unsigned int pc) {
 /* ---------------- Launch ---------------- */
 int main(int argc, char **argv) {
     if (argc < 2) { fprintf(stderr, "usage: %s <game folder | app.bin | rsrc.fork> [game folder]\n", argv[0]); return 2; }
+    det = getenv("CASTLES_DET") != NULL; if (getenv("DET_STOP")) det_stop = strtoul(getenv("DET_STOP"), 0, 10); if (getenv("DET_YMAX")) det_ymax = strtoul(getenv("DET_YMAX"), 0, 10); if (getenv("DET_EVERY")) det_every = strtoul(getenv("DET_EVERY"), 0, 10);
     if (getenv("LIFTCHECK")) { lift_check = 1; if (atoi(getenv("LIFTCHECK")) > 1) lift_chk_max = atoi(getenv("LIFTCHECK")); }
     if (getenv("NOLIFT")) lift_on = 0;
     load_fork(argv[1]); if (argc > 2) strncpy(game_root, argv[2], sizeof game_root - 1);
@@ -429,7 +436,7 @@ int main(int argc, char **argv) {
     plat_init(); wr16(0xBAA, 20);
     unsigned long guard = 0, maxslices = getenv("MAXSLICES") ? strtoul(getenv("MAXSLICES"), NULL, 10) : 0; uint32_t last_present = 0;
     while (!halted) {
-        m68k_execute(10000); if (lift_chk_active && ++chk_slices > 300) { lift_chk_active = 0; lift_on = 1; chk_skip++; chk_slices = 0; } if (!lift_chk_active) { chk_slices = 0; wr32(0x16A, ticks_now()); wr32(0x20C, (uint32_t)(time(NULL) + 2082844800u)); run_tasks(); ev_pump(); }
+        m68k_execute(10000); if (lift_chk_active && ++chk_slices > 300) { lift_chk_active = 0; lift_on = 1; chk_skip++; chk_slices = 0; } if (!lift_chk_active && (!det || det_yield)) { det_yield = 0; chk_slices = 0; wr32(0x16A, ticks_now()); wr32(0x20C, (uint32_t)((det ? 3900000000u - 2082844800u : time(NULL)) + 2082844800u)); run_tasks(); ev_pump(); }
         if (quit_requested) { rm_flush_all(); fprintf(stderr, "quit requested\n"); break; }
         uint32_t t = ticks_now(); if (t - last_present >= 2) { plat_present(); gfx_dirty = 0; last_present = t; }
         if (idle_hint) { idle_hint = 0; usleep(1500); }

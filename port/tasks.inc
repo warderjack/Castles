@@ -1,10 +1,10 @@
 /* ---- VBL + Time Manager tasks, run as 68k subroutines between emulation slices ---- */
 #define SENTINEL (STUB_BASE + 0x5000u)
-static int call_done = 0;
+static int call_done = 0, call_depth = 0;
 static uint32_t vbl_dummy = 0;
 static void vbl_init(void) { if (vbl_dummy) return; vbl_dummy = alloc_block(16); for (int i = 0; i < 16; i += 2) wr16(vbl_dummy + i, 0); wr16(0x160, 0); wr32(0x162, vbl_dummy); wr32(0x166, vbl_dummy); }
 static uint32_t tm_tasks[32]; static int ntm = 0; static double tm_wake[32];
-static double now_ms(void) { struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t); return t.tv_sec * 1000.0 + t.tv_nsec / 1e6; }
+static double now_ms(void) { if (det) return det_slices * 0.67; struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t); return t.tv_sec * 1000.0 + t.tv_nsec / 1e6; }
 
 static uint32_t call_args[2]; static int call_nargs = 0;
 static void call68k(uint32_t addr, uint32_t a0, uint32_t a1) {
@@ -12,8 +12,9 @@ static void call68k(uint32_t addr, uint32_t a0, uint32_t a1) {
     uint32_t sp0 = SP; setsp(sp0 - 128);                        /* skip red zone below SP */
     for (int i = 0; i < call_nargs; i++) push32(call_args[i]); call_nargs = 0;
     push32(SENTINEL); W(M68K_REG_A0, a0); W(M68K_REG_A1, a1); W(M68K_REG_PC, addr);
-    call_done = 0; int guard = 0;
+    call_done = 0; int guard = 0; call_depth++;
     while (!call_done && !halted && guard++ < 200) m68k_execute(2000);
+    call_depth--;
     for (int i = 0; i < 8; i++) { W(M68K_REG_D0 + i, sv[i]); W(M68K_REG_A0 + i, sv[8 + i]); } setsp(sv[15]); W(M68K_REG_PC, sv[16]); W(M68K_REG_SR, sv[17]);
     if (!call_done) fprintf(stderr, "  [tasks] routine %06x did not return\n", addr);
 }
