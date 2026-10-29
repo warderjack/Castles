@@ -73,3 +73,8 @@ RNDLOG=1 (log Random calls), DUMPRAM=file (dump A5 world at exit).
 - Lifter gained addx/subx, roxl/roxr, andi/ori/eori to CCR and SR, move to/from SR.
 - Livelock guard: a mid entry that bails straight back to its own pc is disabled.
 - Result (c1 scenario, 100 s): interpreted instructions 55M -> 14M, lifted calls 132M -> 168M; LIFTCHECK 0 mismatches on c1/mn/t3.
+- Return handling no longer uses a per-function R0: lifted calls keep a shadow stack of expected return addresses
+  (`lift_rs`/`lift_rsp`); `rts` returns to the C caller only if it matches the shadow top, otherwise bails; top-level entries
+  return to whatever address `rts` popped (`lift_ret_pc`). This makes mid-function fragments and Pascal glue (`jmp (a1)` returns)
+  work without bailing. Bails in the c1 scenario: 1.45M -> 7k; interpreted instructions 55M -> 11M.
+- `top bail targets` is printed at exit (where the interpreter still takes over).

@@ -22,7 +22,7 @@ typedef struct { int seg; u32 off; LiftFn fn; } LiftEnt;
 extern const LiftEnt lift_ents[]; extern const int lift_nents;
 typedef struct { int seg; u32 off; LiftFn fn; int haslink; } LiftMid;
 extern const LiftMid lift_mids[]; extern const int lift_nmids;
-extern u32 lift_mid, lift_mid_r0;
+extern u32 lift_mid, lift_mid_r0; extern const char *lift_mm_fn;
 extern const unsigned char lift_mdrv_sig[16]; extern const unsigned lift_mdrv_len;
 
 /* host glue (port/lift_host.inc) */
@@ -30,10 +30,11 @@ void lift_enter(u32 target);                    /* run translated routine at run
 void lift_trap(u32 w, u32 trap_pc, u32 ret);    /* A-line trap executed from translated code */
 u32 lift_get_sr(void); void lift_set_sr(u32 v);
 void lift_bail(u32 pc) __attribute__((noreturn));
-void lift_ret_mismatch(u32 r) __attribute__((noreturn));
+void lift_ret_mismatch(u32 r) __attribute__((noreturn)); void lift_ret_mismatch2(u32 r, u32 r0) __attribute__((noreturn));
 
 #define LPUSH(ret)      do { A[7] -= 4; w32(A[7], (ret)); } while (0)
-#define LCALL(tgt, ret) do { u32 t_ = (tgt); LPUSH(ret); lift_enter(t_); } while (0)
+extern u32 lift_rs[256]; extern int lift_rsp; extern u32 lift_ret_pc;
+#define LCALL(tgt, ret) do { u32 t_ = (tgt); LPUSH(ret); lift_rs[lift_rsp++ & 255] = (ret); lift_enter(t_); lift_rsp--; } while (0)
 extern int lift_dry; void lift_note(LiftFn f);
 #ifdef LIFT_TRACE
 void lift_trace(u32 pc);
@@ -41,13 +42,13 @@ void lift_trace(u32 pc);
 #else
 #define LTR(a)
 #endif
-#define LSCALL(ret, fn) do { LPUSH(ret); if (lift_dry) lift_note(fn); fn(); } while (0)
+#define LSCALL(ret, fn) do { LPUSH(ret); if (lift_dry) lift_note(fn); lift_rs[lift_rsp++ & 255] = (ret); fn(); lift_rsp--; } while (0)
 #define LTAIL(tgt)      do { lift_enter(tgt); return; } while (0)
-#define LJMP_DYN(tgt)   do { lift_enter(tgt); return; } while (0)
+#define LJMP_DYN(tgt)   do { u32 t_ = (tgt); if (lift_rsp > 0 && t_ == lift_rs[(lift_rsp - 1) & 255]) return; lift_enter(t_); return; } while (0)
 #define LBAIL(pc)       lift_bail(pc)
 #define LTRAP(w, tpc, ret) lift_trap(w, tpc, ret)
-#define LRTS()          do { u32 r_ = m32(A[7]); A[7] += 4; if (r_ != R0) lift_ret_mismatch(r_); return; } while (0)
-#define LRTD(n)         do { u32 r_ = m32(A[7]); A[7] += 4 + (n); if (r_ != R0) lift_ret_mismatch(r_); return; } while (0)
+#define LRTS()          do { u32 r_ = m32(A[7]); A[7] += 4; lift_ret_pc = r_; if (lift_rsp > 0 && r_ != lift_rs[(lift_rsp - 1) & 255]) lift_bail(r_); return; } while (0)
+#define LRTD(n)         do { u32 r_ = m32(A[7]); A[7] += 4 + (n); lift_ret_pc = r_; if (lift_rsp > 0 && r_ != lift_rs[(lift_rsp - 1) & 255]) lift_bail(r_); return; } while (0)
 
 #define MK(sz) ((sz) == 1 ? 0xFFu : (sz) == 2 ? 0xFFFFu : 0xFFFFFFFFu)
 #define SG(sz) ((sz) == 1 ? 0x80u : (sz) == 2 ? 0x8000u : 0x80000000u)
