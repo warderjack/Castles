@@ -1330,9 +1330,8 @@ const LiftEnt lift_ents[] = {
   {14, 0x40b0, L_14_40b0},
   {14, 0x4164, L_14_4164},
   {14, 0x417c, L_14_417c},
-  {14, 0x4200, L_14_4200},
 };
-const int lift_nents = 1330;
+const int lift_nents = 1329;
 const LiftMid lift_mids[] = {
   {1, 0x20, L_1_4, 0},
   {1, 0x2a, L_1_4, 0},
@@ -8352,4 +8351,4 @@ const LiftMid lift_mids[] = {
 };
 const int lift_nmids = 7015;
 const unsigned char lift_mdrv_sig[16] = {32,47,0,4,34,47,0,8,72,231,63,254,73,250,65,242};
-const unsigned lift_mdrv_len = 29512;
+const unsigned lift_mdrv_len = 29256;

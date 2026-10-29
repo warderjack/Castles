@@ -66,9 +66,10 @@ RNDLOG=1 (log Random calls), DUMPRAM=file (dump A5 world at exit).
 - A5-world dispatch thunks (`bra.s` ladder -> `jsr d16(a5); jmp (a0)`) are executed natively in `lift_enter`.
 - `gen/entries_extra.txt` = runtime-observed unlifted entry points ("seg:hexoff"), merged into the analyzer; refresh with
   `scripts/entry_iter.sh [script]` (runs a scenario with ENTLOG, merges, regenerates, rebuilds).
-- Music driver: MDRV is stored compressed; the game decompresses it into a ~29 KB heap block. `gen/mdrv_code.bin` is a dump
-  of that block and is analysed/lifted as pseudo-segment 14; the host registers it when lifted code first enters a block whose
-  first 16 bytes match. (TODO: reimplement the decompressor so the dump is not needed.)
+- Music driver: the MDRV resource is stream-cipher encrypted (seg2 +0xc22/+0xc56) then LZSS-packed (seg2 +0x1df4; 12-bit
+  window, length = top nibble + 3, flag bit 1 = literal). `tools/mdrv.py` reimplements both; the result (29256 bytes, code in
+  the first 0x4200) is analysed/lifted as pseudo-segment 14. The host registers it when lifted code first enters a block whose
+  first 16 bytes match the decoded signature.
 - Lifter gained addx/subx, roxl/roxr, andi/ori/eori to CCR and SR, move to/from SR.
 - Livelock guard: a mid entry that bails straight back to its own pc is disabled.
 - Result (c1 scenario, 100 s): interpreted instructions 55M -> 14M, lifted calls 132M -> 168M; LIFTCHECK 0 mismatches on c1/mn/t3.

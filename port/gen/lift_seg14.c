@@ -31781,15 +31781,3 @@ void L_14_417c(void) {
   LRTS();
   }
 }
-/* seg 14 +0x4200 */
-void L_14_4200(void) {
-  u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
-  /* 1e4200 ori.b   #$4,d0 */
-  LTR(0x1e4200);
-  {
-  { u32 r_ = (u32)(L_logic((D[0]&0xFFu) | 0x4u, 1));
-  D[0] = (D[0]&~0xFFu)|((r_)&0xFFu);
-  }
-  }
-  LTAIL((SB[14]+0x4204));
-}
