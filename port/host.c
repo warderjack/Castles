@@ -240,10 +240,12 @@ static void hle(uint16_t w, uint32_t ret) {
     uint16_t n = (w & 0x800) ? (w & 0xFBFF) : (w & 0xF8FF);   /* normalised trap word */
     thist[w]++; if (!trace_init_done) { trace_init_done = 1; if (getenv("TRACEN")) trace_limit = atoi(getenv("TRACEN")); }
     snprintf(tring[tri++ % 600], 160, "[trap %04X %-18s] D0=%08x A0=%08x A1=%08x SP=%06x ret=%06x", w, tname(w), D(0), A(0), A(1), SP, ret);
+    { static uint32_t tf; static int tfi; if (!tfi) { tfi = 1; tf = getenv("TRACE_FROM") ? atoi(getenv("TRACE_FROM")) : 0; } if (tf && ticks_now() >= tf) { tf = 0; trace_limit = getenv("TRACE_COUNT") ? atoi(getenv("TRACE_COUNT")) : 2000; } }
     if (trace_limit > 0) {
         trace_limit--;
         fprintf(stderr, "[trap %04X %-18s] D0=%08x A0=%08x A1=%08x SP=%06x ret=%06x\n", w, tname(w), D(0), A(0), A(1), SP, ret);
     }
+    if (getenv("WMT") && ((n >= 0xA910 && n <= 0xA93C && n != 0xA92C && n != 0xA924) || n == 0xAA45 || n == 0xA97C || n == 0xA982 || n == 0xA983 || n == 0xA873 || n == 0xA922 || n == 0xA923)) fprintf(stderr, "[wmt] %04X %s sp0=%08x sp4=%08x sp8=%08x ret=%06x tick=%u\n", w, tname(w), rd32(SP), rd32(SP + 4), rd32(SP + 8), ret, ticks_now());
     uint32_t sp = SP;
     if (rm_dispatch(w, n, ret)) { W(M68K_REG_PC, ret); return; }
     if (dlg_dispatch(w, n, ret)) { if (!wm_redirected) W(M68K_REG_PC, ret); wm_redirected = 0; return; }
@@ -332,7 +334,7 @@ static void hle(uint16_t w, uint32_t ret) {
     case 0xA032: SETD(0, 0); break;                                         /* FlushEvents */
     case 0xA03F: break;
     case 0xA975: setsp(sp); wr32(sp, ticks_now()); break;                  /* TickCount */
-    case 0xA861: { uint32_t sd = rd32(cur_a5() - 4 - 126); sd = sd * 16807u % 2147483647u; wr32(cur_a5() - 4 - 126, sd); wr16(sp, (int16_t)(sd & 0xFFFF)); break; }
+    case 0xA861: { uint32_t sd = rd32(cur_a5() - 4 - 126); sd = sd * 16807u % 2147483647u; wr32(cur_a5() - 4 - 126, sd); if (getenv("RNDLOG")) fprintf(stderr, "[rnd] %08x sp=%06x D=%x,%x,%x,%x,%x,%x A=%x,%x,%x,%x,%x\n", sd, sp, R(M68K_REG_D0), R(M68K_REG_D3), R(M68K_REG_D4), R(M68K_REG_D5), R(M68K_REG_D6), R(M68K_REG_D7), R(M68K_REG_A0), R(M68K_REG_A2), R(M68K_REG_A3), R(M68K_REG_A4), R(M68K_REG_A6)); wr16(sp, (int16_t)(sd & 0xFFFF)); break; }
     case 0xA970: case 0xA971: { uint32_t ev = rd32(sp); for (int i = 0; i < 16; i++) wr8(ev + i, 0); wr32(ev + 10, ticks_now()); setsp(sp + 6); wr16(sp + 6, 0); break; }
     case 0xA860: { uint32_t ev = rd32(sp + 8); for (int i = 0; i < 16; i++) wr8(ev + i, 0); wr32(ev + 10, ticks_now()); setsp(sp + 14); wr16(sp + 14, 0); break; }
     case 0xA974: case 0xA973: wr16(sp, 0); break;                           /* Button, StillDown */
@@ -371,7 +373,7 @@ static void det_report(void) {
 }
 void castles_instr_hook(unsigned int pc) {
     for (;;) {
-        interp_insns++; if (getenv("PCHIST")) { if (!pchist) pchist = calloc(RAM_SIZE / 2, 4); if (pc < RAM_SIZE) pchist[pc >> 1]++; }
+        
         if (pc == SENTINEL) { call_done = 1; m68k_end_timeslice(); return; }
         if (pc == YIELD_PC + 2) { pc = yield_resume; W(M68K_REG_PC, pc); }
         else if (pc == GCONT_PC) { gc_resume(); pc = R(M68K_REG_PC); }
@@ -380,7 +382,9 @@ void castles_instr_hook(unsigned int pc) {
         if (lift_chk_active) tri_record(pc);
 #endif
         if (det && ntraps >= det_next && (!det_ymax || det_slices < det_ymax) && !call_depth && !lift_dry && !halted && (rd16(pc) & 0xF000) == 0xA000) { det_next = ntraps + 128; det_slices++; det_yield = 1; det_report(); if (getenv("DET_VERB") && det_slices >= 47) fprintf(stderr, "[yield %lu] pc=%06x op=%04x sp=%06x stub=%d wmred=%d\n", det_slices, pc, rd16(pc), SP, pc >= STUB_BASE && pc < STUB_END, wm_redirected); yield_resume = pc; W(M68K_REG_PC, YIELD_PC); m68k_end_timeslice(); return; }
+        { static int pw; static unsigned wl, wh; if (!pw) { pw = 1; const char *e = getenv("PCWATCH"); if (e) sscanf(e, "%x:%x", &wl, &wh); } if (wh && pc >= wl && pc < wh) fprintf(stderr, "[pcw] %06x D=%x,%x,%x,%x,%x,%x,%x,%x A=%x,%x,%x,%x,%x,%x,%x,%x sr=%x\n", pc, R(M68K_REG_D0), R(M68K_REG_D1), R(M68K_REG_D2), R(M68K_REG_D3), R(M68K_REG_D4), R(M68K_REG_D5), R(M68K_REG_D6), R(M68K_REG_D7), R(M68K_REG_A0), R(M68K_REG_A1), R(M68K_REG_A2), R(M68K_REG_A3), R(M68K_REG_A4), R(M68K_REG_A5), R(M68K_REG_A6), SP, R(M68K_REG_SR) & 0x1f); }
         if (pc >= lift_lo && pc < lift_hi && lift_try(pc)) { pc = R(M68K_REG_PC); continue; }
+        interp_insns++; if (getenv("PCHIST")) { if (!pchist) pchist = calloc(RAM_SIZE / 2, 4); if (pc < RAM_SIZE) pchist[pc >> 1]++; }
         uint32_t op = rd16(pc); if (pc > 0x1000) pcring[pcri++ & 63] = pc;
         if (pc==0x53ece||pc==0x53f4e||pc==0x53f60||pc==0x53f6a||pc==0x53f74||pc==0x53f7e||pc==0x53f88||pc==0x53f92||pc==0x53f9c||pc==0x53f58) fprintf(stderr,"[probe] pc=%06x d0=%08x\n",pc,R(M68K_REG_D0));
         if (pc==0x5655c) { uint32_t sp_=SP, a6=R(M68K_REG_A6); fprintf(stderr,"[probe] vremove-fn ret=%06x a6=%06x ret2=%06x\n",rd32(sp_),a6,rd32(a6+4)); }
@@ -446,8 +450,12 @@ int main(int argc, char **argv) {
     { fprintf(stderr, "trap histogram:"); for (int k = 0; k < 60; k++) { int b = -1; for (int i = 0; i < 65536; i++) if (thist[i] && (b < 0 || thist[i] > thist[b])) b = i; if (b < 0) break; fprintf(stderr, " %04X(%s)=%lu", b, tname(b), thist[b]); thist[b] = 0; } fprintf(stderr, "\n"); }
     { fprintf(stderr, "recent traps:\n"); for (int i = 0; i < 600; i++) { const char *l = tring[(tri + i) % 600]; if (l[0]) fprintf(stderr, "  %s\n", l); } }
     if (!halted) { fprintf(stderr, "last pcs:"); for (int i = 0; i < 40; i++) fprintf(stderr, " %06x", pcring[(pcri - 40 + i) & 63]); fprintf(stderr, "\n"); }
+    { const char *dr = getenv("DUMPRAM"); if (dr) { FILE *f = fopen(dr, "wb"); if (f) { fwrite(ram, 1, 0xC10000, f); fclose(f); } } }
+    if (lift_chk_active) fprintf(stderr, "[chkpc] check STILL ACTIVE at exit: entry=%06x ret=%06x sp=%x\n", chk_entry, chk_ret, chk_sp);
     if (lift_check) fprintf(stderr, "[LIFTCHECK] verified=%d mismatched=%d skipped(trap/bail)=%d (verified incl. partial-to-trap: %lu)\n", chk_ok, chk_bad, chk_skip, chk_part_n);
-    if (pchist) { for (int k = 0; k < 25; k++) { unsigned best = 0; uint32_t bi = 0; for (uint32_t i = 0; i < RAM_SIZE / 2; i++) if (pchist[i] > best) { best = pchist[i]; bi = i; } if (!best) break; fprintf(stderr, "  hot %06x x%u\n", bi * 2, best); pchist[bi] = 0; } }
+    if (pchist) { for (int k = 0; k < 25; k++) { unsigned best = 0; uint32_t bi = 0; for (uint32_t i = 0; i < RAM_SIZE / 2; i++) if (pchist[i] > best) { best = pchist[i]; bi = i; } if (!best) break; fprintf(stderr, "  hot %06x x%u  bytes:", bi * 2, best); for (int q = 0; q < 12; q++) fprintf(stderr, "%02x", ram[bi * 2 + q]); fprintf(stderr, "\n"); pchist[bi] = 0; } }
+    if (lift_calls) { fprintf(stderr, "bails: enter-unlifted=%lu; redirecting traps:", lift_enterbail); for (int k = 0; k < 12; k++) { int b = -1; for (int i = 0; i < 65536; i++) if (lift_trapbail[i] && (b < 0 || lift_trapbail[i] > lift_trapbail[b])) b = i; if (b < 0) break; fprintf(stderr, " %04X(%s)=%lu", b, tname(b), lift_trapbail[b]); lift_trapbail[b] = 0; } fprintf(stderr, "\n"); }
+    if (lift_calls) { fprintf(stderr, "unlifted enter targets:"); for (int k = 0; k < 10; k++) { unsigned best = 0; uint32_t bi = 0; for (uint32_t i = 0; i < (1 << 23); i++) if (lift_ebt[i] > best) { best = lift_ebt[i]; bi = i; } if (!best) break; fprintf(stderr, " %06x=%u", bi * 2, best); lift_ebt[bi] = 0; } fprintf(stderr, "\n"); }
     fprintf(stderr, "interp hook insns=%lu\n", interp_insns), fprintf(stderr, "lift: calls=%lu bails=%lu traps=%lu\n", lift_calls, lift_bails, lift_traps);
     fprintf(stderr, "stopped: traps=%lu pc=%06x sp=%06x\n", ntraps, R(M68K_REG_PC), SP);
     if (getenv("CASTLES_DUMP")) { FILE *df = fopen("build/ram.bin", "wb"); if (df) { fwrite(ram, 1, RAM_SIZE, df); fclose(df); } }

@@ -51,3 +51,13 @@ Update: `LIFTCHECK` now also verifies partial runs up to the first trap or bail 
 Update: analysis now also seeds routines reached only by pointer (pea/lea pc-relative targets and unreferenced `link a6` words), covering ~95% of CODE bytes. Segment 7 relocations were added. Translated routines can be resumed mid-body (after any trap or call) via per-function entry switches (`lift_mids`), so the interpreter no longer has to finish a routine after a bail. `NOMID=1` disables this. Checks: 4924 routines verified, 0 mismatches (load-castle scenario).
 
 Experimental: `CASTLES_DET=1` (virtual clock driven by trap count, `DET_EVERY`/`DET_STOP`/`DET_YMAX` for RAM-hash checkpoints) was meant to allow trap-for-trap A/B runs of lifted vs interpreted code. It is not reliable yet (the game derails shortly after the intro), so it is off by default. End-to-end confidence currently comes from `LIFTCHECK` (local equivalence) plus scripted play-throughs (menus, castle load/save, Calais visit) with lifting on, which show no alerts or unimplemented traps.
+
+## Test nondeterminism (important when bisecting)
+The game's own Random wrapper (seg 2 +0x45d0) mixes low-memory Ticks (0x16C) into its seed, so new-game
+setup (e.g. which castle is yours, hence "Visit" vs "Scout" on clicking Calais) depends on timing. Lifted and
+interpreted runs differ in speed, so screenshot-pixel tests of game state are NOT deterministic across
+configurations (shifting a click script by 40 ticks flips the outcome even with NOLIFT=1). Use LIFTCHECK
+(state-equivalence) rather than screenshots to judge the lifter. Mid-routine entries were wrongly suspected of a
+regression; they verify clean.
+Debug env vars added: CHKPC=lo:hi (hex; force equivalence check at those entry/mid pcs), PCWATCH=lo:hi,
+RNDLOG=1 (log Random calls), DUMPRAM=file (dump A5 world at exit).

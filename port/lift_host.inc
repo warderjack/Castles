@@ -4,7 +4,7 @@ u32 D[8], A[8], SB[16], REL_A4, REL_A5; u32 fX, fN, fZ, fV, fC;
 static jmp_buf lift_jb; static u32 lift_bail_pc; static int lift_synced, lift_active, lift_on = 1;
 u32 lift_mid, lift_mid_r0; static const LiftMid **lift_midtab[16];
 static LiftFn *lift_segtab[16]; static u32 lift_seglen[16]; static u32 lift_lo = 0xFFFFFFFF, lift_hi = 0;
-int lift_dry = 0; static u32 lift_trap_pc; static int chk_partial; static unsigned long chk_part_n; static unsigned long lift_calls, lift_bails, lift_traps;
+unsigned long lift_trapbail[65536]; unsigned long lift_enterbail; unsigned lift_ebt[1 << 23]; int lift_dry = 0; static u32 lift_trap_pc; static int chk_partial; static unsigned long chk_part_n; static unsigned long lift_calls, lift_bails, lift_traps;
 
 static void lift_sync_in(void) {
     for (int i = 0; i < 8; i++) { D[i] = R(M68K_REG_D0 + i); A[i] = R(M68K_REG_A0 + i); }
@@ -15,10 +15,11 @@ static void lift_sync_out(void) {
     W(M68K_REG_D7, D[7]); setsp(A[7]);
     uint32_t sr = R(M68K_REG_SR) & ~0x1Fu; sr |= (fX << 4) | (fN << 3) | (fZ << 2) | (fV << 1) | fC; W(M68K_REG_SR, sr);
 }
+static int lift_skipped(int seg, u32 off) { static char *list; static int inited; if (!inited) { inited = 1; const char *e = getenv("LIFTSKIP"); if (e) { FILE *f = fopen(e, "r"); if (f) { fseek(f, 0, SEEK_END); long n = ftell(f); rewind(f); list = calloc(n + 2, 1); fread(list, 1, n, f); fclose(f); } } } if (!list) return 0; char b[32]; snprintf(b, sizeof b, "\n%d:%x\n", seg, off); char *t = malloc(strlen(list) + 4); sprintf(t, "\n%s\n", list); int r = strstr(t, b) != NULL; free(t); return r; }
 static void lift_register_seg(int segno, uint32_t base, uint32_t len) {
     if (segno < 0 || segno > 15 || !lift_nents) return;
     SB[segno] = base; lift_seglen[segno] = len; free(lift_segtab[segno]); lift_segtab[segno] = calloc(len / 2 + 2, sizeof(LiftFn));
-    for (int i = 0; i < lift_nents; i++) if (lift_ents[i].seg == segno && lift_ents[i].off < len) lift_segtab[segno][lift_ents[i].off >> 1] = lift_ents[i].fn;
+    for (int i = 0; i < lift_nents; i++) if (lift_ents[i].seg == segno && lift_ents[i].off < len && !lift_skipped(segno, lift_ents[i].off)) lift_segtab[segno][lift_ents[i].off >> 1] = lift_ents[i].fn;
     free(lift_midtab[segno]); lift_midtab[segno] = calloc(len / 2 + 2, sizeof(LiftMid *));
     for (int i = 0; i < lift_nmids; i++) if (lift_mids[i].seg == segno && lift_mids[i].off < len) lift_midtab[segno][lift_mids[i].off >> 1] = &lift_mids[i];
     if (base < lift_lo) lift_lo = base; if (base + len > lift_hi) lift_hi = base + len;
@@ -42,7 +43,7 @@ void lift_enter(u32 tgt) {
     for (int k = 0; k < 4 && m16(tgt) == 0x4EF9; k++) tgt = m32(tgt + 2);      /* follow jump-table stubs */
     LiftFn f = lift_lookup(tgt);
     if (lift_dry && lift_nvis < 512) lift_vis[lift_nvis++] = tgt;
-    if (f) { lift_calls++; f(); } else lift_bail(tgt);
+    if (f) { lift_calls++; f(); } else { lift_enterbail++; if (tgt < (1u<<24)) lift_ebt[tgt >> 1]++; lift_bail(tgt); }
 }
 void lift_trap(u32 w, u32 tpc, u32 ret) {
     if (lift_dry) { lift_trap_pc = tpc; longjmp(lift_jb, 2); }
@@ -52,20 +53,25 @@ void lift_trap(u32 w, u32 tpc, u32 ret) {
     hle((uint16_t)w, ret);
     if (!(w & 0x800) && !halted) { uint32_t d0 = R(M68K_REG_D0) & 0xFFFF; uint32_t sr = R(M68K_REG_SR) & ~0xFu; if (d0 == 0) sr |= 4; if (d0 & 0x8000) sr |= 8; W(M68K_REG_SR, sr); }
     uint32_t pc2 = R(M68K_REG_PC);
-    if (pc2 != ret || halted) { lift_synced = 1; lift_bail_pc = pc2; lift_bails++; longjmp(lift_jb, 1); }
+    if (pc2 != ret || halted) { lift_trapbail[w & 0xFFFF]++; lift_synced = 1; lift_bail_pc = pc2; lift_bails++; longjmp(lift_jb, 1); }
     lift_sync_in();
 }
 static void lift_check_finish(void);
-static int lift_try_check(uint32_t pc, LiftFn f, u32 midoff, u32 midr0); static int lift_check = 0, lift_chk_active;
+static int lift_chk_max = 5; static int chk_ok, chk_bad, chk_skip; static int lift_try_check(uint32_t pc, LiftFn f, u32 midoff, u32 midr0); static int lift_check = 0, lift_chk_active;
 /* called from the instruction hook when pc is a translated routine's entry; returns 1 if it ran */
+static int lift_midlog;
+static int lift_nomidpc(uint32_t pc) { { static int ri; static unsigned lo, hi; if (!ri) { ri = 1; const char *e = getenv("NOMIDRANGE"); if (e) sscanf(e, "%x:%x", &lo, &hi); } if (hi && pc >= lo && pc < hi) return 1; } static char *list; static int inited; if (!inited) { inited = 1; const char *e = getenv("NOMIDPC"); if (e) list = strdup(e); } if (!list) return 0; char buf[16]; snprintf(buf, sizeof buf, "%06x", pc); return strstr(list, buf) != NULL; }
 static int lift_try(uint32_t pc) {
     static long lmax = -2; if (lmax == -2) { const char *e = getenv("LIFTMAX"); lmax = e ? atol(e) : -1; }
     LiftFn f = lift_lookup(pc); const LiftMid *mm = NULL; u32 midoff = 0, midr0 = 0;
-    if (!f && lift_on && !getenv("NOMID")) { mm = lift_midlookup(pc); if (mm && mm->haslink) { f = mm->fn; midoff = pc - SB[mm->seg]; midr0 = m32(R(M68K_REG_A6) + 4); } }
+    if (!lift_midlog) lift_midlog = getenv("MIDLOG") ? 1 : 2;
+    if (!f && lift_on && !getenv("NOMID")) { mm = lift_midlookup(pc); if (mm && lift_nomidpc(pc)) mm = NULL; if (mm && mm->haslink) { f = mm->fn; midoff = pc - SB[mm->seg]; midr0 = m32(R(M68K_REG_A6) + 4); } }
+    if (midoff && lift_midlog == 1) { fprintf(stderr, "[mid] %06x\n", pc); }
     if (!f || !lift_on) return 0;
     if (lmax >= 0 && (long)lift_calls >= lmax) return 0;
     if (getenv("LIFTLOG")) fprintf(stderr, "[lift] enter %06x%s call#%lu\n", pc, midoff ? " (mid)" : "", lift_calls);
-    if (lift_check) return lift_try_check(pc, f, midoff, midr0);
+    { static unsigned clo = 1, chi = 0; static int ci; if (!ci) { ci = 1; const char *e = getenv("CHKPC"); if (e) { if (sscanf(e, "%x:%x", &clo, &chi) < 2) chi = clo + 1; lift_chk_max = 100000; } }
+      if (lift_check || (pc >= clo && pc < chi && !lift_chk_active)) { int sv = lift_check; lift_check = 1; int rr = lift_try_check(pc, f, midoff, midr0); lift_check = sv; return rr; } }
     lift_sync_in(); uint32_t r0 = midoff ? midr0 : m32(A[7]); lift_synced = 0; lift_calls++;
     lift_mid = midoff; lift_mid_r0 = midr0;
     if (setjmp(lift_jb) == 0) { f(); lift_bail_pc = r0; }
@@ -91,8 +97,8 @@ static void tr_compare(void) {
 
 /* ---- self-check mode (LIFTCHECK=1): run each translated routine on a copy of the state first, then let the
         interpreter execute the same routine and compare registers, flags and all of RAM at the return. ---- */
-static int lift_chk_dummy = 0, lift_chk_max = 5; static uint32_t chk_ret, chk_sp, chk_entry;
-static uint8_t *chk_snap; static u32 chk_D[8], chk_A[8], chk_f[5]; static int chk_ok = 0, chk_bad = 0, chk_skip = 0; static int chk_count[16][16384];
+static int lift_chk_dummy = 0; static uint32_t chk_ret, chk_sp, chk_entry;
+static uint8_t *chk_snap; static u32 chk_D[8], chk_A[8], chk_f[5]; /*chk counters declared above*/ static int chk_count[16][16384];
 static LiftFn lift_fn_filter; static int lift_fn_budget = -1;
 static u32 chk_vis[512]; static int chk_nvis; static u32 chk_s_D[8], chk_s_A[8], chk_s_f[5];
 typedef struct { u32 a; u8 v; } ChkDiff; static ChkDiff *chk_diff; static int chk_ndiff, chk_diffcap;
@@ -145,6 +151,6 @@ static void lift_check_finish(void) {
         tr_compare();
 #endif
     }
-    else chk_ok++;
+    else { chk_ok++; if (getenv("CHKPC")) fprintf(stderr, "[chkpc] finish OK entry=%06x partial-ret=%06x partial=%d\n", chk_entry, chk_ret, chk_partial); }
 }
 
