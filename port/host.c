@@ -451,6 +451,7 @@ int main(int argc, char **argv) {
     { fprintf(stderr, "recent traps:\n"); for (int i = 0; i < 600; i++) { const char *l = tring[(tri + i) % 600]; if (l[0]) fprintf(stderr, "  %s\n", l); } }
     if (!halted) { fprintf(stderr, "last pcs:"); for (int i = 0; i < 40; i++) fprintf(stderr, " %06x", pcring[(pcri - 40 + i) & 63]); fprintf(stderr, "\n"); }
     { const char *dr = getenv("DUMPRAM"); if (dr) { FILE *f = fopen(dr, "wb"); if (f) { fwrite(ram, 1, 0xC10000, f); fclose(f); } } }
+    { const char *el = getenv("ENTLOG"); if (el) { FILE *f = fopen(el, "a"); if (f) { for (uint32_t i = 0; i < (1u << 23); i++) if (lift_ebt[i]) { uint32_t a = i << 1; for (int z = 1; z < 16; z++) if (lift_segtab[z] && a >= SB[z] && a < SB[z] + lift_seglen[z]) { fprintf(f, "%d:%x\n", z, a - SB[z]); break; } } fclose(f); } } }
     if (lift_chk_active) fprintf(stderr, "[chkpc] check STILL ACTIVE at exit: entry=%06x ret=%06x sp=%x\n", chk_entry, chk_ret, chk_sp);
     if (lift_check) fprintf(stderr, "[LIFTCHECK] verified=%d mismatched=%d skipped(trap/bail)=%d (verified incl. partial-to-trap: %lu)\n", chk_ok, chk_bad, chk_skip, chk_part_n);
     if (pchist) { for (int k = 0; k < 25; k++) { unsigned best = 0; uint32_t bi = 0; for (uint32_t i = 0; i < RAM_SIZE / 2; i++) if (pchist[i] > best) { best = pchist[i]; bi = i; } if (!best) break; fprintf(stderr, "  hot %06x x%u  bytes:", bi * 2, best); for (int q = 0; q < 12; q++) fprintf(stderr, "%02x", ram[bi * 2 + q]); fprintf(stderr, "\n"); pchist[bi] = 0; } }

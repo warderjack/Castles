@@ -61,3 +61,14 @@ configurations (shifting a click script by 40 ticks flips the outcome even with 
 regression; they verify clean.
 Debug env vars added: CHKPC=lo:hi (hex; force equivalence check at those entry/mid pcs), PCWATCH=lo:hi,
 RNDLOG=1 (log Random calls), DUMPRAM=file (dump A5 world at exit).
+
+## Lifter coverage round 2
+- A5-world dispatch thunks (`bra.s` ladder -> `jsr d16(a5); jmp (a0)`) are executed natively in `lift_enter`.
+- `gen/entries_extra.txt` = runtime-observed unlifted entry points ("seg:hexoff"), merged into the analyzer; refresh with
+  `scripts/entry_iter.sh [script]` (runs a scenario with ENTLOG, merges, regenerates, rebuilds).
+- Music driver: MDRV is stored compressed; the game decompresses it into a ~29 KB heap block. `gen/mdrv_code.bin` is a dump
+  of that block and is analysed/lifted as pseudo-segment 14; the host registers it when lifted code first enters a block whose
+  first 16 bytes match. (TODO: reimplement the decompressor so the dump is not needed.)
+- Lifter gained addx/subx, roxl/roxr, andi/ori/eori to CCR and SR, move to/from SR.
+- Livelock guard: a mid entry that bails straight back to its own pc is disabled.
+- Result (c1 scenario, 100 s): interpreted instructions 55M -> 14M, lifted calls 132M -> 168M; LIFTCHECK 0 mismatches on c1/mn/t3.

@@ -39,9 +39,16 @@ void lift_bail(u32 pc) { if (lift_dry) { lift_trap_pc = pc; longjmp(lift_jb, 3);
 void lift_ret_mismatch(u32 r) { lift_bail(r); }
 static u32 lift_vis[512]; static int lift_nvis;
 void lift_note(LiftFn f) { if (lift_nvis >= 512) return; for (int i = 0; i < lift_nents; i++) if (lift_ents[i].fn == f) { lift_vis[lift_nvis++] = SB[lift_ents[i].seg] + lift_ents[i].off; return; } }
+u32 lift_get_sr(void) { return (R(M68K_REG_SR) & ~0x1Fu) | (fX << 4) | (fN << 3) | (fZ << 2) | (fV << 1) | fC; }
+void lift_set_sr(u32 v) { W(M68K_REG_SR, v & 0xFFE0u); fX = (v >> 4) & 1; fN = (v >> 3) & 1; fZ = (v >> 2) & 1; fV = (v >> 1) & 1; fC = v & 1; }
 void lift_enter(u32 tgt) {
     for (int k = 0; k < 4 && m16(tgt) == 0x4EF9; k++) tgt = m32(tgt + 2);      /* follow jump-table stubs */
     LiftFn f = lift_lookup(tgt);
+    if (!f && lift_mdrv_len && lift_nents && tgt < 0xC00000 && !lift_segtab[14] && !memcmp(ram + tgt, lift_mdrv_sig, 16)) { fprintf(stderr, "  [mdrv] code block at %06x\n", tgt); lift_register_seg(14, tgt, lift_mdrv_len); f = lift_lookup(tgt); }
+    if (!f && tgt >= 0xC00000) {   /* A5-world dispatch thunks: bra.s/nop ladder into  jsr d16(a5); jmp (a0) */
+        u32 t = tgt; for (int k = 0; k < 64; k++) { u16 w = m16(t); if ((w >> 8) == 0x60 && (w & 0xFF) && (w & 0xFF) != 0xFF) t = t + 2 + (s32)(s8)(w & 0xFF); else if (w == 0x4E71) t += 2; else break; }
+        if (m16(t) == 0x4EAD && m16(t + 4) == 0x4ED0) { A[7] -= 4; w32(A[7], t + 4); lift_enter(A[5] + (u32)(s32)(s16)m16(t + 2)); lift_enter(A[0]); return; }
+    }
     if (lift_dry && lift_nvis < 512) lift_vis[lift_nvis++] = tgt;
     if (f) { lift_calls++; f(); } else { lift_enterbail++; if (tgt < (1u<<24)) lift_ebt[tgt >> 1]++; lift_bail(tgt); }
 }
@@ -61,11 +68,13 @@ static int lift_chk_max = 5; static int chk_ok, chk_bad, chk_skip; static int li
 /* called from the instruction hook when pc is a translated routine's entry; returns 1 if it ran */
 static int lift_midlog;
 static int lift_nomidpc(uint32_t pc) { { static int ri; static unsigned lo, hi; if (!ri) { ri = 1; const char *e = getenv("NOMIDRANGE"); if (e) sscanf(e, "%x:%x", &lo, &hi); } if (hi && pc >= lo && pc < hi) return 1; } static char *list; static int inited; if (!inited) { inited = 1; const char *e = getenv("NOMIDPC"); if (e) list = strdup(e); } if (!list) return 0; char buf[16]; snprintf(buf, sizeof buf, "%06x", pc); return strstr(list, buf) != NULL; }
+static uint32_t lift_dead_pcs[64]; static int lift_ndead;
+static int lift_middead(uint32_t pc) { for (int i = 0; i < lift_ndead; i++) if (lift_dead_pcs[i] == pc) return 1; return 0; }
 static int lift_try(uint32_t pc) {
     static long lmax = -2; if (lmax == -2) { const char *e = getenv("LIFTMAX"); lmax = e ? atol(e) : -1; }
     LiftFn f = lift_lookup(pc); const LiftMid *mm = NULL; u32 midoff = 0, midr0 = 0;
     if (!lift_midlog) lift_midlog = getenv("MIDLOG") ? 1 : 2;
-    if (!f && lift_on && !getenv("NOMID")) { mm = lift_midlookup(pc); if (mm && lift_nomidpc(pc)) mm = NULL; if (mm && mm->haslink) { f = mm->fn; midoff = pc - SB[mm->seg]; midr0 = m32(R(M68K_REG_A6) + 4); } }
+    if (!f && lift_on && !getenv("NOMID")) { mm = lift_midlookup(pc); if (mm && (lift_nomidpc(pc) || lift_middead(pc))) mm = NULL; if (mm && mm->haslink) { f = mm->fn; midoff = pc - SB[mm->seg]; midr0 = m32(R(M68K_REG_A6) + 4); } }
     if (midoff && lift_midlog == 1) { fprintf(stderr, "[mid] %06x\n", pc); }
     if (!f || !lift_on) return 0;
     if (lmax >= 0 && (long)lift_calls >= lmax) return 0;
@@ -76,6 +85,7 @@ static int lift_try(uint32_t pc) {
     lift_mid = midoff; lift_mid_r0 = midr0;
     if (setjmp(lift_jb) == 0) { f(); lift_bail_pc = r0; }
     if (!lift_synced) lift_sync_out();
+    if (midoff && lift_bail_pc == pc && lift_ndead < 64) { lift_dead_pcs[lift_ndead++] = pc; fprintf(stderr, "[lift] mid %06x made no progress; disabled\n", pc); }
     W(M68K_REG_PC, lift_bail_pc); return 1;
 }
 

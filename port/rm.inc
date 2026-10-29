@@ -94,7 +94,8 @@ static int rm_dispatch(uint16_t w, uint16_t n, uint32_t ret) {
     case 0xA9A9: { Res *r = res_from_handle(rd32(sp + 6)); if (r) { r->id = rd16(sp + 4); pstring(rd32(sp), r->name, 64); rfiles[r->file].changed = 1; } setsp(sp + 10); return 1; } /* SetResInfo */
     case 0xA9C1: { uint32_t type = rd32(sp); int id = 128; for (;; id++) { int used = 0; for (int i = 0; i < nres; i++) if (!res[i].dead && res[i].type == type && res[i].id == id) used = 1; if (!used) break; } setsp(sp + 4); wr16(sp + 4, id); return 1; }
     case 0xA9A0: case 0xA81F: {      /* GetResource / Get1Resource */
-        uint32_t id = rd16(sp), type = rd32(sp + 2); Res *r = n == 0xA9A0 ? find_res(type, (int16_t)id) : find_res_1(type, (int16_t)id); setsp(sp + 6); wr32(sp + 6, res_handle_of(r)); res_err = r ? 0 : -192; return 1; }
+        uint32_t id = rd16(sp), type = rd32(sp + 2); Res *r = n == 0xA9A0 ? find_res(type, (int16_t)id) : find_res_1(type, (int16_t)id); setsp(sp + 6); wr32(sp + 6, res_handle_of(r)); res_err = r ? 0 : -192;
+        return 1; }
     case 0xA9A1: case 0xA820: {      /* Get(1)NamedResource(type, name) */
         char nm[256]; pstring(rd32(sp), nm, 256); uint32_t type = rd32(sp + 4); Res *f = NULL;
         for (int c = nchain - 1; c >= 0 && !f; c--) { if (n == 0xA820 && chain[c] != cur_rf) continue; for (int i = 0; i < nres; i++) if (res[i].file == chain[c] && !res[i].dead && res[i].type == type && !strcasecmp(res[i].name, nm)) { f = &res[i]; break; } }

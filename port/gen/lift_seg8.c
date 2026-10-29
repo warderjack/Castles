@@ -22413,6 +22413,806 @@ void L_8_28b2(void) {
   LRTS();
   }
 }
+/* seg 8 +0x2a42 */
+void L_8_2a42(void) {
+  u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  if (mid_) switch (mid_) {
+    case 0x2a92: goto L182a92;
+    case 0x2ab2: goto L182ab2;
+    case 0x2ae0: goto L182ae0;
+    case 0x2af0: goto L182af0;
+    case 0x2b12: goto L182b12;
+    case 0x2b1e: goto L182b1e;
+    case 0x2b5a: goto L182b5a;
+    case 0x2b94: goto L182b94;
+    case 0x2bb0: goto L182bb0;
+    case 0x2bde: goto L182bde;
+    default: lift_bail(SB[LSEG] + mid_); }
+  goto L182a42;
+  L182946: ; /* 182946 move.l  -$fa0(a5),$56(a3) */
+  LTR(0x182946);
+  {
+  u32 sv1_ = m32((A[5]+(u32)-4000));
+  { u32 v_ = sv1_;
+  w32((A[3]+(u32)86), v_);
+  LNZ(v_, 4); fV = fC = 0; }
+  }
+  /* 18294c move.l  -$f9c(a5),$5a(a3) */
+  LTR(0x18294c);
+  {
+  u32 sv1_ = m32((A[5]+(u32)-3996));
+  { u32 v_ = sv1_;
+  w32((A[3]+(u32)90), v_);
+  LNZ(v_, 4); fV = fC = 0; }
+  }
+  /* 182952 moveq.l #$0,d0 */
+  LTR(0x182952);
+  {
+  D[0] = (u32)(s32)0; LNZ(D[0], 4);
+  fV = fC = 0;
+  }
+  /* 182954 move.b  $6d(a3),d0 */
+  LTR(0x182954);
+  {
+  u32 sv1_ = m8((A[3]+(u32)109));
+  { u32 v_ = sv1_;
+  D[0] = (D[0]&~0xFFu)|((v_)&0xFFu);
+  LNZ(v_, 1); fV = fC = 0; }
+  }
+  /* 182958 andi.w  #$c,d0 */
+  LTR(0x182958);
+  {
+  { u32 r_ = (u32)(L_logic((D[0]&0xFFFFu) & 0xcu, 2));
+  D[0] = (D[0]&~0xFFFFu)|((r_)&0xFFFFu);
+  }
+  }
+  /* 18295c cmpi.w  #$c,d0 */
+  LTR(0x18295c);
+  {
+  L_cmp(0xcu, (D[0]&0xFFFFu), 2);
+  }
+  /* 182960 bne.s   $182974 */
+  LTR(0x182960);
+  {
+  if (LC_NE) { goto L182974; }
+  }
+  /* 182962 move.l  $3e(a3),$4e(a3) */
+  LTR(0x182962);
+  {
+  u32 sv1_ = m32((A[3]+(u32)62));
+  { u32 v_ = sv1_;
+  w32((A[3]+(u32)78), v_);
+  LNZ(v_, 4); fV = fC = 0; }
+  }
+  /* 182968 move.l  $42(a3),$52(a3) */
+  LTR(0x182968);
+  {
+  u32 sv1_ = m32((A[3]+(u32)66));
+  { u32 v_ = sv1_;
+  w32((A[3]+(u32)82), v_);
+  LNZ(v_, 4); fV = fC = 0; }
+  }
+  /* 18296e andi.b  #$fb,$6d(a3) */
+  LTR(0x18296e);
+  {
+  { u32 ad_ = (A[3]+(u32)109); u32 r_ = L_logic(m8(ad_) & 0xfbu, 1);
+  w8(ad_, r_); }
+  }
+  L182974: ; /* 182974 moveq.l #$0,d0 */
+  LTR(0x182974);
+  {
+  D[0] = (u32)(s32)0; LNZ(D[0], 4);
+  fV = fC = 0;
+  }
+  /* 182976 move.b  $6d(a3),d0 */
+  LTR(0x182976);
+  {
+  u32 sv1_ = m8((A[3]+(u32)109));
+  { u32 v_ = sv1_;
+  D[0] = (D[0]&~0xFFu)|((v_)&0xFFu);
+  LNZ(v_, 1); fV = fC = 0; }
+  }
+  /* 18297a andi.w  #$b,d0 */
+  LTR(0x18297a);
+  {
+  { u32 r_ = (u32)(L_logic((D[0]&0xFFFFu) & 0xbu, 2));
+  D[0] = (D[0]&~0xFFFFu)|((r_)&0xFFFFu);
+  }
+  }
+  /* 18297e subq.w  #$8,d0 */
+  LTR(0x18297e);
+  {
+  { u32 r_ = L_sub(8, (D[0]&0xFFFFu), 2);
+  D[0] = (D[0]&~0xFFFFu)|((r_)&0xFFFFu);
+  }
+  }
+  /* 182980 bne.s   $182988 */
+  LTR(0x182980);
+  {
+  if (LC_NE) { goto L182988; }
+  }
+  /* 182982 tst.b   d6 */
+  LTR(0x182982);
+  {
+  LNZ((D[6]&0xFFu), 1); fV = fC = 0;
+  }
+  /* 182984 beq.w   $182bc6 */
+  LTR(0x182984);
+  {
+  if (LC_EQ) { goto L182bc6; }
+  }
+  L182988: ; /* 182988 move.l  $3e(a3),$46(a3) */
+  LTR(0x182988);
+  {
+  u32 sv1_ = m32((A[3]+(u32)62));
+  { u32 v_ = sv1_;
+  w32((A[3]+(u32)70), v_);
+  LNZ(v_, 4); fV = fC = 0; }
+  }
+  /* 18298e move.l  $42(a3),$4a(a3) */
+  LTR(0x18298e);
+  {
+  u32 sv1_ = m32((A[3]+(u32)66));
+  { u32 v_ = sv1_;
+  w32((A[3]+(u32)74), v_);
+  LNZ(v_, 4); fV = fC = 0; }
+  }
+  /* 182994 move.l  -$fa0(a5),$3e(a3) */
+  LTR(0x182994);
+  {
+  u32 sv1_ = m32((A[5]+(u32)-4000));
+  { u32 v_ = sv1_;
+  w32((A[3]+(u32)62), v_);
+  LNZ(v_, 4); fV = fC = 0; }
+  }
+  /* 18299a move.l  -$f9c(a5),$42(a3) */
+  LTR(0x18299a);
+  {
+  u32 sv1_ = m32((A[5]+(u32)-3996));
+  { u32 v_ = sv1_;
+  w32((A[3]+(u32)66), v_);
+  LNZ(v_, 4); fV = fC = 0; }
+  }
+  /* 1829a0 move.b  $29(a3),d0 */
+  LTR(0x1829a0);
+  {
+  u32 sv1_ = m8((A[3]+(u32)41));
+  { u32 v_ = sv1_;
+  D[0] = (D[0]&~0xFFu)|((v_)&0xFFu);
+  LNZ(v_, 1); fV = fC = 0; }
+  }
+  /* 1829a4 extb.l  d0 */
+  LTR(0x1829a4);
+  {
+  D[0] = (u32)(s32)(s8)D[0]; LNZ(D[0], 4); fV = fC = 0;
+  }
+  /* 1829a6 cmpi.w  #$6,d0 */
+  LTR(0x1829a6);
+  {
+  L_cmp(0x6u, (D[0]&0xFFFFu), 2);
+  }
+  /* 1829aa bhi.w   $182a8e */
+  LTR(0x1829aa);
+  {
+  if (LC_HI) { goto L182a8e; }
+  }
+  /* 1829ae lea.l   $23e(pc),a1 */
+  LTR(0x1829ae);
+  {
+  A[1] = (SB[8]+0x2bee);
+  }
+  /* 1829b2 adda.w  $0(a1,d0.w*2),a1 */
+  LTR(0x1829b2);
+  {
+  u32 sv1_ = m16((A[1]+(u32)0+((u32)(s32)(s16)D[0]<<1)));
+  A[1] += ((u32)(s32)(s16)(sv1_));
+  }
+  /* 1829b6 jmp     (a1) */
+  LTR(0x1829b6);
+  {
+  LJMP_DYN(A[1]);
+  }
+  L182a42: ; /* 182a42 move.w  $2e(a3),$34(a3) */
+  LTR(0x182a42);
+  {
+  u32 sv1_ = m16((A[3]+(u32)46));
+  { u32 v_ = sv1_;
+  w16((A[3]+(u32)52), v_);
+  LNZ(v_, 2); fV = fC = 0; }
+  }
+  /* 182a48 move.w  $30(a3),$36(a3) */
+  LTR(0x182a48);
+  {
+  u32 sv1_ = m16((A[3]+(u32)48));
+  { u32 v_ = sv1_;
+  w16((A[3]+(u32)54), v_);
+  LNZ(v_, 2); fV = fC = 0; }
+  }
+  /* 182a4e bra.s   $182a92 */
+  LTR(0x182a4e);
+  {
+  goto L182a92;
+  }
+  L182a8e: ; /* 182a8e jsr     $8a(a5) */
+  LTR(0x182a8e);
+  {
+  LCALL((A[5]+(u32)138), (SB[8]+0x2a92));
+  }
+  L182a92: ; /* 182a92 clr.b   $6a(a3) */
+  LTR(0x182a92);
+  {
+  w8((A[3]+(u32)106), 0);
+  fN = 0; fZ = 1; fV = fC = 0;
+  }
+  /* 182a96 tst.l   $66(a3) */
+  LTR(0x182a96);
+  {
+  u32 sv1_ = m32((A[3]+(u32)102));
+  LNZ(sv1_, 4); fV = fC = 0;
+  }
+  /* 182a9a beq.s   $182ab6 */
+  LTR(0x182a9a);
+  {
+  if (LC_EQ) { goto L182ab6; }
+  }
+  /* 182a9c move.b  #$1,$6a(a3) */
+  LTR(0x182a9c);
+  {
+  { u32 v_ = 0x1u;
+  w8((A[3]+(u32)106), v_);
+  LNZ(v_, 1); fV = fC = 0; }
+  }
+  /* 182aa2 pea.l   -$848(a5) */
+  LTR(0x182aa2);
+  {
+  { u32 v_ = (A[5]+(u32)-2120); A[7] -= 4; w32(A[7], v_); }
+  }
+  /* 182aa6 pea.l   -$848(a5) */
+  LTR(0x182aa6);
+  {
+  { u32 v_ = (A[5]+(u32)-2120); A[7] -= 4; w32(A[7], v_); }
+  }
+  /* 182aaa move.l  $66(a3),-(sp) */
+  LTR(0x182aaa);
+  {
+  u32 sv1_ = m32((A[3]+(u32)102));
+  A[7] -= 4; ed = A[7];
+  { u32 v_ = sv1_;
+  w32(ed, v_);
+  LNZ(v_, 4); fV = fC = 0; }
+  }
+  /* 182aae jsr     -$d48(pc) */
+  LTR(0x182aae);
+  {
+  LSCALL((SB[8]+0x2ab2), L_8_1d68);
+  }
+  L182ab2: ; /* 182ab2 lea.l   $c(sp),sp */
+  LTR(0x182ab2);
+  {
+  A[7] = (A[7]+(u32)12);
+  }
+  L182ab6: ; /* 182ab6 tst.l   $62(a3) */
+  LTR(0x182ab6);
+  {
+  u32 sv1_ = m32((A[3]+(u32)98));
+  LNZ(sv1_, 4); fV = fC = 0;
+  }
+  /* 182aba beq.s   $182af4 */
+  LTR(0x182aba);
+  {
+  if (LC_EQ) { goto L182af4; }
+  }
+  /* 182abc move.b  #$1,$6a(a3) */
+  LTR(0x182abc);
+  {
+  { u32 v_ = 0x1u;
+  w8((A[3]+(u32)106), v_);
+  LNZ(v_, 1); fV = fC = 0; }
+  }
+  /* 182ac2 movea.l $62(a3),a0 */
+  LTR(0x182ac2);
+  {
+  u32 sv1_ = m32((A[3]+(u32)98));
+  A[0] = sv1_;
+  }
+  /* 182ac6 move.l  (a0),-$10(a6) */
+  LTR(0x182ac6);
+  {
+  u32 sv1_ = m32(A[0]);
+  { u32 v_ = sv1_;
+  w32((A[6]+(u32)-16), v_);
+  LNZ(v_, 4); fV = fC = 0; }
+  }
+  /* 182aca move.l  $4(a0),-$c(a6) */
+  LTR(0x182aca);
+  {
+  u32 sv1_ = m32((A[0]+(u32)4));
+  { u32 v_ = sv1_;
+  w32((A[6]+(u32)-12), v_);
+  LNZ(v_, 4); fV = fC = 0; }
+  }
+  /* 182ad0 move.w  $30(a3),-(sp) */
+  LTR(0x182ad0);
+  {
+  u32 sv1_ = m16((A[3]+(u32)48));
+  A[7] -= 2; ed = A[7];
+  { u32 v_ = sv1_;
+  w16(ed, v_);
+  LNZ(v_, 2); fV = fC = 0; }
+  }
+  /* 182ad4 move.w  $2e(a3),-(sp) */
+  LTR(0x182ad4);
+  {
+  u32 sv1_ = m16((A[3]+(u32)46));
+  A[7] -= 2; ed = A[7];
+  { u32 v_ = sv1_;
+  w16(ed, v_);
+  LNZ(v_, 2); fV = fC = 0; }
+  }
+  /* 182ad8 pea.l   -$10(a6) */
+  LTR(0x182ad8);
+  {
+  { u32 v_ = (A[6]+(u32)-16); A[7] -= 4; w32(A[7], v_); }
+  }
+  /* 182adc jsr     -$c94(pc) */
+  LTR(0x182adc);
+  {
+  LSCALL((SB[8]+0x2ae0), L_8_1e4a);
+  }
+  L182ae0: ; /* 182ae0 pea.l   -$848(a5) */
+  LTR(0x182ae0);
+  {
+  { u32 v_ = (A[5]+(u32)-2120); A[7] -= 4; w32(A[7], v_); }
+  }
+  /* 182ae4 pea.l   -$848(a5) */
+  LTR(0x182ae4);
+  {
+  { u32 v_ = (A[5]+(u32)-2120); A[7] -= 4; w32(A[7], v_); }
+  }
+  /* 182ae8 pea.l   -$10(a6) */
+  LTR(0x182ae8);
+  {
+  { u32 v_ = (A[6]+(u32)-16); A[7] -= 4; w32(A[7], v_); }
+  }
+  /* 182aec jsr     -$d86(pc) */
+  LTR(0x182aec);
+  {
+  LSCALL((SB[8]+0x2af0), L_8_1d68);
+  }
+  L182af0: ; /* 182af0 lea.l   $14(sp),sp */
+  LTR(0x182af0);
+  {
+  A[7] = (A[7]+(u32)20);
+  }
+  L182af4: ; /* 182af4 moveq.l #$0,d0 */
+  LTR(0x182af4);
+  {
+  D[0] = (u32)(s32)0; LNZ(D[0], 4);
+  fV = fC = 0;
+  }
+  /* 182af6 move.b  $3d(a3),d0 */
+  LTR(0x182af6);
+  {
+  u32 sv1_ = m8((A[3]+(u32)61));
+  { u32 v_ = sv1_;
+  D[0] = (D[0]&~0xFFu)|((v_)&0xFFu);
+  LNZ(v_, 1); fV = fC = 0; }
+  }
+  /* 182afa move.w  d0,-$2984(a5) */
+  LTR(0x182afa);
+  {
+  { u32 v_ = (D[0]&0xFFFFu);
+  w16((A[5]+(u32)-10628), v_);
+  LNZ(v_, 2); fV = fC = 0; }
+  }
+  /* 182afe movea.l $38(a3),a2 */
+  LTR(0x182afe);
+  {
+  u32 sv1_ = m32((A[3]+(u32)56));
+  A[2] = sv1_;
+  }
+  /* 182b02 bra.s   $182b2a */
+  LTR(0x182b02);
+  {
+  goto L182b2a;
+  }
+  L182b04: ; /* 182b04 move.w  $36(a3),-(sp) */
+  LTR(0x182b04);
+  {
+  u32 sv1_ = m16((A[3]+(u32)54));
+  A[7] -= 2; ed = A[7];
+  { u32 v_ = sv1_;
+  w16(ed, v_);
+  LNZ(v_, 2); fV = fC = 0; }
+  }
+  /* 182b08 move.w  $34(a3),-(sp) */
+  LTR(0x182b08);
+  {
+  u32 sv1_ = m16((A[3]+(u32)52));
+  A[7] -= 2; ed = A[7];
+  { u32 v_ = sv1_;
+  w16(ed, v_);
+  LNZ(v_, 2); fV = fC = 0; }
+  }
+  /* 182b0c move.l  a2,-(sp) */
+  LTR(0x182b0c);
+  {
+  A[7] -= 4; ed = A[7];
+  { u32 v_ = A[2];
+  w32(ed, v_);
+  LNZ(v_, 4); fV = fC = 0; }
+  }
+  /* 182b0e jsr     -$ca0(pc) */
+  LTR(0x182b0e);
+  {
+  LSCALL((SB[8]+0x2b12), L_8_1e70);
+  }
+  L182b12: ; /* 182b12 pea.l   $6(a2) */
+  LTR(0x182b12);
+  {
+  { u32 v_ = (A[2]+(u32)6); A[7] -= 4; w32(A[7], v_); }
+  }
+  /* 182b16 pea.l   $3e(a3) */
+  LTR(0x182b16);
+  {
+  { u32 v_ = (A[3]+(u32)62); A[7] -= 4; w32(A[7], v_); }
+  }
+  /* 182b1a jsr     -$e80(pc) */
+  LTR(0x182b1a);
+  {
+  LSCALL((SB[8]+0x2b1e), L_8_1c9c);
+  }
+  L182b1e: ; /* 182b1e lea.l   $10(sp),sp */
+  LTR(0x182b1e);
+  {
+  A[7] = (A[7]+(u32)16);
+  }
+  /* 182b22 subq.w  #$1,-$2984(a5) */
+  LTR(0x182b22);
+  {
+  { u32 ad_ = (A[5]+(u32)-10628); w16(ad_, L_sub(1, m16(ad_), 2)); }
+  }
+  /* 182b26 lea.l   $2e(a2),a2 */
+  LTR(0x182b26);
+  {
+  A[2] = (A[2]+(u32)46);
+  }
+  L182b2a: ; /* 182b2a tst.w   -$2984(a5) */
+  LTR(0x182b2a);
+  {
+  u32 sv1_ = m16((A[5]+(u32)-10628));
+  LNZ(sv1_, 2); fV = fC = 0;
+  }
+  /* 182b2e bne.s   $182b04 */
+  LTR(0x182b2e);
+  {
+  if (LC_NE) { goto L182b04; }
+  }
+  /* 182b30 tst.b   $6a(a3) */
+  LTR(0x182b30);
+  {
+  u32 sv1_ = m8((A[3]+(u32)106));
+  LNZ(sv1_, 1); fV = fC = 0;
+  }
+  /* 182b34 beq.s   $182b42 */
+  LTR(0x182b34);
+  {
+  if (LC_EQ) { goto L182b42; }
+  }
+  /* 182b36 move.l  -$840(a5),-$848(a5) */
+  LTR(0x182b36);
+  {
+  u32 sv1_ = m32((A[5]+(u32)-2112));
+  { u32 v_ = sv1_;
+  w32((A[5]+(u32)-2120), v_);
+  LNZ(v_, 4); fV = fC = 0; }
+  }
+  /* 182b3c move.l  -$83c(a5),-$844(a5) */
+  LTR(0x182b3c);
+  {
+  u32 sv1_ = m32((A[5]+(u32)-2108));
+  { u32 v_ = sv1_;
+  w32((A[5]+(u32)-2116), v_);
+  LNZ(v_, 4); fV = fC = 0; }
+  }
+  L182b42: ; /* 182b42 move.l  $3e(a3),$4e(a3) */
+  LTR(0x182b42);
+  {
+  u32 sv1_ = m32((A[3]+(u32)62));
+  { u32 v_ = sv1_;
+  w32((A[3]+(u32)78), v_);
+  LNZ(v_, 4); fV = fC = 0; }
+  }
+  /* 182b48 move.l  $42(a3),$52(a3) */
+  LTR(0x182b48);
+  {
+  u32 sv1_ = m32((A[3]+(u32)66));
+  { u32 v_ = sv1_;
+  w32((A[3]+(u32)82), v_);
+  LNZ(v_, 4); fV = fC = 0; }
+  }
+  /* 182b4e pea.l   $46(a3) */
+  LTR(0x182b4e);
+  {
+  { u32 v_ = (A[3]+(u32)70); A[7] -= 4; w32(A[7], v_); }
+  }
+  /* 182b52 pea.l   $4e(a3) */
+  LTR(0x182b52);
+  {
+  { u32 v_ = (A[3]+(u32)78); A[7] -= 4; w32(A[7], v_); }
+  }
+  /* 182b56 jsr     -$ebc(pc) */
+  LTR(0x182b56);
+  {
+  LSCALL((SB[8]+0x2b5a), L_8_1c9c);
+  }
+  L182b5a: ; /* 182b5a btst.b  #$3,$6d(a3) */
+  LTR(0x182b5a);
+  {
+  { u32 ad_ = (A[3]+(u32)109); u32 m_ = 1u << ((3)&7u); u32 v_ = m8(ad_); fZ = (v_&m_) == 0;
+  }
+  }
+  /* 182b60 addq.l  #$8,sp */
+  LTR(0x182b60);
+  {
+  A[7] += 8;
+  }
+  /* 182b62 beq.s   $182bc6 */
+  LTR(0x182b62);
+  {
+  if (LC_EQ) { goto L182bc6; }
+  }
+  /* 182b64 tst.b   d6 */
+  LTR(0x182b64);
+  {
+  LNZ((D[6]&0xFFu), 1); fV = fC = 0;
+  }
+  /* 182b66 beq.s   $182bc0 */
+  LTR(0x182b66);
+  {
+  if (LC_EQ) { goto L182bc0; }
+  }
+  /* 182b68 moveq.l #$0,d4 */
+  LTR(0x182b68);
+  {
+  D[4] = (u32)(s32)0; LNZ(D[4], 4);
+  fV = fC = 0;
+  }
+  /* 182b6a move.b  $29(a3),d4 */
+  LTR(0x182b6a);
+  {
+  u32 sv1_ = m8((A[3]+(u32)41));
+  { u32 v_ = sv1_;
+  D[4] = (D[4]&~0xFFu)|((v_)&0xFFu);
+  LNZ(v_, 1); fV = fC = 0; }
+  }
+  /* 182b6e cmpi.b  #$5,d4 */
+  LTR(0x182b6e);
+  {
+  L_cmp(0x5u, (D[4]&0xFFu), 1);
+  }
+  /* 182b72 beq.s   $182b7a */
+  LTR(0x182b72);
+  {
+  if (LC_EQ) { goto L182b7a; }
+  }
+  /* 182b74 cmpi.b  #$6,d4 */
+  LTR(0x182b74);
+  {
+  L_cmp(0x6u, (D[4]&0xFFu), 1);
+  }
+  /* 182b78 bne.s   $182b80 */
+  LTR(0x182b78);
+  {
+  if (LC_NE) { goto L182b80; }
+  }
+  L182b7a: ; /* 182b7a ori.b   #$1,$6d(a3) */
+  LTR(0x182b7a);
+  {
+  { u32 ad_ = (A[3]+(u32)109); u32 r_ = L_logic(m8(ad_) | 0x1u, 1);
+  w8(ad_, r_); }
+  }
+  L182b80: ; /* 182b80 tst.b   d3 */
+  LTR(0x182b80);
+  {
+  LNZ((D[3]&0xFFu), 1); fV = fC = 0;
+  }
+  /* 182b82 beq.s   $182b9c */
+  LTR(0x182b82);
+  {
+  if (LC_EQ) { goto L182b9c; }
+  }
+  /* 182b84 pea.l   -$8(a6) */
+  LTR(0x182b84);
+  {
+  { u32 v_ = (A[6]+(u32)-8); A[7] -= 4; w32(A[7], v_); }
+  }
+  /* 182b88 pea.l   -$18(a6) */
+  LTR(0x182b88);
+  {
+  { u32 v_ = (A[6]+(u32)-24); A[7] -= 4; w32(A[7], v_); }
+  }
+  /* 182b8c pea.l   $4e(a3) */
+  LTR(0x182b8c);
+  {
+  { u32 v_ = (A[3]+(u32)78); A[7] -= 4; w32(A[7], v_); }
+  }
+  /* 182b90 jsr     -$e2a(pc) */
+  LTR(0x182b90);
+  {
+  LSCALL((SB[8]+0x2b94), L_8_1d68);
+  }
+  L182b94: ; /* 182b94 tst.b   d0 */
+  LTR(0x182b94);
+  {
+  LNZ((D[0]&0xFFu), 1); fV = fC = 0;
+  }
+  /* 182b96 lea.l   $c(sp),sp */
+  LTR(0x182b96);
+  {
+  A[7] = (A[7]+(u32)12);
+  }
+  /* 182b9a bne.s   $182bb8 */
+  LTR(0x182b9a);
+  {
+  if (LC_NE) { goto L182bb8; }
+  }
+  L182b9c: ; /* 182b9c tst.b   d5 */
+  LTR(0x182b9c);
+  {
+  LNZ((D[5]&0xFFu), 1); fV = fC = 0;
+  }
+  /* 182b9e beq.s   $182bc6 */
+  LTR(0x182b9e);
+  {
+  if (LC_EQ) { goto L182bc6; }
+  }
+  /* 182ba0 pea.l   -$8(a6) */
+  LTR(0x182ba0);
+  {
+  { u32 v_ = (A[6]+(u32)-8); A[7] -= 4; w32(A[7], v_); }
+  }
+  /* 182ba4 pea.l   -$20(a6) */
+  LTR(0x182ba4);
+  {
+  { u32 v_ = (A[6]+(u32)-32); A[7] -= 4; w32(A[7], v_); }
+  }
+  /* 182ba8 pea.l   $4e(a3) */
+  LTR(0x182ba8);
+  {
+  { u32 v_ = (A[3]+(u32)78); A[7] -= 4; w32(A[7], v_); }
+  }
+  /* 182bac jsr     -$e46(pc) */
+  LTR(0x182bac);
+  {
+  LSCALL((SB[8]+0x2bb0), L_8_1d68);
+  }
+  L182bb0: ; /* 182bb0 tst.b   d0 */
+  LTR(0x182bb0);
+  {
+  LNZ((D[0]&0xFFu), 1); fV = fC = 0;
+  }
+  /* 182bb2 lea.l   $c(sp),sp */
+  LTR(0x182bb2);
+  {
+  A[7] = (A[7]+(u32)12);
+  }
+  /* 182bb6 beq.s   $182bc6 */
+  LTR(0x182bb6);
+  {
+  if (LC_EQ) { goto L182bc6; }
+  }
+  L182bb8: ; /* 182bb8 ori.b   #$1,$6d(a3) */
+  LTR(0x182bb8);
+  {
+  { u32 ad_ = (A[3]+(u32)109); u32 r_ = L_logic(m8(ad_) | 0x1u, 1);
+  w8(ad_, r_); }
+  }
+  /* 182bbe bra.s   $182bc6 */
+  LTR(0x182bbe);
+  {
+  goto L182bc6;
+  }
+  L182bc0: ; /* 182bc0 ori.b   #$4,$6d(a3) */
+  LTR(0x182bc0);
+  {
+  { u32 ad_ = (A[3]+(u32)109); u32 r_ = L_logic(m8(ad_) | 0x4u, 1);
+  w8(ad_, r_); }
+  }
+  L182bc6: ; /* 182bc6 movea.l -$28(a6),a0 */
+  LTR(0x182bc6);
+  {
+  u32 sv1_ = m32((A[6]+(u32)-40));
+  A[0] = sv1_;
+  }
+  /* 182bca move.w  (a0),d0 */
+  LTR(0x182bca);
+  {
+  u32 sv1_ = m16(A[0]);
+  { u32 v_ = sv1_;
+  D[0] = (D[0]&~0xFFFFu)|((v_)&0xFFFFu);
+  LNZ(v_, 2); fV = fC = 0; }
+  }
+  /* 182bcc movea.l $4(a3,d0.w*8),a3 */
+  LTR(0x182bcc);
+  {
+  u32 sv1_ = m32((A[3]+(u32)4+((u32)(s32)(s16)D[0]<<3)));
+  A[3] = sv1_;
+  }
+  /* 182bd0 tst.w   (a3) */
+  LTR(0x182bd0);
+  {
+  u32 sv1_ = m16(A[3]);
+  LNZ(sv1_, 2); fV = fC = 0;
+  }
+  /* 182bd2 bne.s   $182be6 */
+  LTR(0x182bd2);
+  {
+  if (LC_NE) { goto L182be6; }
+  }
+  /* 182bd4 move.l  a3,-(sp) */
+  LTR(0x182bd4);
+  {
+  A[7] -= 4; ed = A[7];
+  { u32 v_ = A[3];
+  w32(ed, v_);
+  LNZ(v_, 4); fV = fC = 0; }
+  }
+  /* 182bd6 move.l  -$2982(a5),-(sp) */
+  LTR(0x182bd6);
+  {
+  u32 sv1_ = m32((A[5]+(u32)-10626));
+  A[7] -= 4; ed = A[7];
+  { u32 v_ = sv1_;
+  w32(ed, v_);
+  LNZ(v_, 4); fV = fC = 0; }
+  }
+  /* 182bda jsr     $96a(a5) */
+  LTR(0x182bda);
+  {
+  LCALL((A[5]+(u32)2410), (SB[8]+0x2bde));
+  }
+  L182bde: ; /* 182bde tst.b   d0 */
+  LTR(0x182bde);
+  {
+  LNZ((D[0]&0xFFu), 1); fV = fC = 0;
+  }
+  /* 182be0 addq.l  #$8,sp */
+  LTR(0x182be0);
+  {
+  A[7] += 8;
+  }
+  /* 182be2 bne.w   $182946 */
+  LTR(0x182be2);
+  {
+  if (LC_NE) { goto L182946; }
+  }
+  L182be6: ; /* 182be6 movem.l (sp)+,d3/d4/d5/d6/d7/a2/a3/a4 */
+  LTR(0x182be6);
+  {
+  { u32 p_ = A[7];
+  D[3] = m32(p_); p_ += 4;
+  D[4] = m32(p_); p_ += 4;
+  D[5] = m32(p_); p_ += 4;
+  D[6] = m32(p_); p_ += 4;
+  D[7] = m32(p_); p_ += 4;
+  A[2] = m32(p_); p_ += 4;
+  A[3] = m32(p_); p_ += 4;
+  A[4] = m32(p_); p_ += 4;
+  A[7] = p_;
+  }
+  }
+  /* 182bea unlk    a6 */
+  LTR(0x182bea);
+  {
+  A[7] = A[6]; A[6] = m32(A[7]); A[7] += 4;
+  }
+  /* 182bec rts */
+  LTR(0x182bec);
+  {
+  LRTS();
+  }
+}
 /* seg 8 +0x2bee */
 void L_8_2bee(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
@@ -38259,6 +39059,331 @@ void L_8_4b36(void) {
   LJMP_DYN(A[1]);
   }
   L184c02: ; /* 184c02 movem.l (sp)+,d6/d7/a2/a3/a4 */
+  LTR(0x184c02);
+  {
+  { u32 p_ = A[7];
+  D[6] = m32(p_); p_ += 4;
+  D[7] = m32(p_); p_ += 4;
+  A[2] = m32(p_); p_ += 4;
+  A[3] = m32(p_); p_ += 4;
+  A[4] = m32(p_); p_ += 4;
+  A[7] = p_;
+  }
+  }
+  /* 184c06 unlk    a6 */
+  LTR(0x184c06);
+  {
+  A[7] = A[6]; A[6] = m32(A[7]); A[7] += 4;
+  }
+  /* 184c08 rts */
+  LTR(0x184c08);
+  {
+  LRTS();
+  }
+}
+/* seg 8 +0x4b72 */
+void L_8_4b72(void) {
+  u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  if (mid_) switch (mid_) {
+    case 0x4bc6: goto L184bc6;
+    case 0x4bc8: goto L184bc8;
+    case 0x4bcc: goto L184bcc;
+    case 0x4bea: goto L184bea;
+    case 0x4bec: goto L184bec;
+    default: lift_bail(SB[LSEG] + mid_); }
+  /* 184b72 moveq.l #$8,d7 */
+  LTR(0x184b72);
+  {
+  D[7] = (u32)(s32)8; LNZ(D[7], 4);
+  fV = fC = 0;
+  }
+  /* 184b74 moveq.l #$0,d6 */
+  LTR(0x184b74);
+  {
+  D[6] = (u32)(s32)0; LNZ(D[6], 4);
+  fV = fC = 0;
+  }
+  /* 184b76 moveq.l #$c,d0 */
+  LTR(0x184b76);
+  {
+  D[0] = (u32)(s32)12; LNZ(D[0], 4);
+  fV = fC = 0;
+  }
+  /* 184b78 add.l   $c(a6),d0 */
+  LTR(0x184b78);
+  {
+  u32 sv1_ = m32((A[6]+(u32)12));
+  { u32 r_ = (u32)(L_add(sv1_, D[0], 4));
+  D[0] = r_;
+  }
+  }
+  /* 184b7c movea.l d0,a4 */
+  LTR(0x184b7c);
+  {
+  A[4] = D[0];
+  }
+  /* 184b7e moveq.l #$2,d0 */
+  LTR(0x184b7e);
+  {
+  D[0] = (u32)(s32)2; LNZ(D[0], 4);
+  fV = fC = 0;
+  }
+  /* 184b80 add.l   $10(a6),d0 */
+  LTR(0x184b80);
+  {
+  u32 sv1_ = m32((A[6]+(u32)16));
+  { u32 r_ = (u32)(L_add(sv1_, D[0], 4));
+  D[0] = r_;
+  }
+  }
+  /* 184b84 movea.l d0,a3 */
+  LTR(0x184b84);
+  {
+  A[3] = D[0];
+  }
+  /* 184b86 bra.s   $184bfc */
+  LTR(0x184b86);
+  {
+  goto L184bfc;
+  }
+  L184b88: ; /* 184b88 move.l  -$8(a6),-$2abe(a5) */
+  LTR(0x184b88);
+  {
+  u32 sv1_ = m32((A[6]+(u32)-8));
+  { u32 v_ = sv1_;
+  w32((A[5]+(u32)-10942), v_);
+  LNZ(v_, 4); fV = fC = 0; }
+  }
+  /* 184b8e move.l  -$4(a6),-$2aba(a5) */
+  LTR(0x184b8e);
+  {
+  u32 sv1_ = m32((A[6]+(u32)-4));
+  { u32 v_ = sv1_;
+  w32((A[5]+(u32)-10938), v_);
+  LNZ(v_, 4); fV = fC = 0; }
+  }
+  /* 184b94 add.w   d6,-$2abc(a5) */
+  LTR(0x184b94);
+  {
+  { u32 ad_ = (A[5]+(u32)-10940); u32 r_ = L_add((D[6]&0xFFFFu), m16(ad_), 2);
+  w16(ad_, r_); }
+  }
+  /* 184b98 move.w  -$2abc(a5),d0 */
+  LTR(0x184b98);
+  {
+  u32 sv1_ = m16((A[5]+(u32)-10940));
+  { u32 v_ = sv1_;
+  D[0] = (D[0]&~0xFFFFu)|((v_)&0xFFFFu);
+  LNZ(v_, 2); fV = fC = 0; }
+  }
+  /* 184b9c add.w   d7,d0 */
+  LTR(0x184b9c);
+  {
+  { u32 r_ = (u32)(L_add((D[7]&0xFFFFu), (D[0]&0xFFFFu), 2));
+  D[0] = (D[0]&~0xFFFFu)|((r_)&0xFFFFu);
+  }
+  }
+  /* 184b9e move.w  d0,-$2ab8(a5) */
+  LTR(0x184b9e);
+  {
+  { u32 v_ = (D[0]&0xFFFFu);
+  w16((A[5]+(u32)-10936), v_);
+  LNZ(v_, 2); fV = fC = 0; }
+  }
+  /* 184ba2 move.l  -$2abe(a5),-$2ab6(a5) */
+  LTR(0x184ba2);
+  {
+  u32 sv1_ = m32((A[5]+(u32)-10942));
+  { u32 v_ = sv1_;
+  w32((A[5]+(u32)-10934), v_);
+  LNZ(v_, 4); fV = fC = 0; }
+  }
+  /* 184ba8 move.l  -$2aba(a5),-$2ab2(a5) */
+  LTR(0x184ba8);
+  {
+  u32 sv1_ = m32((A[5]+(u32)-10938));
+  { u32 v_ = sv1_;
+  w32((A[5]+(u32)-10930), v_);
+  LNZ(v_, 4); fV = fC = 0; }
+  }
+  /* 184bae pea.l   -$2ab6(a5) */
+  LTR(0x184bae);
+  {
+  { u32 v_ = (A[5]+(u32)-10934); A[7] -= 4; w32(A[7], v_); }
+  }
+  /* 184bb2 move.w  -$e(a6),d0 */
+  LTR(0x184bb2);
+  {
+  u32 sv1_ = m16((A[6]+(u32)-14));
+  { u32 v_ = sv1_;
+  D[0] = (D[0]&~0xFFFFu)|((v_)&0xFFFFu);
+  LNZ(v_, 2); fV = fC = 0; }
+  }
+  /* 184bb6 sub.w   -$6(a6),d0 */
+  LTR(0x184bb6);
+  {
+  u32 sv1_ = m16((A[6]+(u32)-6));
+  { u32 r_ = (u32)(L_sub(sv1_, (D[0]&0xFFFFu), 2));
+  D[0] = (D[0]&~0xFFFFu)|((r_)&0xFFFFu);
+  }
+  }
+  /* 184bba move.w  d0,-(sp) */
+  LTR(0x184bba);
+  {
+  A[7] -= 2; ed = A[7];
+  { u32 v_ = (D[0]&0xFFFFu);
+  w16(ed, v_);
+  LNZ(v_, 2); fV = fC = 0; }
+  }
+  /* 184bbc move.w  -$10(a6),d0 */
+  LTR(0x184bbc);
+  {
+  u32 sv1_ = m16((A[6]+(u32)-16));
+  { u32 v_ = sv1_;
+  D[0] = (D[0]&~0xFFFFu)|((v_)&0xFFFFu);
+  LNZ(v_, 2); fV = fC = 0; }
+  }
+  /* 184bc0 sub.w   -$8(a6),d0 */
+  LTR(0x184bc0);
+  {
+  u32 sv1_ = m16((A[6]+(u32)-8));
+  { u32 r_ = (u32)(L_sub(sv1_, (D[0]&0xFFFFu), 2));
+  D[0] = (D[0]&~0xFFFFu)|((r_)&0xFFFFu);
+  }
+  }
+  /* 184bc4 move.w  d0,-(sp) */
+  LTR(0x184bc4);
+  {
+  A[7] -= 2; ed = A[7];
+  { u32 v_ = (D[0]&0xFFFFu);
+  w16(ed, v_);
+  LNZ(v_, 2); fV = fC = 0; }
+  }
+  L184bc6: ; /* 184bc6 dc.w    $a8a8   ; A-line */
+  LTR(0x184bc6);
+  {
+  LTRAP(0xa8a8, (SB[8]+0x4bc6), (SB[8]+0x4bc8));
+  }
+  L184bc8: ; /* 184bc8 jsr     -$794(pc) */
+  LTR(0x184bc8);
+  {
+  LSCALL((SB[8]+0x4bcc), L_8_4436);
+  }
+  L184bcc: ; /* 184bcc lea.l   -$2aae(a5),a2 */
+  LTR(0x184bcc);
+  {
+  A[2] = (A[5]+(u32)-10926);
+  }
+  /* 184bd0 bra.s   $184bf4 */
+  LTR(0x184bd0);
+  {
+  goto L184bf4;
+  }
+  L184bd2: ; /* 184bd2 btst.b  #$0,-$2a6d(a5) */
+  LTR(0x184bd2);
+  {
+  { u32 ad_ = (A[5]+(u32)-10861); u32 m_ = 1u << ((0)&7u); u32 v_ = m8(ad_); fZ = (v_&m_) == 0;
+  }
+  }
+  /* 184bd8 beq.s   $184bec */
+  LTR(0x184bd8);
+  {
+  if (LC_EQ) { goto L184bec; }
+  }
+  /* 184bda movea.l (a4),a0 */
+  LTR(0x184bda);
+  {
+  u32 sv1_ = m32(A[4]);
+  A[0] = sv1_;
+  }
+  /* 184bdc move.l  (a0),-(sp) */
+  LTR(0x184bdc);
+  {
+  u32 sv1_ = m32(A[0]);
+  A[7] -= 4; ed = A[7];
+  { u32 v_ = sv1_;
+  w32(ed, v_);
+  LNZ(v_, 4); fV = fC = 0; }
+  }
+  /* 184bde move.l  a3,-(sp) */
+  LTR(0x184bde);
+  {
+  A[7] -= 4; ed = A[7];
+  { u32 v_ = A[3];
+  w32(ed, v_);
+  LNZ(v_, 4); fV = fC = 0; }
+  }
+  /* 184be0 move.l  a2,-(sp) */
+  LTR(0x184be0);
+  {
+  A[7] -= 4; ed = A[7];
+  { u32 v_ = A[2];
+  w32(ed, v_);
+  LNZ(v_, 4); fV = fC = 0; }
+  }
+  /* 184be2 pea.l   $8(a2) */
+  LTR(0x184be2);
+  {
+  { u32 v_ = (A[2]+(u32)8); A[7] -= 4; w32(A[7], v_); }
+  }
+  /* 184be6 clr.w   -(sp) */
+  LTR(0x184be6);
+  {
+  A[7] -= 2; ed = A[7];
+  w16(ed, 0);
+  fN = 0; fZ = 1; fV = fC = 0;
+  }
+  /* 184be8 clr.l   -(sp) */
+  LTR(0x184be8);
+  {
+  A[7] -= 4; ed = A[7];
+  w32(ed, 0);
+  fN = 0; fZ = 1; fV = fC = 0;
+  }
+  L184bea: ; /* 184bea dc.w    $a8ec   ; A-line */
+  LTR(0x184bea);
+  {
+  LTRAP(0xa8ec, (SB[8]+0x4bea), (SB[8]+0x4bec));
+  }
+  L184bec: ; /* 184bec asr.w   -$2a6e(a5) */
+  LTR(0x184bec);
+  {
+  { u32 ad_ = (A[5]+(u32)-10862); w16(ad_, L_asr(m16(ad_), 1, 2)); }
+  }
+  /* 184bf0 lea.l   $10(a2),a2 */
+  LTR(0x184bf0);
+  {
+  A[2] = (A[2]+(u32)16);
+  }
+  L184bf4: ; /* 184bf4 tst.w   -$2a6e(a5) */
+  LTR(0x184bf4);
+  {
+  u32 sv1_ = m16((A[5]+(u32)-10862));
+  LNZ(sv1_, 2); fV = fC = 0;
+  }
+  /* 184bf8 bne.s   $184bd2 */
+  LTR(0x184bf8);
+  {
+  if (LC_NE) { goto L184bd2; }
+  }
+  /* 184bfa add.w   d7,d6 */
+  LTR(0x184bfa);
+  {
+  { u32 r_ = (u32)(L_add((D[7]&0xFFFFu), (D[6]&0xFFFFu), 2));
+  D[6] = (D[6]&~0xFFFFu)|((r_)&0xFFFFu);
+  }
+  }
+  L184bfc: ; /* 184bfc cmpi.w  #$200,d6 */
+  LTR(0x184bfc);
+  {
+  L_cmp(0x200u, (D[6]&0xFFFFu), 2);
+  }
+  /* 184c00 blt.s   $184b88 */
+  LTR(0x184c00);
+  {
+  if (LC_LT) { goto L184b88; }
+  }
+  /* 184c02 movem.l (sp)+,d6/d7/a2/a3/a4 */
   LTR(0x184c02);
   {
   { u32 p_ = A[7];

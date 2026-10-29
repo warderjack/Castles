@@ -23,10 +23,12 @@ extern const LiftEnt lift_ents[]; extern const int lift_nents;
 typedef struct { int seg; u32 off; LiftFn fn; int haslink; } LiftMid;
 extern const LiftMid lift_mids[]; extern const int lift_nmids;
 extern u32 lift_mid, lift_mid_r0;
+extern const unsigned char lift_mdrv_sig[16]; extern const unsigned lift_mdrv_len;
 
 /* host glue (port/lift_host.inc) */
 void lift_enter(u32 target);                    /* run translated routine at runtime address, or bail to the interpreter */
 void lift_trap(u32 w, u32 trap_pc, u32 ret);    /* A-line trap executed from translated code */
+u32 lift_get_sr(void); void lift_set_sr(u32 v);
 void lift_bail(u32 pc) __attribute__((noreturn));
 void lift_ret_mismatch(u32 r) __attribute__((noreturn));
 
@@ -125,6 +127,32 @@ static inline u32 L_ror(u32 v, u32 n, int sz) {
     u32 m = MK(sz); int bits = sz * 8; v &= m; n &= 63; u32 k = n % bits, r = v;
     if (k) r = ((v >> k) | (v << (bits - k))) & m;
     fN = (r & SG(sz)) != 0; fZ = r == 0; fV = 0; fC = n ? ((r & SG(sz)) != 0) : 0; return r;
+}
+
+static inline u32 L_roxl(u32 v, u32 n, int sz) {
+    u32 m = MK(sz); int bits = sz * 8; v &= m; n &= 63; n %= (u32)(bits + 1);
+    if (n == 0) { fC = fX; fN = (v & SG(sz)) != 0; fZ = v == 0; fV = 0; return v; }
+    for (u32 i = 0; i < n; i++) { u32 c = (v & SG(sz)) != 0; v = ((v << 1) | fX) & m; fX = c; }
+    fC = fX; fN = (v & SG(sz)) != 0; fZ = v == 0; fV = 0; return v;
+}
+static inline u32 L_roxr(u32 v, u32 n, int sz) {
+    u32 m = MK(sz); int bits = sz * 8; v &= m; n &= 63; n %= (u32)(bits + 1);
+    if (n == 0) { fC = fX; fN = (v & SG(sz)) != 0; fZ = v == 0; fV = 0; return v; }
+    for (u32 i = 0; i < n; i++) { u32 c = v & 1; v = (v >> 1) | (fX ? SG(sz) : 0); fX = c; }
+    fC = fX; fN = (v & SG(sz)) != 0; fZ = v == 0; fV = 0; return v;
+}
+static inline u32 L_addx(u32 s, u32 d, int sz) {
+    u32 m = MK(sz); s &= m; d &= m; u64 t = (u64)s + d + fX; u32 r = (u32)t & m;
+    fX = fC = (t >> (sz * 8)) & 1; fV = ((~(s ^ d) & (s ^ r)) & SG(sz)) != 0; fN = (r & SG(sz)) != 0; if (r) fZ = 0; return r;
+}
+static inline u32 L_subx(u32 s, u32 d, int sz) {
+    u32 m = MK(sz); s &= m; d &= m; u32 r = (d - s - fX) & m;
+    fX = fC = (u64)s + fX > d; fV = (((d ^ s) & (d ^ r)) & SG(sz)) != 0; fN = (r & SG(sz)) != 0; if (r) fZ = 0; return r;
+}
+static inline void L_ccr_op(int op, u32 imm) {       /* 0=and 1=or 2=eor on the CCR */
+    u32 c = (fX << 4) | (fN << 3) | (fZ << 2) | (fV << 1) | fC;
+    c = op == 0 ? (c & imm) : op == 1 ? (c | imm) : (c ^ imm);
+    fX = (c >> 4) & 1; fN = (c >> 3) & 1; fZ = (c >> 2) & 1; fV = (c >> 1) & 1; fC = c & 1;
 }
 
 /* multiply / divide (return nonzero when the interpreter must handle it: divide by zero) */
