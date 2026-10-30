@@ -3,6 +3,7 @@ static void hle(uint16_t w, uint32_t ret);
 u32 D[8], A[8], SB[16], REL_A4, REL_A5; u32 fX, fN, fZ, fV, fC;
 static jmp_buf lift_jb; static u32 lift_bail_pc; static int lift_synced, lift_active, lift_on = 1;
 u32 lift_mid, lift_mid_r0; static const LiftMid **lift_midtab[16];
+static int lift_stubcall;
 static LiftFn *lift_segtab[16]; static u32 lift_seglen[16]; static u32 lift_lo = 0xFFFFFFFF, lift_hi = 0;
 unsigned long lift_trapbail[65536]; unsigned long lift_enterbail; unsigned lift_ebt[1 << 23]; int lift_dry = 0; static u32 lift_trap_pc; static int chk_partial; static unsigned long chk_part_n; static unsigned long lift_calls, lift_bails, lift_traps;
 
@@ -65,7 +66,7 @@ void lift_enter(u32 tgt) {
         if (m16(t) == 0x4EAD && m16(t + 4) == 0x4ED0) { A[7] -= 4; w32(A[7], t + 4); lift_rs[lift_rsp++ & 255] = t + 4; lift_enter(A[5] + (u32)(s32)(s16)m16(t + 2)); lift_rsp--; lift_enter(A[0]); return; }
     }
     if (!f && !lift_dry && tgt >= STUB_BASE && tgt < STUB_END && (m16(tgt) & 0xF000) == 0xA000) {   /* ROM trap stub: A-line + rts */
-        u32 ret = m32(A[7]); A[7] += 4; lift_trap(m16(tgt), tgt, ret); lift_ret_pc = ret; return; }
+        u32 ret = m32(A[7]); A[7] += 4; lift_stubcall = 1; lift_trap(m16(tgt), tgt, ret); if (m16(tgt) != 0xA9F0) lift_ret_pc = ret; return; }
     if (!f && !lift_dry && m16(tgt) == 0x6104 && m16(tgt + 6) == 0x225F && m16(tgt + 8) == 0x2251 && m16(tgt + 10) == 0x4ED1) { lift_enter(m32(tgt + 2)); return; }   /* heap dispatch thunk: bsr.s; dc.l target; movea (sp)+,a1; movea (a1),a1; jmp (a1) */
     if (!f && !lift_dry && tgt >= 0xC00000 && m16(tgt) == 0x3F3C && m16(tgt + 4) == 0xA9F0) {                /* unloaded-segment jump-table stub: move.w #seg,-(sp); _LoadSeg */
         A[7] -= 2; w16(A[7], m16(tgt + 2)); lift_trap(0xA9F0, tgt + 4, tgt + 6); return; }
@@ -76,7 +77,8 @@ unsigned long lift_blocked, lift_guestcalls;
 void lift_trap(u32 w, u32 tpc, u32 ret) {
     if (lift_dry) { lift_trap_pc = tpc; longjmp(lift_jb, 2); }
     if (det && ntraps >= det_next && !call_depth) lift_bail(tpc);
-    if (patched[trap_key(w, 0)]) { A[7] -= 4; w32(A[7], ret); lift_enter(patched[trap_key(w, 0)]); return; }
+    int fromstub = lift_stubcall; lift_stubcall = 0;
+    if (!fromstub && patched[trap_key(w, 0)]) { A[7] -= 4; w32(A[7], ret); lift_enter(patched[trap_key(w, 0)]); return; }
     lift_traps++; lift_sync_out(); trap_pc = tpc; trap_from_stub = 0; wm_redirected = 0;
     hle((uint16_t)w, ret);
     { static int nb = -1; if (nb < 0) nb = getenv("NOBLOCK") != NULL;
@@ -101,12 +103,16 @@ static int lift_nomidpc(uint32_t pc) { { static int ri; static unsigned lo, hi; 
 static uint32_t lift_dead_pcs[64]; static int lift_ndead;
 static int lift_middead(uint32_t pc) { for (int i = 0; i < lift_ndead; i++) if (lift_dead_pcs[i] == pc) return 1; return 0; }
 static int lift_check;
-static u32 lift_pend; static void lift_pend_fn(void) { lift_enter(lift_pend); }
+static u32 lift_pend; static void lift_pend_fn(void) {
+    if (lift_pend < 0xC00000 && m16(lift_pend) == 0x4EB9) { u32 p = lift_pend; A[7] -= 4; w32(A[7], p + 6); lift_rs[lift_rsp++ & 255] = p + 6; lift_enter(m32(p + 2)); lift_rsp--; lift_enter(m32(p + 8)); return; }   /* jsr abs; jmp abs glue pair */
+    if (lift_pend < 0xC00000 && m16(lift_pend) == 0x4EF9) { lift_enter(m32(lift_pend + 2)); return; }
+    if (lift_pend >= 0xC00000 && m16(lift_pend) == 0x4ED0) lift_enter(A[0]); else lift_enter(lift_pend); }
 static int lift_special(uint32_t pc) {      /* non-segment code the lifted runtime can still enter natively: ROM trap stubs, heap dispatch thunks, unloaded-segment stubs */
     if (lift_check || lift_dry || !lift_on || (pc & 1) || pc >= 0xC10000 + 0x1000) return 0;
     if (pc >= STUB_BASE && pc < STUB_END) return (m16(pc) & 0xF000) == 0xA000;
     if (m16(pc) == 0x6104 && m16(pc + 6) == 0x225F && m16(pc + 8) == 0x2251 && m16(pc + 10) == 0x4ED1) return 1;
-    if (pc < 0xC00000) return 0;
+    if (pc < 0xC00000) return (m16(pc) == 0x4EB9 && m16(pc + 6) == 0x4EF9 && m32(pc + 8) >= STUB_BASE && m32(pc + 8) < STUB_END) || (m16(pc) == 0x4EF9 && m32(pc + 2) >= STUB_BASE && m32(pc + 2) < STUB_END && m16(pc - 6) == 0x4EB9);
+    if (m16(pc) == 0x4ED0) return 1;               /* second half of an A5 dispatch thunk: jmp (a0) */
     if (m16(pc) == 0x3F3C && m16(pc + 4) == 0xA9F0) return 1;
     u32 t = pc; for (int k = 0; k < 4 && m16(t) == 0x4EF9; k++) t = m32(t + 2);
     if (t < 0xC00000 && lift_lookup(t)) return 1;
