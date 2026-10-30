@@ -91,3 +91,4 @@ RNDLOG=1 (log Random calls), DUMPRAM=file (dump A5 world at exit).
 - Livelock guard counts nested lift entries as progress; the old guard disabled legit loop mids (05a74e etc.).
 - c1 100 s: interp insns 1.3M vs 85M lifted calls, 8k bails (top: 05a74e, 05a774 = trap yields). Remaining unlifted: 053688, c0xxxx (runtime-generated code).
 - Blocking traps (rewound to YIELD_PC, e.g. Delay, MenuSelect, ModalDialog tracking) now wait in C inside `lift_trap` (poll + re-run hle) instead of bailing to the interpreter. `NOBLOCK=1` disables. Remaining redirects: ModalDialog guest filter procs (GCONT).
+- Guest filter/user-item procs requested by dialog handlers (GCONT_PC) are now run as nested lifted calls inside `lift_trap` (`GCLOG=1` traces). Must `lift_sync_in()` before `lift_poll` there (poll's sync_out would clobber core SP) and save/restore the `gc` struct around the nested call. No trap-redirect bails remain in c1/mn/t3.
