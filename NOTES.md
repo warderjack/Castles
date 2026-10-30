@@ -114,3 +114,6 @@ WaitNextEvent (A860) sets `idle_hint` after 2 consecutive null results (or when 
 
 ## Routine coverage
 Every translated routine starts with `LCOV(off>>1)`; `COVLOG=file` appends the `seg:off` of each routine that ran. `python3 scripts/coverage.py file [-v]` summarises. All scripts in scripts/play (incl. long_monkey, long_soak) together reach 702 of 1334 routines (53%): seg 5 (1/80), 11 (53/182), 2 (86/211), 13 (43/100) are mostly unreached, presumably battles/sieges and other late-game logic. Regenerating with the LCOV change kept LIFTCHECK at 0 mismatches (c1 5394, mn 4878, t3 4581 routines).
+
+## Attack attempt (battles)
+Military > Attack is enabled only for a selected non-owned county once a recruit order has completed (and no modal dialog is open). `scripts/play/attack_try.txt` (not part of smoke.sh) recruits infantry, spams answer/OK clicks to clear random trivia dialogs, selects Chartres, cancels the Scout dialog the extra click opens, then opens Military > Attack and OKs the dialog with Military 3: the order "Attack Chartres" is queued and progresses. A blind script cannot reliably wait for the attack to resolve (random event dialogs, order replaced), so seg 5 (80 routines, likely battle/AI computation, ~no traps) is still unexercised. Needs interactive play or a smarter script with screen checks.
