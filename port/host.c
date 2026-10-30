@@ -5,6 +5,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include "m68k.h"
+/* every getenv() in this program takes a string literal and the environment never changes: resolve each call site once */
+#define getenv(s) ({ static const char *gc_; static char gi_; if (!gi_) { gc_ = (getenv)(s); gi_ = 1; } gc_; })
 
 #define RAM_SIZE   0x1000000u
 #define MP_BASE    0x004000u            /* master pointer table */
@@ -173,7 +175,7 @@ static int trap_key(uint32_t w, int newtool) {
 
 static uint32_t pcring[64]; static int pcri = 0;
 static unsigned long ntraps;
-static unsigned long thist[65536]; static char tring[600][160]; static int tri = 0;
+static unsigned long thist[65536]; static struct { uint16_t w; uint32_t d0, a0, a1, sp, ret; } tring[600]; static int tri = 0;
 static int trace_limit = 150; static int trace_init_done;
 
 static void do_loadseg(uint32_t ret) {
@@ -239,13 +241,14 @@ static void hle(uint16_t w, uint32_t ret) {
     int redirected = 0;
     uint16_t n = (w & 0x800) ? (w & 0xFBFF) : (w & 0xF8FF);   /* normalised trap word */
     thist[w]++; if (!trace_init_done) { trace_init_done = 1; if (getenv("TRACEN")) trace_limit = atoi(getenv("TRACEN")); }
-    snprintf(tring[tri++ % 600], 160, "[trap %04X %-18s] D0=%08x A0=%08x A1=%08x SP=%06x ret=%06x", w, tname(w), D(0), A(0), A(1), SP, ret);
+    { int ri_ = tri++ % 600; tring[ri_].w = w; tring[ri_].d0 = D(0); tring[ri_].a0 = A(0); tring[ri_].a1 = A(1); tring[ri_].sp = SP; tring[ri_].ret = ret; }
     { static uint32_t tf; static int tfi; if (!tfi) { tfi = 1; tf = getenv("TRACE_FROM") ? atoi(getenv("TRACE_FROM")) : 0; } if (tf && ticks_now() >= tf) { tf = 0; trace_limit = getenv("TRACE_COUNT") ? atoi(getenv("TRACE_COUNT")) : 2000; } }
     if (trace_limit > 0) {
         trace_limit--;
         fprintf(stderr, "[trap %04X %-18s] D0=%08x A0=%08x A1=%08x SP=%06x ret=%06x\n", w, tname(w), D(0), A(0), A(1), SP, ret);
     }
-    if (getenv("WMT") && ((n >= 0xA900 && n <= 0xA93C && n != 0xA92C && n != 0xA924) || n == 0xAA45 || n == 0xA97C || n == 0xA982 || n == 0xA983 || n == 0xA873 || n == 0xA922 || n == 0xA923)) fprintf(stderr, "[wmt] %04X %s sp0=%08x sp4=%08x sp8=%08x ret=%06x tick=%u\n", w, tname(w), rd32(SP), rd32(SP + 4), rd32(SP + 8), ret, ticks_now());
+    static int wmt_on = -1; if (wmt_on < 0) wmt_on = getenv("WMT") != NULL;
+    if (wmt_on && ((n >= 0xA900 && n <= 0xA93C && n != 0xA92C && n != 0xA924) || n == 0xAA45 || n == 0xA97C || n == 0xA982 || n == 0xA983 || n == 0xA873 || n == 0xA922 || n == 0xA923)) fprintf(stderr, "[wmt] %04X %s sp0=%08x sp4=%08x sp8=%08x ret=%06x tick=%u\n", w, tname(w), rd32(SP), rd32(SP + 4), rd32(SP + 8), ret, ticks_now());
     uint32_t sp = SP;
     if (rm_dispatch(w, n, ret)) { W(M68K_REG_PC, ret); return; }
     if (dlg_dispatch(w, n, ret)) { if (!wm_redirected) W(M68K_REG_PC, ret); wm_redirected = 0; return; }
@@ -463,7 +466,7 @@ int main(int argc, char **argv) {
     }
     if (getenv("CASTLES_SHOT")) { write_ppm(getenv("CASTLES_SHOT")); fprintf(stderr, "screenshot -> %s\n", getenv("CASTLES_SHOT")); }
     { fprintf(stderr, "trap histogram:"); for (int k = 0; k < 60; k++) { int b = -1; for (int i = 0; i < 65536; i++) if (thist[i] && (b < 0 || thist[i] > thist[b])) b = i; if (b < 0) break; fprintf(stderr, " %04X(%s)=%lu", b, tname(b), thist[b]); thist[b] = 0; } fprintf(stderr, "\n"); }
-    { fprintf(stderr, "recent traps:\n"); for (int i = 0; i < 600; i++) { const char *l = tring[(tri + i) % 600]; if (l[0]) fprintf(stderr, "  %s\n", l); } }
+    { fprintf(stderr, "recent traps:\n"); for (int i = 0; i < 600; i++) { int k_ = (tri + i) % 600; if (tring[k_].w) fprintf(stderr, "  [trap %04X %-18s] D0=%08x A0=%08x A1=%08x SP=%06x ret=%06x\n", tring[k_].w, tname(tring[k_].w), tring[k_].d0, tring[k_].a0, tring[k_].a1, tring[k_].sp, tring[k_].ret); } }
     if (!halted) { fprintf(stderr, "last pcs:"); for (int i = 0; i < 40; i++) fprintf(stderr, " %06x", pcring[(pcri - 40 + i) & 63]); fprintf(stderr, "\n"); }
     { const char *dr = getenv("DUMPRAM"); if (dr) { FILE *f = fopen(dr, "wb"); if (f) { fwrite(ram, 1, 0xC10000, f); fclose(f); } } }
     { const char *el = getenv("ENTLOG"); if (el) { FILE *f = fopen(el, "a"); if (f) { for (uint32_t i = 0; i < (1u << 23); i++) if (lift_ebt[i]) { uint32_t a = i << 1; for (int z = 1; z < 16; z++) if (lift_segtab[z] && a >= SB[z] && a < SB[z] + lift_seglen[z]) { fprintf(f, "%d:%x\n", z, a - SB[z]); break; } } fclose(f); } } }

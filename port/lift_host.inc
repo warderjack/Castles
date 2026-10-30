@@ -81,7 +81,7 @@ void lift_trap(u32 w, u32 tpc, u32 ret) {
     if (det && ntraps >= det_next && !call_depth) lift_bail(tpc);
     int fromstub = lift_stubcall; lift_stubcall = 0;
     if (!fromstub && patched[trap_key(w, 0)]) { A[7] -= 4; w32(A[7], ret); lift_enter(patched[trap_key(w, 0)]); return; }
-    lift_traps++; lift_sync_out(); trap_pc = tpc; trap_from_stub = 0; wm_redirected = 0;
+    lift_traps++; lift_sync_out(); idle_hint = 0; trap_pc = tpc; trap_from_stub = 0; wm_redirected = 0;
     hle((uint16_t)w, ret);
     { static int nb = -1; if (nb < 0) nb = getenv("NOBLOCK") != NULL;
       while (!nb && !halted && !quit_requested) {
@@ -91,6 +91,7 @@ void lift_trap(u32 w, u32 tpc, u32 ret) {
             lift_guestcalls++; typeof(gc) gcs = gc; if (getenv("GCLOG")) fprintf(stderr, "[gc] trap=%04x proc=%06x sp=%x\n", w & 0xFFFF, pc3, R(M68K_REG_A7)); lift_sync_in(); lift_rs[lift_rsp++ & 255] = GCONT_PC; lift_enter(pc3); lift_rsp--; lift_sync_out(); if (getenv("GCLOG")) fprintf(stderr, "[gc] done sp=%x res=%04x\n", R(M68K_REG_A7), rd16(R(M68K_REG_A7))); gc = gcs; gc_resume(); }
         else break;
         W(M68K_REG_PC, ret); trap_pc = tpc; trap_from_stub = 0; hle((uint16_t)w, ret); } }
+    if (idle_hint && !lift_dry) { static int ns = -1; if (ns < 0) ns = getenv("NOIDLESLEEP") != NULL; idle_hint = 0; if (!ns) usleep(1000); }   /* the game polled for events and found none: yield the CPU like WaitNextEvent would */
     if (!(w & 0x800) && !halted) { uint32_t d0 = R(M68K_REG_D0) & 0xFFFF; uint32_t sr = R(M68K_REG_SR) & ~0xFu; if (d0 == 0) sr |= 4; if (d0 & 0x8000) sr |= 8; W(M68K_REG_SR, sr); }
     uint32_t pc2 = R(M68K_REG_PC);
     if (w == 0xA9F0 && pc2 != ret && !halted && pc2 != YIELD_PC && pc2 != GCONT_PC) { lift_sync_in(); lift_enter(pc2); return; }   /* LoadSeg jumps to the (now loaded) entry */
