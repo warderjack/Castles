@@ -1,0 +1,46 @@
+T 900 D 320 240
+T 910 U 320 240
+T 1200 D 48 9
+T 1220 M 70 27
+T 1240 M 70 28
+T 1250 U 70 28
+T 1530 D 322 370
+T 1540 U 322 370
+T 2200 D 495 100
+T 2210 U 495 100
+T 3000 D 190 9
+T 3020 M 190 108
+T 3060 U 190 108
+T 3600 D 160 9
+T 3620 M 160 28
+T 3660 U 160 28
+T 4000 S /tmp/castles-play/p5a.ppm
+T 4100 D 200 144
+T 4105 U 200 144
+T 4110 D 200 144
+T 4115 U 200 144
+T 4400 S /tmp/castles-play/p5a.ppm
+T 4500 D 200 128
+T 4505 U 200 128
+T 4510 D 200 128
+T 4515 U 200 128
+T 5600 S /tmp/castles-play/p5b.ppm
+T 5700 D 500 305
+T 5705 U 500 305
+T 6200 S /tmp/castles-play/p5a.ppm
+T 6300 D 250 250
+T 6310 M 300 280
+T 6320 M 350 300
+T 6330 U 350 300
+T 6800 S /tmp/castles-play/p5b.ppm
+T 6900 D 160 9
+T 6920 M 160 90
+T 6930 S /tmp/castles-play/p5a.ppm
+T 6960 U 160 90
+T 7600 S /tmp/castles-play/p5b.ppm
+T 7700 D 232 9
+T 7720 M 232 30
+T 7730 S /tmp/castles-play/p5c.ppm
+T 7760 U 232 30
+T 8300 S /tmp/castles-play/p5d.ppm
+T 8400 Q

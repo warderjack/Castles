@@ -365,7 +365,6 @@ static void hle(uint16_t w, uint32_t ret) {
     if (!redirected) W(M68K_REG_PC, ret);
 }
 
-static int pctrace = 0;
 unsigned long interp_insns; static unsigned *pchist;
 static void det_report(void) {
     if (det_stop && ntraps >= det_stop) { quit_requested = 1; }
@@ -389,11 +388,6 @@ void castles_instr_hook(unsigned int pc) {
         { static int ni = -1; if (ni < 0) ni = getenv("NOINTERP") != NULL; if (ni && (rd16(pc) & 0xF000) != 0xA000 && pc != YIELD_PC && pc != YIELD_PC + 2 && pc != GCONT_PC && pc != SENTINEL) { fprintf(stderr, "[nointerp] unlifted pc=%06x op=%04x sp=%06x\n", pc, rd16(pc), SP); if (getenv("NOINTERP")[0] == '2') quit_requested = 1; else { static int nn; if (nn++ > 40) quit_requested = 1; } } }
         interp_insns++; if (getenv("PCHIST")) { if (!pchist) pchist = calloc(RAM_SIZE / 2, 4); if (pc < RAM_SIZE) pchist[pc >> 1]++; }
         uint32_t op = rd16(pc); if (pc > 0x1000) pcring[pcri++ & 63] = pc;
-        if (pc==0x53ece||pc==0x53f4e||pc==0x53f60||pc==0x53f6a||pc==0x53f74||pc==0x53f7e||pc==0x53f88||pc==0x53f92||pc==0x53f9c||pc==0x53f58) fprintf(stderr,"[probe] pc=%06x d0=%08x\n",pc,R(M68K_REG_D0));
-        if (pc==0x5655c) { uint32_t sp_=SP, a6=R(M68K_REG_A6); fprintf(stderr,"[probe] vremove-fn ret=%06x a6=%06x ret2=%06x\n",rd32(sp_),a6,rd32(a6+4)); }
-        if (pc==0x5447c) {} if (pc==0x55478) { fprintf(stderr,"[probe] driver entry=%06x\n",A(0)); pctrace=400; }
-        if (pc==0x55480) fprintf(stderr,"[probe] driver cmd15 -> %04x\n",R(M68K_REG_D0)&0xffff);
-        if (pctrace > 0) { pctrace--; fprintf(stderr, "   pc=%06x op=%04x sp=%06x a0=%08x a1=%08x\n", pc, op, SP, A(0), A(1)); }
         if ((op & 0xF000) != 0xA000 || halted) return;
         uint32_t ret;
         if (pc >= STUB_BASE && pc < STUB_END) ret = pop32();
