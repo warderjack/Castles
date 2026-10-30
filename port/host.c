@@ -409,6 +409,23 @@ void castles_instr_hook(unsigned int pc) {
     }
 }
 
+#ifdef CASTLES_NATIVE_BUILD
+uint32_t native_regs[19]; int native_end_slice;
+int m68k_execute(int cycles) {
+    native_end_slice = 0;
+    for (int it = 0; it < cycles && !native_end_slice && !halted; it++) {
+        uint32_t pc = native_regs[M68K_REG_PC];
+        if (pc == YIELD_PC) { native_regs[M68K_REG_PC] = pc += 2; }       /* the NOP pair: step over the first, the hook resumes at +2 */
+        castles_instr_hook(pc);
+        if (native_end_slice || halted) break;
+        if (native_regs[M68K_REG_PC] == pc && pc != YIELD_PC + 2) {
+            fprintf(stderr, "[native] cannot execute pc=%06x op=%04x sp=%06x (not lifted; rebuild with the interpreter: ./build.sh)\n", pc, rd16(pc), SP);
+            halted = 1; quit_requested = 1; break;
+        }
+    }
+    return 0;
+}
+#endif
 /* ---------------- Launch ---------------- */
 int main(int argc, char **argv) {
     if (argc < 2) { fprintf(stderr, "usage: %s <game folder | app.bin | rsrc.fork> [game folder]\n", argv[0]); return 2; }
