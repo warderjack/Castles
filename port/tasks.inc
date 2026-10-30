@@ -49,16 +49,16 @@ static void run_tasks(void) {
     while (n-- > 0) for (uint32_t task = rd32(0x162), g = 0; task && g < 64; task = rd32(task), g++) { int cnt = (int16_t)rd16(task + 10);
         if (task != vbl_dummy && cnt > 0) { cnt--; wr16(task + 10, cnt); if (cnt == 0) call68k(rd32(task + 6), task, 0); } }
     double ms = now_ms();
-    for (int i = 0; i < ntm; i++) if (tm_wake[i] > 0 && ms >= tm_wake[i]) { tm_wake[i] = 0; call68k(rd32(tm_tasks[i] + 6), 0, tm_tasks[i]); }
+    for (int i = 0; i < ntm; i++) if (tm_wake[i] > 0 && ms >= tm_wake[i]) { uint32_t tk = tm_tasks[i]; tm_wake[i] = 0; call68k(rd32(tk + 6), 0, tk); }
 }
 static int tasks_dispatch(uint16_t w, uint16_t n, uint32_t ret) {
     switch (n) {
     case 0xA033: { vbl_init(); uint32_t t = A(0), tail = rd32(0x166); wr32(t, 0); wr16(t + 4, 1); wr32(tail, t); wr32(0x166, t); } SETD(0, 0); if (trace_limit > 0) fprintf(stderr, "  VInstall %08x addr=%06x count=%d\n", A(0), rd32(A(0) + 6), (int16_t)rd16(A(0) + 10)); return 1;
     case 0xA034: { vbl_init(); uint32_t prev = 0, t = rd32(0x162); while (t && t != A(0)) { prev = t; t = rd32(t); }
         if (t) { if (prev) wr32(prev, rd32(t)); else wr32(0x162, rd32(t)); if (rd32(0x166) == t) wr32(0x166, prev); } SETD(0, 0); return 1; }
-    case 0xA058: if (ntm < 32) { tm_tasks[ntm] = A(0); tm_wake[ntm++] = 0; } SETD(0, 0); return 1;                                   /* InsTime */
-    case 0xA059: { for (int i = 0; i < ntm; i++) if (tm_tasks[i] == A(0)) tm_wake[i] = 0; SETD(0, 0); return 1; }                       /* RmvTime */
-    case 0xA05A: { int32_t c = (int32_t)D(0); double ms = c >= 0 ? c : -c / 1000.0; for (int i = 0; i < ntm; i++) if (tm_tasks[i] == A(0)) tm_wake[i] = now_ms() + (ms < 1 ? 1 : ms); SETD(0, 0); return 1; } /* PrimeTime */
+    case 0xA058: { int f = 0; for (int i = 0; i < ntm; i++) if (tm_tasks[i] == A(0)) { tm_wake[i] = 0; f = 1; } if (!f && ntm < 32) { tm_tasks[ntm] = A(0); tm_wake[ntm++] = 0; } } SETD(0, 0); return 1;                                   /* InsTime */
+    case 0xA059: { for (int i = 0; i < ntm; i++) if (tm_tasks[i] == A(0)) { tm_tasks[i] = tm_tasks[--ntm]; tm_wake[i] = tm_wake[ntm]; i--; } SETD(0, 0); return 1; }                       /* RmvTime */
+    case 0xA05A: { int32_t c = (int32_t)D(0); double ms = c >= 0 ? c : -c / 1000.0; int f = 0; for (int i = 0; i < ntm; i++) if (tm_tasks[i] == A(0)) { tm_wake[i] = now_ms() + (ms < 1 ? 1 : ms); f = 1; } if (!f && ntm < 32) { tm_tasks[ntm] = A(0); tm_wake[ntm++] = now_ms() + (ms < 1 ? 1 : ms); } SETD(0, 0); return 1; } /* PrimeTime */
     default: return 0;
     }
 }
