@@ -195,7 +195,7 @@ static void do_loadseg(uint32_t ret) {
 #include <time.h>
 #include <strings.h>
 static int det; static unsigned long det_stop, det_every, det_ymax; static unsigned long det_slices, det_next = 128; static int det_yield;
-static uint32_t ticks_now(void) { if (det) return (uint32_t)(180 + det_slices / 25); static uint64_t t0; struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t); uint64_t ms = t.tv_sec * 1000ull + t.tv_nsec / 1000000; if (!t0) t0 = ms; return (uint32_t)((ms - t0 + 3000) * 60 / 1000); }
+static uint32_t ticks_now(void) { if (det) return (uint32_t)(180 + det_slices / 25); static uint64_t t0; struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t); uint64_t ms = t.tv_sec * 1000ull + t.tv_nsec / 1000000; if (!t0) t0 = ms; static int sc; if (!sc) { const char *e = getenv("CASTLES_TICKSCALE"); sc = e ? atoi(e) : 1; if (sc < 1) sc = 1; } return (uint32_t)((ms - t0) * sc * 60 / 1000 + 180); }
 static int16_t res_err = 0;
 #define FB_BASE 0x00A00000u
 static uint32_t cur_a5(void) { return R(M68K_REG_A5); }
