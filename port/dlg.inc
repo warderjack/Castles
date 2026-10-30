@@ -274,7 +274,7 @@ static int dlg_dispatch(uint16_t w, uint16_t n, uint32_t ret) {
             uint8_t tp[256]; int tl = b[20]; tp[0] = tl; memcpy(tp + 1, b + 21, tl); uint32_t tmp = alloc_block(260); for (int i = 0; i <= tl; i++) wr8(tmp + i, tp[i]);
             Res *ir = find_res(0x4449544C, iid); if (ir) { const uint8_t *ib = res_bytes(ir); wn = dlg_create(storage, bd, tmp, vis, proc, behind, go, ref, ib, slot_len(ir)); } free_block(tmp); }
         wr32(sp + 10, wn); return 1; }
-    case 0xA97D: { uint32_t items = rd32(sp), ref = rd32(sp + 4); int go = rd16(sp + 8) != 0; uint32_t behind = rd32(sp + 10); int proc = (int16_t)rd16(sp + 14); int vis = rd16(sp + 16) != 0; uint32_t title = rd32(sp + 18), bounds = rd32(sp + 22), storage = rd32(sp + 26);
+    case 0xA97D: { uint32_t items = rd32(sp), ref = rd32(sp + 4); int go = rd8(sp + 8) != 0; uint32_t behind = rd32(sp + 10); int proc = (int16_t)rd16(sp + 14); int vis = rd8(sp + 16) != 0; uint32_t title = rd32(sp + 18), bounds = rd32(sp + 22), storage = rd32(sp + 26);
         setsp(sp + 30); uint32_t wn = dlg_create(storage, rc_get(bounds), title, vis, proc, behind, go, ref, ram + rd32(items), htext_len(items)); wr32(sp + 30, wn); return 1; }
     case 0xA982: case 0xA983: { uint32_t wn = rd32(sp); setsp(sp + 4); if (n == 0xA983) dlg_dispose(wn); else { Dlg *d = dlg_of(wn); if (d) d->used = 0; wm_dispose(wn, 0); } return 1; }
     case 0xA98A: case 0xA989: setsp(sp + 2); return 1;

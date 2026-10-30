@@ -36,7 +36,7 @@ static int wm_dispatch(uint16_t w, uint16_t n, uint32_t ret) {
     case 0xA912: { rc_put(0x6C, (Rc){0, 0, SCR_H, SCR_W}); wr16(0xBAA, 20); wr32(0x9D6, 0); if (screen_port) draw_desktop_and_frames(); return 1; }     /* InitWindows */
     case 0xA910: { uint32_t p = rd32(sp); setsp(sp + 4); wr32(p, screen_port); return 1; }                                  /* GetWMgrPort */
     case 0xA913: case 0xAA45: {      /* NewWindow / NewCWindow */
-        uint32_t refcon = rd32(sp); int goaway = rd16(sp + 4) != 0; uint32_t behind = rd32(sp + 6); int proc = (int16_t)rd16(sp + 10); int vis = rd16(sp + 12) != 0; uint32_t title = rd32(sp + 14), bounds = rd32(sp + 18), storage = rd32(sp + 22);
+        uint32_t refcon = rd32(sp); int goaway = rd8(sp + 4) != 0; uint32_t behind = rd32(sp + 6); int proc = (int16_t)rd16(sp + 10); int vis = rd8(sp + 12) != 0; uint32_t title = rd32(sp + 14), bounds = rd32(sp + 18), storage = rd32(sp + 22);
         setsp(sp + 26); uint32_t wn = wm_make_window(storage, rc_get(bounds), title, vis, proc, behind, goaway, refcon, n == 0xAA45); wr32(sp + 26, wn); return 1; }
     case 0xA9BD: case 0xAA46: {      /* GetNewWindow / GetNewCWindow (id, storage, behind) */
         uint32_t behind = rd32(sp); uint32_t storage = rd32(sp + 4); int id = (int16_t)rd16(sp + 8); setsp(sp + 10);
