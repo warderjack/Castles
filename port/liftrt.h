@@ -201,3 +201,6 @@ static inline void BF_PUT_M(u32 ea, s32 off, u32 w, u32 val) {
 }
 static inline u32 BF_FFO_RES(u32 f, u32 off, u32 w) { if (!f) return off + w; int lz = __builtin_clz(f) - (32 - (int)w); return off + lz; }
 #endif
+
+extern unsigned char lift_fcov[16][1 << 15];
+#define LCOV(o) (lift_fcov[LSEG][(o) & 0x7FFF] = 1)

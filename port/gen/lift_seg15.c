@@ -5,6 +5,7 @@
 /* seg 15 +0x0 */
 void L_15_0(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(0);
   if (mid_) switch (mid_) {
     case 0x8: goto L1f0008;
     case 0xa: goto L1f000a;
@@ -462,6 +463,7 @@ void L_15_0(void) {
 /* seg 15 +0xc6 */
 void L_15_c6(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(99);
   /* 1f00c6 ori.b   #$0,d0 */
   LTR(0x1f00c6);
   {

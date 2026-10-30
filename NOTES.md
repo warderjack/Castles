@@ -111,3 +111,6 @@ RNDLOG=1 (log Random calls), DUMPRAM=file (dump A5 world at exit).
 
 ## Idle CPU
 WaitNextEvent (A860) sets `idle_hint` after 2 consecutive null results (or when `sleep` != 0), so `lift_trap` sleeps ~1 ms. Standalone build CPU: ~8 s user per 60 s wall (was ~53 s). All 9 smoke scripts pass unchanged.
+
+## Routine coverage
+Every translated routine starts with `LCOV(off>>1)`; `COVLOG=file` appends the `seg:off` of each routine that ran. `python3 scripts/coverage.py file [-v]` summarises. All scripts in scripts/play (incl. long_monkey, long_soak) together reach 702 of 1334 routines (53%): seg 5 (1/80), 11 (53/182), 2 (86/211), 13 (43/100) are mostly unreached, presumably battles/sieges and other late-game logic. Regenerating with the LCOV change kept LIFTCHECK at 0 mismatches (c1 5394, mn 4878, t3 4581 routines).

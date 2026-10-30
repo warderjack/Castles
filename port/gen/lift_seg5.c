@@ -5,6 +5,7 @@
 /* seg 5 +0x4 */
 void L_5_4(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(2);
   if (mid_) switch (mid_) {
     case 0x18: goto L150018;
     case 0x1a: goto L15001a;
@@ -101,6 +102,7 @@ void L_5_4(void) {
 /* seg 5 +0x30 */
 void L_5_30(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(24);
   if (mid_) switch (mid_) {
     case 0x3e: goto L15003e;
     case 0x40: goto L150040;
@@ -146,6 +148,7 @@ void L_5_30(void) {
 /* seg 5 +0x44 */
 void L_5_44(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(34);
   /* 150044 link.w  a6,#$0 */
   LTR(0x150044);
   {
@@ -314,6 +317,7 @@ void L_5_44(void) {
 /* seg 5 +0x8e */
 void L_5_8e(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(71);
   if (mid_) switch (mid_) {
     case 0xbe: goto L1500be;
     case 0xe0: goto L1500e0;
@@ -542,6 +546,7 @@ void L_5_8e(void) {
 /* seg 5 +0xec */
 void L_5_ec(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(118);
   /* 1500ec link.w  a6,#$0 */
   LTR(0x1500ec);
   {
@@ -721,6 +726,7 @@ void L_5_ec(void) {
 /* seg 5 +0x138 */
 void L_5_138(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(156);
   /* 150138 link.w  a6,#$0 */
   LTR(0x150138);
   {
@@ -822,6 +828,7 @@ void L_5_138(void) {
 /* seg 5 +0x166 */
 void L_5_166(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(179);
   /* 150166 link.w  a6,#-$4 */
   LTR(0x150166);
   {
@@ -1021,6 +1028,7 @@ void L_5_166(void) {
 /* seg 5 +0x1be */
 void L_5_1be(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(223);
   if (mid_) switch (mid_) {
     case 0x1e6: goto L1501e6;
     default: lift_bail(SB[LSEG] + mid_); }
@@ -1136,6 +1144,7 @@ void L_5_1be(void) {
 /* seg 5 +0x1f4 */
 void L_5_1f4(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(250);
   if (mid_) switch (mid_) {
     case 0x20e: goto L15020e;
     default: lift_bail(SB[LSEG] + mid_); }
@@ -1235,6 +1244,7 @@ void L_5_1f4(void) {
 /* seg 5 +0x222 */
 void L_5_222(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(273);
   if (mid_) switch (mid_) {
     case 0x23c: goto L15023c;
     case 0x25a: goto L15025a;
@@ -1528,6 +1538,7 @@ void L_5_222(void) {
 /* seg 5 +0x2bc */
 void L_5_2bc(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(350);
   if (mid_) switch (mid_) {
     case 0x356: goto L150356;
     case 0x366: goto L150366;
@@ -2077,6 +2088,7 @@ void L_5_2bc(void) {
 /* seg 5 +0x3a4 */
 void L_5_3a4(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(466);
   /* 1503a4 link.w  a6,#$0 */
   LTR(0x1503a4);
   {
@@ -2245,6 +2257,7 @@ void L_5_3a4(void) {
 /* seg 5 +0x3f4 */
 void L_5_3f4(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(506);
   if (mid_) switch (mid_) {
     case 0x412: goto L150412;
     case 0x44e: goto L15044e;
@@ -3009,6 +3022,7 @@ void L_5_3f4(void) {
 /* seg 5 +0x584 */
 void L_5_584(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(706);
   if (mid_) switch (mid_) {
     case 0x5b2: goto L1505b2;
     case 0x668: goto L150668;
@@ -3984,6 +3998,7 @@ void L_5_584(void) {
 /* seg 5 +0x75a */
 void L_5_75a(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(941);
   if (mid_) switch (mid_) {
     case 0x784: goto L150784;
     case 0x7fa: goto L1507fa;
@@ -4813,6 +4828,7 @@ void L_5_75a(void) {
 /* seg 5 +0x8ec */
 void L_5_8ec(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(1142);
   /* 1508ec link.w  a6,#$0 */
   LTR(0x1508ec);
   {
@@ -5032,6 +5048,7 @@ void L_5_8ec(void) {
 /* seg 5 +0x94e */
 void L_5_94e(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(1191);
   /* 15094e link.w  a6,#$0 */
   LTR(0x15094e);
   {
@@ -5097,6 +5114,7 @@ void L_5_94e(void) {
 /* seg 5 +0x972 */
 void L_5_972(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(1209);
   if (mid_) switch (mid_) {
     case 0x9ba: goto L1509ba;
     case 0xa24: goto L150a24;
@@ -7011,6 +7029,7 @@ void L_5_972(void) {
 /* seg 5 +0xd2c */
 void L_5_d2c(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(1686);
   if (mid_) switch (mid_) {
     case 0xd64: goto L150d64;
     case 0xdc0: goto L150dc0;
@@ -8186,6 +8205,7 @@ void L_5_d2c(void) {
 /* seg 5 +0xfa4 */
 void L_5_fa4(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(2002);
   /* 150fa4 link.w  a6,#-$c */
   LTR(0x150fa4);
   {
@@ -8307,6 +8327,7 @@ void L_5_fa4(void) {
 /* seg 5 +0xfda */
 void L_5_fda(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(2029);
   /* 150fda link.w  a6,#-$c */
   LTR(0x150fda);
   {
@@ -8428,6 +8449,7 @@ void L_5_fda(void) {
 /* seg 5 +0x1010 */
 void L_5_1010(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(2056);
   if (mid_) switch (mid_) {
     case 0x105a: goto L15105a;
     case 0x1062: goto L151062;
@@ -9280,6 +9302,7 @@ void L_5_1010(void) {
 /* seg 5 +0x11a2 */
 void L_5_11a2(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(2257);
   if (mid_) switch (mid_) {
     case 0x11ea: goto L1511ea;
     case 0x11f6: goto L1511f6;
@@ -10366,6 +10389,7 @@ void L_5_11a2(void) {
 /* seg 5 +0x13aa */
 void L_5_13aa(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(2517);
   if (mid_) switch (mid_) {
     case 0x13f4: goto L1513f4;
     case 0x13fc: goto L1513fc;
@@ -11154,6 +11178,7 @@ void L_5_13aa(void) {
 /* seg 5 +0x151c */
 void L_5_151c(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(2702);
   if (mid_) switch (mid_) {
     case 0x1564: goto L151564;
     case 0x1570: goto L151570;
@@ -12296,6 +12321,7 @@ void L_5_151c(void) {
 /* seg 5 +0x1738 */
 void L_5_1738(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(2972);
   /* 151738 link.w  a6,#-$c */
   LTR(0x151738);
   {
@@ -12414,6 +12440,7 @@ void L_5_1738(void) {
 /* seg 5 +0x176a */
 void L_5_176a(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(2997);
   /* 15176a link.w  a6,#-$c */
   LTR(0x15176a);
   {
@@ -12532,6 +12559,7 @@ void L_5_176a(void) {
 /* seg 5 +0x179c */
 void L_5_179c(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(3022);
   if (mid_) switch (mid_) {
     case 0x17c8: goto L1517c8;
     case 0x17da: goto L1517da;
@@ -13110,6 +13138,7 @@ void L_5_179c(void) {
 /* seg 5 +0x189a */
 void L_5_189a(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(3149);
   if (mid_) switch (mid_) {
     case 0x18c8: goto L1518c8;
     case 0x18d0: goto L1518d0;
@@ -13742,6 +13771,7 @@ void L_5_189a(void) {
 /* seg 5 +0x19ba */
 void L_5_19ba(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(3293);
   if (mid_) switch (mid_) {
     case 0x1a02: goto L151a02;
     case 0x1a0e: goto L151a0e;
@@ -14843,6 +14873,7 @@ void L_5_19ba(void) {
 /* seg 5 +0x1bcc */
 void L_5_1bcc(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(3558);
   if (mid_) switch (mid_) {
     case 0x1c9c: goto L151c9c;
     case 0x1ca2: goto L151ca2;
@@ -15509,6 +15540,7 @@ void L_5_1bcc(void) {
 /* seg 5 +0x1d2e */
 void L_5_1d2e(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(3735);
   /* 151d2e link.w  a6,#-$3e */
   LTR(0x151d2e);
   {
@@ -17442,6 +17474,7 @@ void L_5_1d2e(void) {
 /* seg 5 +0x209a */
 void L_5_209a(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(4173);
   if (mid_) switch (mid_) {
     case 0x2106: goto L152106;
     case 0x2156: goto L152156;
@@ -18078,6 +18111,7 @@ void L_5_209a(void) {
 /* seg 5 +0x21bc */
 void L_5_21bc(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(4318);
   if (mid_) switch (mid_) {
     case 0x222e: goto L15222e;
     case 0x226a: goto L15226a;
@@ -19197,6 +19231,7 @@ void L_5_21bc(void) {
 /* seg 5 +0x240c */
 void L_5_240c(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(4614);
   if (mid_) switch (mid_) {
     case 0x24a6: goto L1524a6;
     case 0x2510: goto L152510;
@@ -19921,6 +19956,7 @@ void L_5_240c(void) {
 /* seg 5 +0x259e */
 void L_5_259e(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(4815);
   if (mid_) switch (mid_) {
     case 0x25e2: goto L1525e2;
     case 0x2600: goto L152600;
@@ -20435,6 +20471,7 @@ void L_5_259e(void) {
 /* seg 5 +0x26b8 */
 void L_5_26b8(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(4956);
   if (mid_) switch (mid_) {
     case 0x26cc: goto L1526cc;
     case 0x26e2: goto L1526e2;
@@ -20628,6 +20665,7 @@ void L_5_26b8(void) {
 /* seg 5 +0x2714 */
 void L_5_2714(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(5002);
   if (mid_) switch (mid_) {
     case 0x274e: goto L15274e;
     case 0x2756: goto L152756;
@@ -22074,6 +22112,7 @@ void L_5_2714(void) {
 /* seg 5 +0x29e4 */
 void L_5_29e4(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(5362);
   if (mid_) switch (mid_) {
     case 0x2a0c: goto L152a0c;
     case 0x2a66: goto L152a66;
@@ -24076,6 +24115,7 @@ void L_5_29e4(void) {
 /* seg 5 +0x2d7e */
 void L_5_2d7e(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(5823);
   if (mid_) switch (mid_) {
     case 0x2db6: goto L152db6;
     case 0x2dd6: goto L152dd6;
@@ -24307,6 +24347,7 @@ void L_5_2d7e(void) {
 /* seg 5 +0x2dea */
 void L_5_2dea(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(5877);
   /* 152dea link.w  a6,#$0 */
   LTR(0x152dea);
   {
@@ -24427,6 +24468,7 @@ void L_5_2dea(void) {
 /* seg 5 +0x2e28 */
 void L_5_2e28(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(5908);
   if (mid_) switch (mid_) {
     case 0x2e8a: goto L152e8a;
     case 0x2e94: goto L152e94;
@@ -25176,6 +25218,7 @@ void L_5_2e28(void) {
 /* seg 5 +0x2f5c */
 void L_5_2f5c(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(6062);
   if (mid_) switch (mid_) {
     case 0x2f7a: goto L152f7a;
     default: lift_bail(SB[LSEG] + mid_); }
@@ -25256,6 +25299,7 @@ void L_5_2f5c(void) {
 /* seg 5 +0x2f84 */
 void L_5_2f84(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(6082);
   if (mid_) switch (mid_) {
     case 0x2f98: goto L152f98;
     default: lift_bail(SB[LSEG] + mid_); }
@@ -25325,6 +25369,7 @@ void L_5_2f84(void) {
 /* seg 5 +0x2fa8 */
 void L_5_2fa8(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(6100);
   if (mid_) switch (mid_) {
     case 0x3050: goto L153050;
     case 0x3062: goto L153062;
@@ -26167,6 +26212,7 @@ void L_5_2fa8(void) {
 /* seg 5 +0x3132 */
 void L_5_3132(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(6297);
   /* 153132 link.w  a6,#$0 */
   LTR(0x153132);
   {
@@ -26317,6 +26363,7 @@ void L_5_3132(void) {
 /* seg 5 +0x3180 */
 void L_5_3180(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(6336);
   if (mid_) switch (mid_) {
     case 0x31a0: goto L1531a0;
     default: lift_bail(SB[LSEG] + mid_); }
@@ -26443,6 +26490,7 @@ void L_5_3180(void) {
 /* seg 5 +0x31c2 */
 void L_5_31c2(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(6369);
   if (mid_) switch (mid_) {
     case 0x3236: goto L153236;
     case 0x325c: goto L15325c;
@@ -27244,6 +27292,7 @@ void L_5_31c2(void) {
 /* seg 5 +0x3310 */
 void L_5_3310(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(6536);
   if (mid_) switch (mid_) {
     case 0x334a: goto L15334a;
     case 0x3360: goto L153360;
@@ -27490,6 +27539,7 @@ void L_5_3310(void) {
 /* seg 5 +0x338c */
 void L_5_338c(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(6598);
   if (mid_) switch (mid_) {
     case 0x33ca: goto L1533ca;
     case 0x33ee: goto L1533ee;
@@ -27888,6 +27938,7 @@ void L_5_338c(void) {
 /* seg 5 +0x3464 */
 void L_5_3464(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(6706);
   if (mid_) switch (mid_) {
     case 0x3486: goto L153486;
     case 0x348c: goto L15348c;
@@ -28139,6 +28190,7 @@ void L_5_3464(void) {
 /* seg 5 +0x34e6 */
 void L_5_34e6(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(6771);
   if (mid_) switch (mid_) {
     case 0x3516: goto L153516;
     case 0x352e: goto L15352e;
@@ -28837,6 +28889,7 @@ void L_5_34e6(void) {
 /* seg 5 +0x361c */
 void L_5_361c(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(6926);
   if (mid_) switch (mid_) {
     case 0x366c: goto L15366c;
     case 0x367a: goto L15367a;
@@ -29048,6 +29101,7 @@ void L_5_361c(void) {
 /* seg 5 +0x3684 */
 void L_5_3684(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(6978);
   if (mid_) switch (mid_) {
     case 0x36c0: goto L1536c0;
     case 0x36f2: goto L1536f2;
@@ -29520,6 +29574,7 @@ void L_5_3684(void) {
 /* seg 5 +0x3784 */
 void L_5_3784(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(7106);
   if (mid_) switch (mid_) {
     case 0x37b6: goto L1537b6;
     case 0x37c4: goto L1537c4;
@@ -29673,6 +29728,7 @@ void L_5_3784(void) {
 /* seg 5 +0x37cc */
 void L_5_37cc(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(7142);
   if (mid_) switch (mid_) {
     case 0x37e8: goto L1537e8;
     case 0x3828: goto L153828;
@@ -29992,6 +30048,7 @@ void L_5_37cc(void) {
 /* seg 5 +0x386c */
 void L_5_386c(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(7222);
   if (mid_) switch (mid_) {
     case 0x3908: goto L153908;
     case 0x391a: goto L15391a;
@@ -31295,6 +31352,7 @@ void L_5_386c(void) {
 /* seg 5 +0x3abc */
 void L_5_3abc(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(7518);
   if (mid_) switch (mid_) {
     case 0x3aea: goto L153aea;
     case 0x3b02: goto L153b02;
@@ -31797,6 +31855,7 @@ void L_5_3abc(void) {
 /* seg 5 +0x3b9c */
 void L_5_3b9c(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(7630);
   if (mid_) switch (mid_) {
     case 0x3bb6: goto L153bb6;
     case 0x3bfe: goto L153bfe;
@@ -32291,6 +32350,7 @@ void L_5_3b9c(void) {
 /* seg 5 +0x3c8a */
 void L_5_3c8a(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(7749);
   if (mid_) switch (mid_) {
     case 0x3c9c: goto L153c9c;
     case 0x3ca2: goto L153ca2;
@@ -32811,6 +32871,7 @@ void L_5_3c8a(void) {
 /* seg 5 +0x3d64 */
 void L_5_3d64(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(7858);
   if (mid_) switch (mid_) {
     case 0x3d82: goto L153d82;
     case 0x3dae: goto L153dae;
@@ -33178,6 +33239,7 @@ void L_5_3d64(void) {
 /* seg 5 +0x3e04 */
 void L_5_3e04(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(7938);
   if (mid_) switch (mid_) {
     case 0x3e16: goto L153e16;
     case 0x3e44: goto L153e44;
@@ -33835,6 +33897,7 @@ void L_5_3e04(void) {
 /* seg 5 +0x3f44 */
 void L_5_3f44(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(8098);
   if (mid_) switch (mid_) {
     case 0x3f7c: goto L153f7c;
     default: lift_bail(SB[LSEG] + mid_); }
@@ -34007,6 +34070,7 @@ void L_5_3f44(void) {
 /* seg 5 +0x3f94 */
 void L_5_3f94(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(8138);
   if (mid_) switch (mid_) {
     case 0x3fb6: goto L153fb6;
     case 0x3fd8: goto L153fd8;
@@ -35698,6 +35762,7 @@ void L_5_3f94(void) {
 /* seg 5 +0x42ec */
 void L_5_42ec(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(8566);
   if (mid_) switch (mid_) {
     case 0x432e: goto L15432e;
     case 0x433e: goto L15433e;
@@ -36930,6 +36995,7 @@ void L_5_42ec(void) {
 /* seg 5 +0x4506 */
 void L_5_4506(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(8835);
   if (mid_) switch (mid_) {
     case 0x4544: goto L154544;
     case 0x4552: goto L154552;
@@ -37336,6 +37402,7 @@ void L_5_4506(void) {
 /* seg 5 +0x45be */
 void L_5_45be(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(8927);
   if (mid_) switch (mid_) {
     case 0x4600: goto L154600;
     case 0x4630: goto L154630;
@@ -38139,6 +38206,7 @@ void L_5_45be(void) {
 /* seg 5 +0x4732 */
 void L_5_4732(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(9113);
   if (mid_) switch (mid_) {
     case 0x4760: goto L154760;
     case 0x4794: goto L154794;
@@ -38444,6 +38512,7 @@ void L_5_4732(void) {
 /* seg 5 +0x47e0 */
 void L_5_47e0(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(9200);
   if (mid_) switch (mid_) {
     case 0x47f8: goto L1547f8;
     case 0x4812: goto L154812;
@@ -39155,6 +39224,7 @@ void L_5_47e0(void) {
 /* seg 5 +0x4952 */
 void L_5_4952(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(9385);
   /* 154952 link.w  a6,#-$2 */
   LTR(0x154952);
   {
@@ -39547,6 +39617,7 @@ void L_5_4952(void) {
 /* seg 5 +0x4a0a */
 void L_5_4a0a(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(9477);
   if (mid_) switch (mid_) {
     case 0x4a1a: goto L154a1a;
     default: lift_bail(SB[LSEG] + mid_); }
@@ -39614,6 +39685,7 @@ void L_5_4a0a(void) {
 /* seg 5 +0x4a2c */
 void L_5_4a2c(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(9494);
   if (mid_) switch (mid_) {
     case 0x4a7e: goto L154a7e;
     case 0x4a98: goto L154a98;
@@ -42991,6 +43063,7 @@ void L_5_4a2c(void) {
 /* seg 5 +0x5194 */
 void L_5_5194(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(10442);
   if (mid_) switch (mid_) {
     case 0x51a4: goto L1551a4;
     case 0x51aa: goto L1551aa;
@@ -43049,6 +43122,7 @@ void L_5_5194(void) {
 /* seg 5 +0x51ae */
 void L_5_51ae(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(10455);
   if (mid_) switch (mid_) {
     case 0x51be: goto L1551be;
     default: lift_bail(SB[LSEG] + mid_); }
@@ -43097,6 +43171,7 @@ void L_5_51ae(void) {
 /* seg 5 +0x51c8 */
 void L_5_51c8(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(10468);
   if (mid_) switch (mid_) {
     case 0x5208: goto L155208;
     case 0x5230: goto L155230;
@@ -43621,6 +43696,7 @@ void L_5_51c8(void) {
 /* seg 5 +0x5300 */
 void L_5_5300(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(10624);
   if (mid_) switch (mid_) {
     case 0x5346: goto L155346;
     case 0x5370: goto L155370;
@@ -44456,6 +44532,7 @@ void L_5_5300(void) {
 /* seg 5 +0x54f4 */
 void L_5_54f4(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(10874);
   /* 1554f4 link.w  a6,#$0 */
   LTR(0x1554f4);
   {
@@ -44557,6 +44634,7 @@ void L_5_54f4(void) {
 /* seg 5 +0x5528 */
 void L_5_5528(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(10900);
   if (mid_) switch (mid_) {
     case 0x559c: goto L15559c;
     case 0x55d6: goto L1555d6;
@@ -45779,6 +45857,7 @@ void L_5_5528(void) {
 /* seg 5 +0x5784 */
 void L_5_5784(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(11202);
   if (mid_) switch (mid_) {
     case 0x57fa: goto L1557fa;
     case 0x580e: goto L15580e;
@@ -46508,6 +46587,7 @@ void L_5_5784(void) {
 /* seg 5 +0x592c */
 void L_5_592c(void) {
   u32 ea = 0, ed = 0; u32 mid_ = lift_mid; const u32 R0 = mid_ ? lift_mid_r0 : m32(A[7]); lift_mid = 0; (void)ea; (void)ed; (void)R0;
+  LCOV(11414);
   if (mid_) switch (mid_) {
     case 0x5a56: goto L155a56;
     case 0x5a66: goto L155a66;

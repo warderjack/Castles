@@ -1,5 +1,6 @@
 /* Castles: Siege and Conquest -- 68k host with Toolbox HLE (milestone 1: headless boot trace) */
 #include <sys/stat.h>
+unsigned char lift_fcov[16][1 << 15];
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -469,6 +470,7 @@ int main(int argc, char **argv) {
     { fprintf(stderr, "recent traps:\n"); for (int i = 0; i < 600; i++) { int k_ = (tri + i) % 600; if (tring[k_].w) fprintf(stderr, "  [trap %04X %-18s] D0=%08x A0=%08x A1=%08x SP=%06x ret=%06x\n", tring[k_].w, tname(tring[k_].w), tring[k_].d0, tring[k_].a0, tring[k_].a1, tring[k_].sp, tring[k_].ret); } }
     if (!halted) { fprintf(stderr, "last pcs:"); for (int i = 0; i < 40; i++) fprintf(stderr, " %06x", pcring[(pcri - 40 + i) & 63]); fprintf(stderr, "\n"); }
     { const char *dr = getenv("DUMPRAM"); if (dr) { FILE *f = fopen(dr, "wb"); if (f) { fwrite(ram, 1, 0xC10000, f); fclose(f); } } }
+    { const char *cl = getenv("COVLOG"); if (cl) { FILE *f = fopen(cl, "a"); if (f) { for (int z = 0; z < 16; z++) for (int o = 0; o < (1 << 15); o++) if (lift_fcov[z][o]) fprintf(f, "%d:%x\n", z, o << 1); fclose(f); } } }
     { const char *el = getenv("ENTLOG"); if (el) { FILE *f = fopen(el, "a"); if (f) { for (uint32_t i = 0; i < (1u << 23); i++) if (lift_ebt[i]) { uint32_t a = i << 1; for (int z = 1; z < 16; z++) if (lift_segtab[z] && a >= SB[z] && a < SB[z] + lift_seglen[z]) { fprintf(f, "%d:%x\n", z, a - SB[z]); break; } } fclose(f); } } }
     if (lift_chk_active) fprintf(stderr, "[chkpc] check STILL ACTIVE at exit: entry=%06x ret=%06x sp=%x\n", chk_entry, chk_ret, chk_sp);
     if (lift_check) fprintf(stderr, "[LIFTCHECK] verified=%d mismatched=%d skipped(trap/bail)=%d (verified incl. partial-to-trap: %lu)\n", chk_ok, chk_bad, chk_skip, chk_part_n);
