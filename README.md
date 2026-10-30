@@ -20,5 +20,5 @@ Headless testing: `CASTLES_HEADLESS=1 CASTLES_SCRIPT=script.txt` (see NOTES.md).
 
 ## Status
 See NOTES.md. The 68k code is now fully translated and runs natively; the Musashi build is kept as the reference/fallback.
-Not yet done: Open Game / Standard File dialogs are non-interactive. Where behaviour is uncertain the Mac version is the reference;
+Open Game / Save dialogs (Standard File) are implemented natively; Build Mode and battles are not yet verified end to end. Where behaviour is uncertain the Mac version is the reference;
 the DOS demo is only used for cross-checking game data and logic.
