@@ -117,3 +117,6 @@ Every translated routine starts with `LCOV(off>>1)`; `COVLOG=file` appends the `
 
 ## Attack attempt (battles)
 Military > Attack is enabled only for a selected non-owned county once a recruit order has completed (and no modal dialog is open). `scripts/play/attack_try.txt` (not part of smoke.sh) recruits infantry, spams answer/OK clicks to clear random trivia dialogs, selects Chartres, cancels the Scout dialog the extra click opens, then opens Military > Attack and OKs the dialog with Military 3: the order "Attack Chartres" is queued and progresses. A blind script cannot reliably wait for the attack to resolve (random event dialogs, order replaced), so seg 5 (80 routines, likely battle/AI computation, ~no traps) is still unexercised. Needs interactive play or a smarter script with screen checks.
+
+## First real-desktop run (user report)
+Opening sound had clicks/pops: audio was fed only at real-time pace (refill after each buffer's duration), so any stall underran. `snd_tick` now keeps ~300 ms queued in SDL and refills immediately (headless / no-device keeps the old pacing). User also reported a crash after clicking at the title screen with no `[native]` message (likely a signal); not reproducible here under Xvfb (SDL x11, dummy audio) or valgrind headless. Ask for exit status (139 = segfault) and gdb backtrace.

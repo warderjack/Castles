@@ -25,21 +25,41 @@ static void snd_out(uint32_t buf, uint32_t hdr) {
     if (headless) return; uint32_t rate = rd32(hdr + 8) >> 16; if (!rate) rate = 22254;
     if (!aud_tried) { aud_tried = 1; SDL_AudioSpec w = {0}, g; w.freq = rate; w.format = AUDIO_U8; w.channels = 1; w.samples = 1024; aud_dev = SDL_OpenAudioDevice(NULL, 0, &w, &g, SDL_AUDIO_ALLOW_ANY_CHANGE);
         if (!aud_dev) fprintf(stderr, "  [snd] no audio device: %s\n", SDL_GetError()); else SDL_PauseAudioDevice(aud_dev, 0); }
-    if (!aud_dev) return; uint32_t n = rd32(buf); int ch = rd16(hdr) ? rd16(hdr) : 1; n *= ch; if (n > 65536) n = 65536; if (SDL_GetQueuedAudioSize(aud_dev) > rate) return;
+    if (!aud_dev) return; uint32_t n = rd32(buf); int ch = rd16(hdr) ? rd16(hdr) : 1; n *= ch; if (n > 65536) n = 65536; if (SDL_GetQueuedAudioSize(aud_dev) > rate * 2) return;
     SDL_QueueAudio(aud_dev, ram + buf + 16, n);
 }
 #else
 static void snd_out(uint32_t buf, uint32_t hdr) {}
 #endif
+#ifdef HAVE_SDL
+static int snd_nodev(void) { return aud_tried && !aud_dev; }
+static double snd_queued_ms(uint32_t hdr) { if (!aud_dev) return 0; uint32_t rate = rd32(hdr + 8) >> 16; if (!rate) rate = 22254; return SDL_GetQueuedAudioSize(aud_dev) * 1000.0 / rate; }
+#else
+static int snd_nodev(void) { return 1; }
+static double snd_queued_ms(uint32_t hdr) { return 0; }
+#endif
 static void snd_tick(void) {
-    if (!dbp.on) return; double ms = now_ms(); uint32_t hdr = dbp.hdr, buf = rd32(hdr + 12 + 4 * dbp.cur);
-    if (dbp.t_end < 0) { if (!(rd32(buf + 4) & 1)) { dbp.on = 0; return; } snd_out(buf, hdr); dbp.t_end = ms + snd_buf_ms(buf, hdr); return; }
-    for (int g = 0; g < 4 && ms >= dbp.t_end; g++) {
-        uint32_t fl = rd32(buf + 4);
+    /* keep ~300 ms of audio queued ahead in SDL; the buffer is free as soon as it has been copied, so refill immediately */
+    if (!dbp.on) return; uint32_t hdr = dbp.hdr; double ms = now_ms();
+    if (headless || snd_nodev()) { /* no device: keep the original real-time pacing so guest timing matches */
+        uint32_t buf = rd32(hdr + 12 + 4 * dbp.cur);
+        if (dbp.t_end < 0) { if (!(rd32(buf + 4) & 1)) { dbp.on = 0; return; } dbp.t_end = ms + snd_buf_ms(buf, hdr); return; }
+        for (int g = 0; g < 4 && ms >= dbp.t_end; g++) {
+            uint32_t fl = rd32(buf + 4);
+            if (fl & 4) { dbp.on = 0; return; }
+            wr32(buf + 4, fl & ~1u); call_args[0] = dbp.chan; call_args[1] = buf; call_nargs = 2; call68k(rd32(hdr + 20), 0, 0);
+            dbp.cur ^= 1; buf = rd32(hdr + 12 + 4 * dbp.cur);
+            if (rd32(buf + 4) & 1) dbp.t_end += snd_buf_ms(buf, hdr); else { dbp.t_end = ms + 1; break; }
+        }
+        return;
+    }
+    for (int g = 0; g < 8 && dbp.on && (!aud_tried || snd_queued_ms(hdr) < 300); g++) {
+        uint32_t buf = rd32(hdr + 12 + 4 * dbp.cur), fl = rd32(buf + 4);
+        if (!(fl & 1)) { if (dbp.t_end < 0) dbp.on = 0; break; }     /* not ready: wait (or never started) */
+        dbp.t_end = 0; snd_out(buf, hdr);
         if (fl & 4) { dbp.on = 0; fprintf(stderr, "  [snd] double buffer finished\n"); return; }
         wr32(buf + 4, fl & ~1u); call_args[0] = dbp.chan; call_args[1] = buf; call_nargs = 2; call68k(rd32(hdr + 20), 0, 0);
-        dbp.cur ^= 1; buf = rd32(hdr + 12 + 4 * dbp.cur);
-        if (rd32(buf + 4) & 1) { snd_out(buf, hdr); dbp.t_end += snd_buf_ms(buf, hdr); } else { dbp.t_end = ms + 1; break; }
+        dbp.cur ^= 1;
     }
 }
 static void run_tasks(void) {
