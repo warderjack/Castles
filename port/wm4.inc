@@ -47,13 +47,13 @@ static int wm_dispatch(uint16_t w, uint16_t n, uint32_t ret) {
         wr32(sp + 10, wn); return 1; }
     case 0xA915: { uint32_t wn = rd32(sp); setsp(sp + 4); if (is_window(wn)) wm_show_hide(wn, 1); return 1; }
     case 0xA916: { uint32_t wn = rd32(sp); setsp(sp + 4); if (is_window(wn)) wm_show_hide(wn, 0); return 1; }
-    case 0xA908: { int show = rd16(sp) != 0; uint32_t wn = rd32(sp + 2); setsp(sp + 6); if (is_window(wn)) wm_show_hide(wn, show); return 1; }
+    case 0xA908: { int show = rd8(sp) != 0; uint32_t wn = rd32(sp + 2); setsp(sp + 6); if (is_window(wn)) wm_show_hide(wn, show); return 1; }
     case 0xA91F: { uint32_t wn = rd32(sp); setsp(sp + 4); if (is_window(wn)) { if (!win_visible(wn)) wm_show_hide(wn, 1); wm_bring_to_front(wn); } return 1; }           /* SelectWindow */
     case 0xA920: { uint32_t wn = rd32(sp); setsp(sp + 4); if (is_window(wn)) wm_bring_to_front(wn); return 1; }
     case 0xA921: { uint32_t b = rd32(sp), wn = rd32(sp + 4); setsp(sp + 8); if (is_window(wn)) wm_send_behind(wn, b); return 1; }
-    case 0xA91C: { int on = rd16(sp) != 0; uint32_t wn = rd32(sp + 2); setsp(sp + 6); if (is_window(wn)) { wr8(wn + WR_HILITED, on); draw_desktop_and_frames(); } return 1; }
+    case 0xA91C: { int on = rd8(sp) != 0; uint32_t wn = rd32(sp + 2); setsp(sp + 6); if (is_window(wn)) { wr8(wn + WR_HILITED, on); draw_desktop_and_frames(); } return 1; }
     case 0xA924: { setsp(sp); wr32(sp, win_front_visible()); return 1; }
-    case 0xA91B: { int v = (int16_t)rd16(sp + 2), h = (int16_t)rd16(sp + 4); uint32_t wn = rd32(sp + 6); int front = rd16(sp) != 0; setsp(sp + 10); if (is_window(wn)) { wm_move(wn, h, v); if (front) wm_bring_to_front(wn); } return 1; }
+    case 0xA91B: { int v = (int16_t)rd16(sp + 2), h = (int16_t)rd16(sp + 4); uint32_t wn = rd32(sp + 6); int front = rd8(sp) != 0; setsp(sp + 10); if (is_window(wn)) { wm_move(wn, h, v); if (front) wm_bring_to_front(wn); } return 1; }
     case 0xA91D: { int hh = (int16_t)rd16(sp + 2), ww = (int16_t)rd16(sp + 4); uint32_t wn = rd32(sp + 6); setsp(sp + 10); if (is_window(wn)) wm_size(wn, ww, hh); return 1; }
     case 0xA914: { uint32_t wn = rd32(sp); setsp(sp + 4); wm_dispose(wn, 1); return 1; }
     case 0xA92D: { uint32_t wn = rd32(sp); setsp(sp + 4); wm_dispose(wn, 0); return 1; }
@@ -106,7 +106,7 @@ static int wm_dispatch(uint16_t w, uint16_t n, uint32_t ret) {
     case 0xA949: { int id = (int16_t)rd16(sp); setsp(sp + 2); uint32_t mh = 0; for (int i = 0; i < nmenus; i++) if (menu_id(menus[i]) == id) mh = menus[i]; for (int i = 0; i < nhmenus; i++) if (menu_id(hmenus[i]) == id) mh = hmenus[i]; wr32(sp + 2, mh); return 1; }
     case 0xA950: { uint32_t mh = rd32(sp); setsp(sp + 4); wr16(sp + 4, mh ? menu_count(mh) : 0); return 1; }
     case 0xA939: case 0xA93A: { int item = (int16_t)rd16(sp); uint32_t mh = rd32(sp + 2); setsp(sp + 6); if (getenv("MENUEN")) fprintf(stderr, "[menuen] %s mh=%x item=%d ret=%06x caller=%06x\n", n == 0xA939 ? "enable" : "disable", mh, item, ret, rd32(R(M68K_REG_A6) + 4)); if (mh) menu_set_enabled(mh, item, n == 0xA939); if (item == 0) { menubar_draw(); gfx_dirty = 1; } return 1; }
-    case 0xA945: { int chk = rd16(sp) != 0; int item = (int16_t)rd16(sp + 2); uint32_t mh = rd32(sp + 4); setsp(sp + 8); uint32_t p = mh ? menu_item_addr(mh, item) : 0; if (p) wr8(p + 1 + rd8(p) + 2, chk ? 0x12 : 0); return 1; }
+    case 0xA945: { int chk = rd8(sp) != 0; int item = (int16_t)rd16(sp + 2); uint32_t mh = rd32(sp + 4); setsp(sp + 8); uint32_t p = mh ? menu_item_addr(mh, item) : 0; if (p) wr8(p + 1 + rd8(p) + 2, chk ? 0x12 : 0); return 1; }
     case 0xA944: { int mk = rd16(sp) & 0xFF; int item = (int16_t)rd16(sp + 2); uint32_t mh = rd32(sp + 4); setsp(sp + 8); uint32_t p = mh ? menu_item_addr(mh, item) : 0; if (p) wr8(p + 1 + rd8(p) + 2, mk); return 1; }
     case 0xA943: { uint32_t cp = rd32(sp); int item = (int16_t)rd16(sp + 4); uint32_t mh = rd32(sp + 6); setsp(sp + 10); uint32_t p = mh ? menu_item_addr(mh, item) : 0; wr16(cp, p ? rd8(p + 1 + rd8(p) + 2) : 0); return 1; }
     case 0xA942: { int st = rd16(sp) & 0xFF; int item = (int16_t)rd16(sp + 2); uint32_t mh = rd32(sp + 4); setsp(sp + 8); uint32_t p = mh ? menu_item_addr(mh, item) : 0; if (p) wr8(p + 1 + rd8(p) + 3, st); return 1; }

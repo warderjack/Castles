@@ -20,12 +20,9 @@ T 3260 M 340 28
 T 3280 S /tmp/castles-play/p8b.ppm
 T 3300 U 340 28
 T 3900 S /tmp/castles-play/p8c.ppm
-T 4000 D 190 9
-T 4020 M 190 28
-T 4040 U 190 28
-T 4700 S /tmp/castles-play/p8d.ppm
-T 4800 D 190 9
-T 4820 M 190 156
-T 4840 U 190 156
-T 5500 S /tmp/castles-play/p8e.ppm
-T 5600 Q
+T 4000 D 315 381
+T 4005 U 315 381
+T 4100 S /tmp/castles-play/p9a.ppm
+T 7000 S /tmp/castles-play/p9b.ppm
+T 9000 S /tmp/castles-play/p9c.ppm
+T 9100 Q

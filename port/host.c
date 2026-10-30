@@ -245,7 +245,7 @@ static void hle(uint16_t w, uint32_t ret) {
         trace_limit--;
         fprintf(stderr, "[trap %04X %-18s] D0=%08x A0=%08x A1=%08x SP=%06x ret=%06x\n", w, tname(w), D(0), A(0), A(1), SP, ret);
     }
-    if (getenv("WMT") && ((n >= 0xA910 && n <= 0xA93C && n != 0xA92C && n != 0xA924) || n == 0xAA45 || n == 0xA97C || n == 0xA982 || n == 0xA983 || n == 0xA873 || n == 0xA922 || n == 0xA923)) fprintf(stderr, "[wmt] %04X %s sp0=%08x sp4=%08x sp8=%08x ret=%06x tick=%u\n", w, tname(w), rd32(SP), rd32(SP + 4), rd32(SP + 8), ret, ticks_now());
+    if (getenv("WMT") && ((n >= 0xA900 && n <= 0xA93C && n != 0xA92C && n != 0xA924) || n == 0xAA45 || n == 0xA97C || n == 0xA982 || n == 0xA983 || n == 0xA873 || n == 0xA922 || n == 0xA923)) fprintf(stderr, "[wmt] %04X %s sp0=%08x sp4=%08x sp8=%08x ret=%06x tick=%u\n", w, tname(w), rd32(SP), rd32(SP + 4), rd32(SP + 8), ret, ticks_now());
     uint32_t sp = SP;
     if (rm_dispatch(w, n, ret)) { W(M68K_REG_PC, ret); return; }
     if (dlg_dispatch(w, n, ret)) { if (!wm_redirected) W(M68K_REG_PC, ret); wm_redirected = 0; return; }
