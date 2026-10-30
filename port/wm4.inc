@@ -105,7 +105,7 @@ static int wm_dispatch(uint16_t w, uint16_t n, uint32_t ret) {
     case 0xA94C: { setsp(sp + 2); return 1; }
     case 0xA949: { int id = (int16_t)rd16(sp); setsp(sp + 2); uint32_t mh = 0; for (int i = 0; i < nmenus; i++) if (menu_id(menus[i]) == id) mh = menus[i]; for (int i = 0; i < nhmenus; i++) if (menu_id(hmenus[i]) == id) mh = hmenus[i]; wr32(sp + 2, mh); return 1; }
     case 0xA950: { uint32_t mh = rd32(sp); setsp(sp + 4); wr16(sp + 4, mh ? menu_count(mh) : 0); return 1; }
-    case 0xA939: case 0xA93A: { int item = (int16_t)rd16(sp); uint32_t mh = rd32(sp + 2); setsp(sp + 6); if (mh) menu_set_enabled(mh, item, n == 0xA939); if (item == 0) { menubar_draw(); gfx_dirty = 1; } return 1; }
+    case 0xA939: case 0xA93A: { int item = (int16_t)rd16(sp); uint32_t mh = rd32(sp + 2); setsp(sp + 6); if (getenv("MENUEN")) fprintf(stderr, "[menuen] %s mh=%x item=%d ret=%06x caller=%06x\n", n == 0xA939 ? "enable" : "disable", mh, item, ret, rd32(R(M68K_REG_A6) + 4)); if (mh) menu_set_enabled(mh, item, n == 0xA939); if (item == 0) { menubar_draw(); gfx_dirty = 1; } return 1; }
     case 0xA945: { int chk = rd16(sp) != 0; int item = (int16_t)rd16(sp + 2); uint32_t mh = rd32(sp + 4); setsp(sp + 8); uint32_t p = mh ? menu_item_addr(mh, item) : 0; if (p) wr8(p + 1 + rd8(p) + 2, chk ? 0x12 : 0); return 1; }
     case 0xA944: { int mk = rd16(sp) & 0xFF; int item = (int16_t)rd16(sp + 2); uint32_t mh = rd32(sp + 4); setsp(sp + 8); uint32_t p = mh ? menu_item_addr(mh, item) : 0; if (p) wr8(p + 1 + rd8(p) + 2, mk); return 1; }
     case 0xA943: { uint32_t cp = rd32(sp); int item = (int16_t)rd16(sp + 4); uint32_t mh = rd32(sp + 6); setsp(sp + 10); uint32_t p = mh ? menu_item_addr(mh, item) : 0; wr16(cp, p ? rd8(p + 1 + rd8(p) + 2) : 0); return 1; }
