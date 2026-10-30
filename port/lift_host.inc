@@ -64,6 +64,11 @@ void lift_enter(u32 tgt) {
         u32 t = tgt; for (int k = 0; k < 64; k++) { u16 w = m16(t); if ((w >> 8) == 0x60 && (w & 0xFF) && (w & 0xFF) != 0xFF) t = t + 2 + (s32)(s8)(w & 0xFF); else if (w == 0x4E71) t += 2; else break; }
         if (m16(t) == 0x4EAD && m16(t + 4) == 0x4ED0) { A[7] -= 4; w32(A[7], t + 4); lift_rs[lift_rsp++ & 255] = t + 4; lift_enter(A[5] + (u32)(s32)(s16)m16(t + 2)); lift_rsp--; lift_enter(A[0]); return; }
     }
+    if (!f && !lift_dry && tgt >= STUB_BASE && tgt < STUB_END && (m16(tgt) & 0xF000) == 0xA000) {   /* ROM trap stub: A-line + rts */
+        u32 ret = m32(A[7]); A[7] += 4; lift_trap(m16(tgt), tgt, ret); lift_ret_pc = ret; return; }
+    if (!f && !lift_dry && m16(tgt) == 0x6104 && m16(tgt + 6) == 0x225F && m16(tgt + 8) == 0x2251 && m16(tgt + 10) == 0x4ED1) { lift_enter(m32(tgt + 2)); return; }   /* heap dispatch thunk: bsr.s; dc.l target; movea (sp)+,a1; movea (a1),a1; jmp (a1) */
+    if (!f && !lift_dry && tgt >= 0xC00000 && m16(tgt) == 0x3F3C && m16(tgt + 4) == 0xA9F0) {                /* unloaded-segment jump-table stub: move.w #seg,-(sp); _LoadSeg */
+        A[7] -= 2; w16(A[7], m16(tgt + 2)); lift_trap(0xA9F0, tgt + 4, tgt + 6); return; }
     if (lift_dry && lift_nvis < 512) lift_vis[lift_nvis++] = tgt;
     if (f) { lift_calls++; f(); } else { lift_enterbail++; if (tgt < (1u<<24)) lift_ebt[tgt >> 1]++; lift_bail(tgt); }
 }
@@ -84,6 +89,7 @@ void lift_trap(u32 w, u32 tpc, u32 ret) {
         W(M68K_REG_PC, ret); trap_pc = tpc; trap_from_stub = 0; hle((uint16_t)w, ret); } }
     if (!(w & 0x800) && !halted) { uint32_t d0 = R(M68K_REG_D0) & 0xFFFF; uint32_t sr = R(M68K_REG_SR) & ~0xFu; if (d0 == 0) sr |= 4; if (d0 & 0x8000) sr |= 8; W(M68K_REG_SR, sr); }
     uint32_t pc2 = R(M68K_REG_PC);
+    if (w == 0xA9F0 && pc2 != ret && !halted && pc2 != YIELD_PC && pc2 != GCONT_PC) { lift_sync_in(); lift_enter(pc2); return; }   /* LoadSeg jumps to the (now loaded) entry */
     if (pc2 != ret || halted) { lift_trapbail[w & 0xFFFF]++; lift_synced = 1; lift_bail_pc = pc2; lift_bails++; longjmp(lift_jb, 1); }
     lift_sync_in();
 }
@@ -94,10 +100,24 @@ static int lift_midlog;
 static int lift_nomidpc(uint32_t pc) { { static int ri; static unsigned lo, hi; if (!ri) { ri = 1; const char *e = getenv("NOMIDRANGE"); if (e) sscanf(e, "%x:%x", &lo, &hi); } if (hi && pc >= lo && pc < hi) return 1; } static char *list; static int inited; if (!inited) { inited = 1; const char *e = getenv("NOMIDPC"); if (e) list = strdup(e); } if (!list) return 0; char buf[16]; snprintf(buf, sizeof buf, "%06x", pc); return strstr(list, buf) != NULL; }
 static uint32_t lift_dead_pcs[64]; static int lift_ndead;
 static int lift_middead(uint32_t pc) { for (int i = 0; i < lift_ndead; i++) if (lift_dead_pcs[i] == pc) return 1; return 0; }
+static int lift_check;
+static u32 lift_pend; static void lift_pend_fn(void) { lift_enter(lift_pend); }
+static int lift_special(uint32_t pc) {      /* non-segment code the lifted runtime can still enter natively: ROM trap stubs, heap dispatch thunks, unloaded-segment stubs */
+    if (lift_check || lift_dry || !lift_on || (pc & 1) || pc >= 0xC10000 + 0x1000) return 0;
+    if (pc >= STUB_BASE && pc < STUB_END) return (m16(pc) & 0xF000) == 0xA000;
+    if (m16(pc) == 0x6104 && m16(pc + 6) == 0x225F && m16(pc + 8) == 0x2251 && m16(pc + 10) == 0x4ED1) return 1;
+    if (pc < 0xC00000) return 0;
+    if (m16(pc) == 0x3F3C && m16(pc + 4) == 0xA9F0) return 1;
+    u32 t = pc; for (int k = 0; k < 4 && m16(t) == 0x4EF9; k++) t = m32(t + 2);
+    if (t < 0xC00000 && lift_lookup(t)) return 1;
+    for (int k = 0; k < 64; k++) { u16 w = m16(t); if ((w >> 8) == 0x60 && (w & 0xFF) && (w & 0xFF) != 0xFF) t = t + 2 + (s32)(s8)(w & 0xFF); else if (w == 0x4E71) t += 2; else break; }
+    return m16(t) == 0x4EAD && m16(t + 4) == 0x4ED0;
+}
 static int lift_try(uint32_t pc) {
     static long lmax = -2; if (lmax == -2) { const char *e = getenv("LIFTMAX"); lmax = e ? atol(e) : -1; }
     LiftFn f = lift_lookup(pc); const LiftMid *mm = NULL; u32 midoff = 0, midr0 = 0;
     if (!lift_midlog) lift_midlog = getenv("MIDLOG") ? 1 : 2;
+    if (!f && lift_special(pc)) { lift_pend = pc; f = lift_pend_fn; }
     if (!f && lift_on && !getenv("NOMID")) { mm = lift_midlookup(pc); if (mm && (lift_nomidpc(pc) || lift_middead(pc))) mm = NULL; if (mm && (mm->haslink || !getenv("MIDLINK"))) { f = mm->fn; midoff = pc - SB[mm->seg]; midr0 = m32(R(M68K_REG_A6) + 4); } }
     if (midoff && getenv("RMLOG") && midr0 < 0x10000) { static int nn; if (nn++ < 6) fprintf(stderr, "[midbad] pc=%06x midr0=%x A6=%x A7=%x m32(A6)=%x\n", pc, midr0, R(M68K_REG_A6), R(M68K_REG_A7), m32(R(M68K_REG_A6))); }
     if (midoff && lift_midlog == 1) { fprintf(stderr, "[mid] %06x\n", pc); }
