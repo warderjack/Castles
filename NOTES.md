@@ -85,3 +85,8 @@ RNDLOG=1 (log Random calls), DUMPRAM=file (dump A5 world at exit).
   main loop (ticks, VBL/Time Manager tasks, SDL events, presenting). Without this, lifted busy-wait loops never yield.
   `NOPOLL=1` disables it, `MIDLINK=1` restores the old link-only mid entries (debugging).
 - `lift_jb` is saved/restored around nested `lift_try` calls (tasks running guest code inside lifted code).
+
+## Lifter coverage round 3
+- Mid table now prefers haslink entries when several functions share a label (e.g. seg3 +0x223a).
+- Livelock guard counts nested lift entries as progress; the old guard disabled legit loop mids (05a74e etc.).
+- c1 100 s: interp insns 1.3M vs 85M lifted calls, 8k bails (top: 05a74e, 05a774 = trap yields). Remaining unlifted: 053688, c0xxxx (runtime-generated code).
