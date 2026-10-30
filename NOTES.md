@@ -90,3 +90,4 @@ RNDLOG=1 (log Random calls), DUMPRAM=file (dump A5 world at exit).
 - Mid table now prefers haslink entries when several functions share a label (e.g. seg3 +0x223a).
 - Livelock guard counts nested lift entries as progress; the old guard disabled legit loop mids (05a74e etc.).
 - c1 100 s: interp insns 1.3M vs 85M lifted calls, 8k bails (top: 05a74e, 05a774 = trap yields). Remaining unlifted: 053688, c0xxxx (runtime-generated code).
+- Blocking traps (rewound to YIELD_PC, e.g. Delay, MenuSelect, ModalDialog tracking) now wait in C inside `lift_trap` (poll + re-run hle) instead of bailing to the interpreter. `NOBLOCK=1` disables. Remaining redirects: ModalDialog guest filter procs (GCONT).

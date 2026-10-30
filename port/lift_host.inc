@@ -66,12 +66,16 @@ void lift_enter(u32 tgt) {
     if (lift_dry && lift_nvis < 512) lift_vis[lift_nvis++] = tgt;
     if (f) { lift_calls++; f(); } else { lift_enterbail++; if (tgt < (1u<<24)) lift_ebt[tgt >> 1]++; lift_bail(tgt); }
 }
+unsigned long lift_blocked;
 void lift_trap(u32 w, u32 tpc, u32 ret) {
     if (lift_dry) { lift_trap_pc = tpc; longjmp(lift_jb, 2); }
     if (det && ntraps >= det_next && !call_depth) lift_bail(tpc);
     if (patched[trap_key(w, 0)]) { A[7] -= 4; w32(A[7], ret); lift_enter(patched[trap_key(w, 0)]); return; }
     lift_traps++; lift_sync_out(); trap_pc = tpc; trap_from_stub = 0; wm_redirected = 0;
     hle((uint16_t)w, ret);
+    { static int nb = -1; if (nb < 0) nb = getenv("NOBLOCK") != NULL;
+      while (!nb && !halted && !quit_requested && R(M68K_REG_PC) == YIELD_PC) {   /* blocking trap: wait in C instead of rewinding into the interpreter */
+        lift_blocked++; usleep(1500); lift_synced = 1; lift_poll(tpc); lift_sync_out(); W(M68K_REG_PC, ret); trap_pc = tpc; hle((uint16_t)w, ret); } }
     if (!(w & 0x800) && !halted) { uint32_t d0 = R(M68K_REG_D0) & 0xFFFF; uint32_t sr = R(M68K_REG_SR) & ~0xFu; if (d0 == 0) sr |= 4; if (d0 & 0x8000) sr |= 8; W(M68K_REG_SR, sr); }
     uint32_t pc2 = R(M68K_REG_PC);
     if (pc2 != ret || halted) { lift_trapbail[w & 0xFFFF]++; lift_synced = 1; lift_bail_pc = pc2; lift_bails++; longjmp(lift_jb, 1); }
