@@ -1268,7 +1268,10 @@ const LiftEnt lift_ents[] = {
   {14, 0x60, L_14_60},
   {14, 0x68, L_14_68},
   {14, 0x70, L_14_70},
+  {14, 0x88, L_14_88},
   {14, 0x8c, L_14_8c},
+  {14, 0x94, L_14_94},
+  {14, 0x398, L_14_398},
   {14, 0x3b2, L_14_3b2},
   {14, 0x3f4, L_14_3f4},
   {14, 0x4b8, L_14_4b8},
@@ -1330,8 +1333,10 @@ const LiftEnt lift_ents[] = {
   {14, 0x40b0, L_14_40b0},
   {14, 0x4164, L_14_4164},
   {14, 0x417c, L_14_417c},
+  {15, 0x0, L_15_0},
+  {15, 0xc6, L_15_c6},
 };
-const int lift_nents = 1329;
+const int lift_nents = 1334;
 const LiftMid lift_mids[] = {
   {1, 0x20, L_1_4, 0},
   {1, 0x2a, L_1_4, 0},
@@ -8481,7 +8486,10 @@ const LiftMid lift_mids[] = {
   {14, 0x37c, L_14_50, 0},
   {14, 0x38c, L_14_5c, 0},
   {14, 0x394, L_14_60, 0},
+  {14, 0x1fa, L_14_88, 0},
   {14, 0x1c6, L_14_8c, 0},
+  {14, 0x3ac, L_14_398, 0},
+  {14, 0x3b0, L_14_398, 0},
   {14, 0x3ce, L_14_3b2, 0},
   {14, 0x3d6, L_14_3b2, 0},
   {14, 0x3de, L_14_3b2, 0},
@@ -8701,7 +8709,11 @@ const LiftMid lift_mids[] = {
   {14, 0x4156, L_14_40b0, 0},
   {14, 0x4194, L_14_417c, 0},
   {14, 0x41a4, L_14_417c, 0},
+  {15, 0x8, L_15_0, 0},
+  {15, 0xa, L_15_0, 0},
 };
-const int lift_nmids = 7368;
+const int lift_nmids = 7373;
 const unsigned char lift_mdrv_sig[16] = {32,47,0,4,34,47,0,8,72,231,63,254,73,250,65,242};
 const unsigned lift_mdrv_len = 29256;
+const unsigned char lift_smod_sig[16] = {72,231,255,254,72,231,96,0,160,37,76,223,0,6,74,128};
+const unsigned lift_smod_len = 456;

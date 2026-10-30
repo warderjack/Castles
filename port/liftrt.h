@@ -24,6 +24,7 @@ typedef struct { int seg; u32 off; LiftFn fn; int haslink; } LiftMid;
 extern const LiftMid lift_mids[]; extern const int lift_nmids;
 extern u32 lift_mid, lift_mid_r0; extern const char *lift_mm_fn;
 extern const unsigned char lift_mdrv_sig[16]; extern const unsigned lift_mdrv_len;
+extern const unsigned char lift_smod_sig[16]; extern const unsigned lift_smod_len;
 
 /* host glue (port/lift_host.inc) */
 void lift_enter(u32 target);                    /* run translated routine at runtime address, or bail to the interpreter */

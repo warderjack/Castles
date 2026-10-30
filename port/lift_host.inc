@@ -59,6 +59,7 @@ void lift_enter(u32 tgt) {
     for (int k = 0; k < 4 && m16(tgt) == 0x4EF9; k++) tgt = m32(tgt + 2);      /* follow jump-table stubs */
     LiftFn f = lift_lookup(tgt);
     if (!f && lift_mdrv_len && lift_nents && tgt < 0xC00000 && !lift_segtab[14] && !memcmp(ram + tgt, lift_mdrv_sig, 16)) { fprintf(stderr, "  [mdrv] code block at %06x\n", tgt); lift_register_seg(14, tgt, lift_mdrv_len); f = lift_lookup(tgt); }
+    if (!f && lift_smod_len && lift_nents && tgt < 0xC00000 && !lift_segtab[15] && !memcmp(ram + tgt, lift_smod_sig, 16)) { fprintf(stderr, "  [smod] code block at %06x\n", tgt); lift_register_seg(15, tgt, lift_smod_len); f = lift_lookup(tgt); }
     if (!f && tgt >= 0xC00000) {   /* A5-world dispatch thunks: bra.s/nop ladder into  jsr d16(a5); jmp (a0) */
         u32 t = tgt; for (int k = 0; k < 64; k++) { u16 w = m16(t); if ((w >> 8) == 0x60 && (w & 0xFF) && (w & 0xFF) != 0xFF) t = t + 2 + (s32)(s8)(w & 0xFF); else if (w == 0x4E71) t += 2; else break; }
         if (m16(t) == 0x4EAD && m16(t + 4) == 0x4ED0) { A[7] -= 4; w32(A[7], t + 4); lift_rs[lift_rsp++ & 255] = t + 4; lift_enter(A[5] + (u32)(s32)(s16)m16(t + 2)); lift_rsp--; lift_enter(A[0]); return; }
