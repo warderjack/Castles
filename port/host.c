@@ -413,7 +413,8 @@ int m68k_execute(int cycles) {
         castles_instr_hook(pc);
         if (native_end_slice || halted) break;
         if (native_regs[M68K_REG_PC] == pc && pc != YIELD_PC + 2) {
-            fprintf(stderr, "[native] cannot execute pc=%06x op=%04x sp=%06x (not lifted; rebuild with the interpreter: ./build.sh)\n", pc, rd16(pc), SP);
+            fprintf(stderr, "[native] cannot execute pc=%06x op=%04x sp=%06x (not lifted; rebuild with the interpreter: ./build.sh)\n  recent lift entries:", pc, rd16(pc), SP); for (int q = 31; q >= 0; q--) fprintf(stderr, " %06x", lift_entring[(lift_entri - 1 - q) & 31]); fprintf(stderr, "\n  stack:"); for (int q = 0; q < 8; q++) fprintf(stderr, " %08x", rd32(SP + 4 * q)); fprintf(stderr, "\n");
+            if (call_depth > 0) { fprintf(stderr, "  [native] abandoning host-called routine (stale/garbage target)\n"); call_done = 1; native_end_slice = 1; break; }   /* VBL/Time Manager/sound callback went astray: drop the call, keep playing */
             halted = 1; quit_requested = 1; break;
         }
     }

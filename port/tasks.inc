@@ -8,6 +8,7 @@ static double now_ms(void) { if (det) return det_slices * 0.67; struct timespec 
 
 static uint32_t call_args[2]; static int call_nargs = 0;
 static void call68k(uint32_t addr, uint32_t a0, uint32_t a1) {
+    if (getenv("TASKLOG")) { fprintf(stderr, "[task] call %06x a0=%x a1=%x bytes:", addr, a0, a1); for (int i = 0; i < 16; i++) fprintf(stderr, "%02x", rd8(addr + i)); fprintf(stderr, "\n"); }
     uint32_t sv[18]; for (int i = 0; i < 8; i++) { sv[i] = R(M68K_REG_D0 + i); sv[8 + i] = R(M68K_REG_A0 + i); } sv[16] = R(M68K_REG_PC); sv[17] = R(M68K_REG_SR);
     uint32_t sp0 = SP; setsp(sp0 - 128);                        /* skip red zone below SP */
     for (int i = 0; i < call_nargs; i++) push32(call_args[i]); call_nargs = 0;
