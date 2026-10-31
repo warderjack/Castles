@@ -20,6 +20,11 @@ static int wm_dispatch(uint16_t w, uint16_t n, uint32_t ret) {
     /* ---------------- events ---------------- */
     case 0xA970: case 0xA971: { uint32_t evp = rd32(sp); int mask = rd16(sp + 4); int r = get_event(evp, mask, n == 0xA970); setsp(sp + 6); wr_bool(sp + 6, r); if (!r) idle_hint = 1; return 1; }
     case 0xA860: { uint32_t evp = rd32(sp + 8); int mask = rd16(sp + 12); uint32_t sleep = rd32(sp + 4); int r = get_event(evp, mask, 1);
+        if (!r && !det) {   /* pace null-event polling like a period Mac: at most CASTLES_WNEHZ (default 60) idle passes per second, so frame-per-idle animations don't run at host speed */
+            static double hz = -1; static struct timespec lastn; if (hz < 0) { const char *e = getenv("CASTLES_WNEHZ"); hz = e ? atof(e) : 60.0; }
+            if (hz > 0) { for (;;) { struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t); double dt = (t.tv_sec - lastn.tv_sec) * 1e3 + (t.tv_nsec - lastn.tv_nsec) / 1e6; if (dt >= 1000.0 / hz || dt < 0) { lastn = t; break; } usleep(500); r = get_event(evp, mask, 1); if (r) break; } }
+        }
+        { static unsigned hist[8]; static int nn; static uint32_t lt; if (getenv("WNESLEEP")) { hist[sleep == 0 ? 0 : sleep < 3 ? 1 : sleep < 10 ? 2 : sleep < 60 ? 3 : 4]++; if ((++nn % 5000) == 0) fprintf(stderr, "[wnesleep] tick=%u s0=%u s1-2=%u s3-9=%u s10-59=%u s60+=%u last=%u\n", ticks_now(), hist[0], hist[1], hist[2], hist[3], hist[4], sleep); (void)lt; } }
         { static int wn; if (getenv("WNEDBG") && (wn++ % 20000) == 0) { fprintf(stderr, "[wne] mask=%04x r=%d what=%d front=%06x active=%06x\n", mask, r, rd16(evp), win_list_head(), active_win); for (uint32_t p = win_list_head(); p; p = rd32(p + WR_NEXT)) { RL u = {0}; rgn_get(rd32(p + WR_UPDATE), &u); fprintf(stderr, "   win %06x vis=%d hil=%d upd_empty=%d\n", p, win_visible(p), rd8(p + WR_HILITED), rl_isempty(&u)); rl_free(&u); } } } setsp(sp + 14); wr_bool(sp + 14, r); { static int nullrun; if (r) nullrun = 0; else if (++nullrun > 2 || sleep) idle_hint = 1; } return 1; }
     case 0xA974: { ev_pump(); wr_bool(sp, plat_btn); return 1; }
     case 0xA973: { ev_pump(); wr_bool(sp, plat_btn); if (plat_btn) idle_hint = 1; return 1; }

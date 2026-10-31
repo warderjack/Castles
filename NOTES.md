@@ -146,7 +146,7 @@ Music works (SoundMusicSys-style engine: 'SONG' resources + mixer MDRV). Seg 13 
 
 ## Issue queue (user-reported)
 - Territory with a castle under construction: people/workers animate incredibly fast; looks tied to clock speed (TickCount/Time Manager pacing or per-frame loop not throttled). Investigate after sound.
-- Load Game: the Open dialog's default button is labelled "Save" (should be "Open"/"Start"). Likely the Standard File dialog (sfg.inc) uses the SFPutFile button text for SFGetFile, or the DITL item 1 text isn't set. Fix after sound.
+- (Resolved/not reproducible) Load Game dialog button label: user later saw "Open" correctly in the current build.
 
 - Verified by user on real desktop (2026-10-31): repeated castle placement across territories and close/reload cycles no longer crash or show artifacts (memory fixes 137a669).
 
@@ -154,3 +154,9 @@ Music works (SoundMusicSys-style engine: 'SONG' resources + mixer MDRV). Seg 13 
 1. `Get1IndResource`/`GetIndResource` read their (type, index) args in the wrong order, so the game's effect-table builder (seg 13 +0x54c, called from the battle setup seg 7 +0x1618) found no 'snd ' ids 1000..9999 and registered zero effects; every effect request was silently dropped.
 2. The MDRV driver selector stubs (`jmp 0(a0,d0.w)` table at SB14+0x34) were only lifted for selectors seen in earlier runs; selector 17 (play sample) and 20 were unlifted ("cannot execute pc=a80198"). All 27 stubs are now seeded in gen/entries_extra.txt.
 Debug aids: SNDFX=<name> SNDFXAT=<ms> fires an effect from the harness (needs a running game); SNDDRV=1 logs driver selector calls; SNDVOICE=1 dumps effect voices.
+- Verified by user (2026-10-31): sound effects audible in battle (infantry, archers) after aac0a15.
+
+## Fast animation attempt (castle under construction)
+The game always calls WaitNextEvent with sleep=0 (verified with WNESLEEP=1), so any frame-per-idle animation ran at host speed (~600 idle passes/s). WNE now paces null-event returns to CASTLES_WNEHZ (default 60/s; 0 disables; headless/deterministic mode unaffected). Awaiting user confirmation; if still fast, lower CASTLES_WNEHZ (e.g. 20) or locate the animation's own timer.
+- Apple menu > About Castles: Siege and Conquest fails: shows a small Castles logo overlaid on the current screen; only occasionally the developer-credits image appears, usually nothing further happens (likely credits/animated about screen needing a timed sequence, window/redraw or event handling). Investigate.
+- Menu bar highlight sticks: after opening one menu then another, previously opened titles (e.g. Edit, then Game, then Apple) stay highlighted; clears only after many menu clicks. Probably MenuSelect/HiliteMenu(0) not un-inverting the title on dismiss (invert-based, so double toggles).
