@@ -1,8 +1,14 @@
 /* ---- Resource Manager: multiple resource files, search chain, add/write/update ---- */
 static int rf_refnum(int fi) { return fi == 0 ? 1 : 100 + fi; }
 static int rf_from_ref(int rn) { if (rn == 1) return 0; if (rn >= 101 && rn < 132 && rfiles[rn - 100].used) return rn - 100; return -1; }
+/* copy a handle-backed (added/modified) resource's bytes into private storage so it survives Release/Detach */
+static void res_snapshot(Res *r) {
+    if (!r || !r->handle || r->handle < MP_BASE || r->handle >= MP_BASE + MP_COUNT * 4) return; uint32_t p = rd32(r->handle), n = hsize[slot_of(r->handle)]; if (!p) return;
+    if (r->buf && r->off + n <= r->len + r->off && 0) return;
+    uint8_t *b = malloc(n ? n : 1); memcpy(b, ram + p, n); r->buf = b; r->off = 0; r->len = n;     /* leaks the old copy deliberately: other Res may share the file buffer */
+}
 static uint32_t slot_len(Res *r) { return r->handle ? hsize[slot_of(r->handle)] : r->len; }
-static const uint8_t *res_bytes(Res *r) { return r->handle ? ram + rd32(r->handle) : r->buf + r->off; }
+static const uint8_t *res_bytes(Res *r) { static const uint8_t z[1]; return r->handle ? ram + rd32(r->handle) : r->buf ? r->buf + r->off : z; }
 static void put32(uint8_t *p, uint32_t v) { p[0] = v >> 24; p[1] = v >> 16; p[2] = v >> 8; p[3] = v; }
 static void put16(uint8_t *p, uint32_t v) { p[0] = v >> 8; p[1] = v; }
 
@@ -54,8 +60,8 @@ static void pstring(uint32_t a, char *out, int max) { int l = a ? rd8(a) : 0; if
 static int rm_dispatch(uint16_t w, uint16_t n, uint32_t ret) {
     uint32_t sp = SP;
     switch (n) {
-    case 0xA992: { Res *r = res_from_handle(rd32(sp)); if (r) r->handle = 0; setsp(sp + 4); res_err = r ? 0 : -192; return 1; }     /* DetachResource: handle now belongs to the app */
-    case 0xA9A3: { uint32_t h = rd32(sp); Res *r = res_from_handle(h); if (r) { r->handle = 0; dispose_handle(h); } setsp(sp + 4); res_err = r ? 0 : -192; return 1; }   /* ReleaseResource */
+    case 0xA992: { Res *r = res_from_handle(rd32(sp)); if (r) { if (!r->buf || r->dirty) res_snapshot(r); r->handle = 0; } setsp(sp + 4); res_err = r ? 0 : -192; return 1; }     /* DetachResource: handle now belongs to the app */
+    case 0xA9A3: { uint32_t h = rd32(sp); Res *r = res_from_handle(h); if (r) { if (!r->buf || r->dirty) res_snapshot(r); r->handle = 0; dispose_handle(h); } setsp(sp + 4); res_err = r ? 0 : -192; return 1; }   /* ReleaseResource */
     case 0xA9A2: setsp(sp + 4); return 1;                                                                                              /* LoadResource */
     case 0xA997: {          /* OpenResFile(name): refnum */
         char path[1100], bin[1200]; int isdir; if (resolve(0, rd32(sp), path, &isdir) || isdir) { setsp(sp + 4); wr16(sp + 4, 0xFFFF); res_err = -43; return 1; }
@@ -85,7 +91,7 @@ static int rm_dispatch(uint16_t w, uint16_t n, uint32_t ret) {
         if (nres >= 8192) { setsp(sp + 14); return 1; }
         Res *r = &res[nres++]; memset(r, 0, sizeof *r); r->type = type; r->id = id; r->handle = h; r->len = hsize[slot_of(h)]; r->file = cur_rf; r->buf = NULL; pstring(np, r->name, 64);
         rfiles[cur_rf].changed = 1; setsp(sp + 14); res_err = 0; return 1; }
-    case 0xA9B0: case 0xA9AA: { Res *r = res_from_handle(rd32(sp)); if (r) rfiles[r->file].changed = 1; setsp(sp + 4); res_err = 0; return 1; }  /* WriteResource / ChangedResource */
+    case 0xA9B0: case 0xA9AA: { Res *r = res_from_handle(rd32(sp)); if (r) { rfiles[r->file].changed = 1; r->dirty = 1; } setsp(sp + 4); res_err = 0; return 1; }  /* WriteResource / ChangedResource */
     case 0xA9AD: { Res *r = res_from_handle(rd32(sp)); if (r) { r->dead = 1; rfiles[r->file].changed = 1; } setsp(sp + 4); return 1; }             /* RmveResource */
     case 0xA9A7: { Res *r = res_from_handle(rd32(sp + 2)); if (r) r->attrs = rd16(sp) & 0xFF; setsp(sp + 6); return 1; }                               /* SetResAttrs */
     case 0xA9A8: {          /* GetResInfo(h, VAR id, VAR type, VAR name) */

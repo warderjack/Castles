@@ -61,7 +61,7 @@ static void die(const char *fmt, ...) {
 }
 
 /* ---------------- Resource files ---------------- */
-typedef struct { uint32_t type; int16_t id; uint8_t attrs; uint32_t off, len; uint32_t handle; char name[64]; const uint8_t *buf; int file; int dead; } Res;
+typedef struct { uint32_t type; int16_t id; uint8_t attrs; uint32_t off, len; uint32_t handle; char name[64]; const uint8_t *buf; int file; int dead; int dirty; } Res;
 typedef struct { int used; char path[1100]; uint8_t *buf; size_t len; int changed; } RFile;
 static RFile rfiles[32]; static int chain[32], nchain = 0, cur_rf = 0;
 static uint8_t *rfork; static size_t forklen;
@@ -160,7 +160,7 @@ static void dispose_handle(uint32_t h) {
 static uint32_t res_get_handle(Res *r) {
     if (!r->handle) {
         r->handle = new_handle(r->len);
-        memcpy(ram + rd32(r->handle), r->buf + r->off, r->len);
+        if (r->buf) memcpy(ram + rd32(r->handle), r->buf + r->off, r->len); else memset(ram + rd32(r->handle), 0, r->len);
     }
     return r->handle;
 }

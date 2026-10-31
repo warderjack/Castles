@@ -120,3 +120,6 @@ Military > Attack is enabled only for a selected non-owned county once a recruit
 
 ## First real-desktop run (user report)
 Opening sound had clicks/pops: audio was fed only at real-time pace (refill after each buffer's duration), so any stall underran. `snd_tick` now keeps ~300 ms queued in SDL and refills immediately (headless / no-device keeps the old pacing). User also reported a crash after clicking at the title screen with no `[native]` message (likely a signal); not reproducible here under Xvfb (SDL x11, dummy audio) or valgrind headless. Ask for exit status (139 = segfault) and gdb backtrace.
+
+### Crash fix (user's first run)
+Fresh game folder (no Castles Prefs.bin) segfaulted right after New Game > OK: the game AddResource()s a prefs resource, then ReleaseResource/DetachResource'd it; `Res` had `buf == NULL` and its handle was gone, so `res_get_handle`/`res_bytes` read from NULL+off. Fix: `res_snapshot()` copies handle-backed resources into private storage on Release/Detach, plus NULL guards. Test with a copy of the game folder with `Castles Prefs*` removed (previous smoke runs always had a prefs file, which hid it). Backtrace came from `gdb bt` on the user's machine.
