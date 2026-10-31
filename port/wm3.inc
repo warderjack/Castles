@@ -104,14 +104,14 @@ static void dd_open(int midx) {
     fill_rect_dc(&d, (Rc){b.b, b.l + 1, b.b + 1, b.r + 1}, 1); fill_rect_dc(&d, (Rc){b.t + 1, b.r, b.b + 1, b.r + 1}, 1);
     fill_rect_dc(&d, b, 0); frame_rect_dc(&d, b, 1);
     uint32_t mh = mbt[midx].mh; int n = menu_count(mh); for (int i = 1; i <= n; i++) dd_item_draw(&d, mh, i, b, 0);
-    invert_rect_dc(&d, (Rc){0, mbt[midx].x0, mbar_height - 1, mbt[midx].x1});
     dc_free(&d); rl_free(&all);
+    hilite_menu_id = menu_id(mbt[midx].mh); menubar_draw();      /* redraw the title highlighted (an XOR toggle is not reversible on a palette screen and left stale highlights) */
 }
 static void dd_close(void) {
     if (!msel.saved) return; Rc sa = msel.area; int w = sa.r - sa.l, h = sa.b - sa.t;
     for (int y = 0; y < h; y++) memcpy(ram + FB_BASE + (sa.t + y) * SCR_W + sa.l, msel.saved + y * w, w);
     free(msel.saved); msel.saved = NULL;
-    if (msel.midx >= 0) { RL all = {0}; rl_add(&all, (Rc){0, 0, mbar_height, SCR_W}); DC d; screen_dc(&d, &all); Rc tr = {0, mbt[msel.midx].x0, mbar_height - 1, mbt[msel.midx].x1}; invert_rect_dc(&d, tr); dc_free(&d); rl_free(&all); }
+    if (msel.midx >= 0) { hilite_menu_id = 0; menubar_draw(); }
     gfx_dirty = 1;
 }
 static void dd_hilite(int item, int on) {
