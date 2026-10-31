@@ -129,3 +129,6 @@ Fresh game folder (no Castles Prefs.bin) segfaulted right after New Game > OK: t
 
 ### Sound root cause
 The game's MDRV buffer proc (seg 14 +0x6de) tests low-memory SdVolume (byte at $260); 0 -> it writes silence (constant 0x00 buffers). Host never initialised it. Now `wr8(0x260, 7)` at boot (Mac default); the mixer then produces real 8-bit U8 data centred on 128 (verified with SNDLOG: buffers min~112 max~144 during recruit scenario). Smoke suite still passes. Not yet heard on real hardware; audio path: SDL_QueueAudio, 22254 Hz mono U8, ~300 ms queued ahead.
+
+### Verified on a real Linux Mint desktop (user)
+Window + mouse + New Game work (after the Prefs-resource fix); attack on Reims (as Valois, 1 infantry recruited) reached a battle with a correct-looking map; Save Game (silent overwrite after first save) and Save/Open round-trip verified. Sound not yet re-tested after the SdVolume fix (needs pull + rebuild). Music: 'IntroSong' file absent from the distribution (-43).
