@@ -150,7 +150,14 @@ static int qd_dispatch(uint16_t w, uint16_t n, uint32_t ret) {
                   (void)flags; (void)gdev; uint32_t gdh = 0; uint32_t port = gw_new(depth, rc_get(bnd), ctab, &gdh); wr32(gwp, port);
                   setsp(sp + 22); wr16(sp + 22, 0); return 1; }
         case 1: setsp(sp + 4); wr_bool(sp + 4, 1); return 1;                 /* LockPixels */
-        case 2: case 7: case 8: case 9: case 10: case 11: case 12: case 4: setsp(sp + 4); return 1;
+        case 4: { uint32_t port = rd32(sp); setsp(sp + 4);                         /* DisposeGWorld: give back pixels, pixmap, device and port */
+                  if (port >= HEAP_START && port < HEAP_END && rd32(port - 4) == 1) { uint32_t pmh = rd32(port + 2), gdh = rd32(port + 8);
+                      if (pmh >= MP_BASE && pmh < MP_BASE + MP_COUNT * 4 && pmh != main_pm) { uint32_t pm = rd32(pmh); uint32_t base = pm ? rd32(pm) : 0;
+                          if (base && base != FB_BASE && base >= HEAP_START && base < HEAP_END) free_block(base);
+                          if (gdh >= MP_BASE && gdh < MP_BASE + MP_COUNT * 4 && gdh != main_gd) dispose_handle(gdh);
+                          dispose_handle(pmh); wr32(port + 2, 0); free_block(port); } }
+                  return 1; }
+        case 2: case 7: case 8: case 9: case 10: case 11: case 12: setsp(sp + 4); return 1;
         case 3: setsp(sp + 22); wr32(sp + 22, 0); return 1;                  /* UpdateGWorld (no-op) */
         case 5: { uint32_t gdp = rd32(sp), pp = rd32(sp + 4); wr32(pp, the_port()); wr32(gdp, cur_gd); setsp(sp + 8); return 1; }
         case 6: { uint32_t gd = rd32(sp), port = rd32(sp + 4); set_the_port(port); if (gd) cur_gd = gd; setsp(sp + 8); return 1; }

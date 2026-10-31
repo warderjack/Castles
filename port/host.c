@@ -13,7 +13,9 @@ unsigned char lift_fcov[16][1 << 15];
 #define MP_BASE    0x004000u            /* master pointer table */
 #define MP_COUNT   0x10000u
 #define HEAP_START 0x050000u
+#ifndef HEAP_END
 #define HEAP_END   0x0B00000u
+#endif
 #define STACK_TOP  0x0C00000u           /* == CurStackBase (bottom of A5 world) */
 #define STUB_BASE  0x0F00000u           /* trap stubs: 4 bytes per key */
 #define STUB_END   (STUB_BASE + 0x1000u * 4)
@@ -123,23 +125,33 @@ static void fl_insert(uint32_t a, uint32_t n) {       /* insert sorted, coalesci
     if (nfl == capfl) { capfl = capfl ? capfl * 2 : 256; fl = realloc(fl, capfl * sizeof(Ext)); }
     memmove(&fl[lo + 1], &fl[lo], (nfl - lo) * sizeof(Ext)); fl[lo].a = a; fl[lo].n = n; nfl++;
 }
-static void heap_init(void) { heap_ready = 1; fl_insert(HEAP_START, HEAP_END - HEAP_START); heap_free = HEAP_END - HEAP_START; }
+#define FB_RESERVE_END 0x00A50000u      /* framebuffer (FB_BASE=0xA00000, 640x480 bytes) lives inside the heap range: never hand it out */
+static void heap_init(void) { heap_ready = 1;
+    if (HEAP_END > 0x00A00000u && HEAP_START < 0x00A00000u) { fl_insert(HEAP_START, 0x00A00000u - HEAP_START); heap_free = 0x00A00000u - HEAP_START; if (HEAP_END > FB_RESERVE_END) { fl_insert(FB_RESERVE_END, HEAP_END - FB_RESERVE_END); heap_free += HEAP_END - FB_RESERVE_END; } }
+    else { fl_insert(HEAP_START, HEAP_END - HEAP_START); heap_free = HEAP_END - HEAP_START; } }
 static uint32_t heap_maxblock(void) { uint32_t m = 0; for (int i = 0; i < nfl; i++) if (fl[i].n > m) m = fl[i].n; return m > 8 ? m - 8 : 0; }
+static int purge_for(uint32_t need); static int purging;
+static struct { uint32_t p, n, pc; } hl_live[1 << 16]; static int hl_on = -1; static uint32_t trap_pc, hl_ret;
+static void hl_add(uint32_t p, uint32_t n) { if (hl_on < 0) hl_on = getenv("HEAPLOG") != NULL; if (!hl_on) return; for (int i = 0; i < (1 << 16); i++) { int k = (int)(((p >> 3) + i) & 0xFFFF); if (!hl_live[k].p) { hl_live[k].p = p; hl_live[k].n = n; hl_live[k].pc = hl_ret; return; } } }
+static void hl_del(uint32_t p) { if (!hl_on) return; for (int i = 0; i < (1 << 16); i++) { int k = (int)(((p >> 3) + i) & 0xFFFF); if (hl_live[k].p == p) { hl_live[k].p = 0xFFFFFFFF; return; } if (!hl_live[k].p) return; } }
 static uint32_t alloc_block(uint32_t n) {
     if (!heap_ready) heap_init();
     n = (n + 3) & ~3u; if (n == 0) n = 4;
-    uint32_t need = n + 8; int best = -1;
+    uint32_t need = n + 8; int best = -1; int purged_once = 0;
+retry:
+    best = -1;
     for (int i = 0; i < nfl; i++) if (fl[i].n >= need && (best < 0 || fl[i].n < fl[best].n)) { best = i; if (fl[i].n == need) break; }
+    if (best < 0 && !purged_once && !purging) { purged_once = 1; if (purge_for(need)) goto retry; }
     if (best < 0) { fprintf(stderr, "[heap] out of memory (n=%u free=%u max=%u)\n", n, heap_free, heap_maxblock()); return 0; }
     uint32_t b = fl[best].a, tot = fl[best].n;
     if (tot - need >= 24) { fl[best].a += need; fl[best].n -= need; tot = need; }
     else { memmove(&fl[best], &fl[best + 1], (nfl - best - 1) * sizeof(Ext)); nfl--; }
     heap_free -= tot; wr32(b, tot - 8); wr32(b + 4, 1); memset(ram + b + 8, 0, tot - 8);
-    return b + 8;
+    hl_add(b + 8, tot - 8); return b + 8;
 }
 static void free_block(uint32_t p) {
     if (!p) return; uint32_t b = p - 8; if (b < HEAP_START || b >= HEAP_END || rd32(b + 4) != 1) return;
-    uint32_t tot = rd32(b) + 8; wr32(b + 4, 0); heap_free += tot; fl_insert(b, tot);
+    hl_del(p); uint32_t tot = rd32(b) + 8; wr32(b + 4, 0); heap_free += tot; fl_insert(b, tot);
 }
 static uint32_t new_handle(uint32_t n) {
     uint32_t s;
@@ -159,10 +171,25 @@ static void dispose_handle(uint32_t h) {
 
 static uint32_t res_get_handle(Res *r) {
     if (!r->handle) {
-        r->handle = new_handle(r->len);
+        r->handle = new_handle(r->len); if (!r->handle) return 0;
         if (r->buf) memcpy(ram + rd32(r->handle), r->buf + r->off, r->len); else memset(ram + rd32(r->handle), 0, r->len);
+        hflags[slot_of(r->handle)] = 0x20 | ((r->attrs & 0x20) ? 0x40 : 0) | ((r->attrs & 0x10) ? 0x80 : 0);
+    } else if (!rd32(r->handle) && r->buf) {        /* purged: reload into the same master pointer */
+        uint32_t p = alloc_block(r->len); if (p) { wr32(r->handle, p); memcpy(ram + p, r->buf + r->off, r->len); }
     }
     return r->handle;
+}
+/* Memory Manager purge: free unlocked purgeable file-backed resources (the original app heap was small; the Mac purged these on demand) */
+static int purge_for(uint32_t need) {
+    int any = 0; purging = 1;
+    for (int i = 0; i < nres; i++) {
+        Res *r = &res[i]; if (r->dead || !r->handle || !r->buf || r->dirty) continue;
+        uint32_t s = slot_of(r->handle); if (s >= next_slot) continue; uint32_t p = rd32(r->handle);
+        if (!p || !(hflags[s] & 0x40) || (hflags[s] & 0x80)) continue;
+        free_block(p); wr32(r->handle, 0); any = 1; if (heap_maxblock() >= need + 64) break;
+    }
+    purging = 0; if (any && getenv("HEAPLOG")) fprintf(stderr, "[heap] purged resources (free=%u max=%u)\n", heap_free, heap_maxblock());
+    return any;
 }
 
 /* ---------------- Trap infrastructure ---------------- */
@@ -238,6 +265,7 @@ static void init_graf(uint32_t P) {
 #include "movie.inc"
 #include "lift_host.inc"
 static void hle(uint16_t w, uint32_t ret) {
+    hl_ret = ret;
     ntraps++;
     int redirected = 0;
     uint16_t n = (w & 0x800) ? (w & 0xFBFF) : (w & 0xF8FF);   /* normalised trap word */
@@ -269,7 +297,9 @@ static void hle(uint16_t w, uint32_t ret) {
     case 0xA027: SETD(0, set_handle_size(A(0), D(0))); break;      /* ReallocHandle */
     case 0xA029: hflags[slot_of(A(0))] |= 0x80; SETD(0, 0); break;
     case 0xA02A: hflags[slot_of(A(0))] &= ~0x80; SETD(0, 0); break;
-    case 0xA049: case 0xA04A: case 0xA02B: case 0xA064: case 0xA067: case 0xA068: SETD(0, 0); break; /* HPurge,HNoPurge,EmptyHandle,MoveHHi,HSet/ClrRBit */
+    case 0xA049: hflags[slot_of(A(0))] |= 0x40; SETD(0, 0); break;                  /* HPurge */
+    case 0xA04A: hflags[slot_of(A(0))] &= ~0x40; SETD(0, 0); break;                 /* HNoPurge */
+    case 0xA02B: case 0xA064: case 0xA067: case 0xA068: SETD(0, 0); break; /* HPurge,HNoPurge,EmptyHandle,MoveHHi,HSet/ClrRBit */
     case 0xA069: SETD(0, hflags[slot_of(A(0))]); break;
     case 0xA06A: hflags[slot_of(A(0))] = D(0) & 0xFF; SETD(0, 0); break;
     case 0xA036: case 0xA063: case 0xA02D: case 0xA04B: case 0xA040: case 0xA04D: SETD(0, 0); break; /* MoreMasters,MaxApplZone,SetApplLimit,SetGrowZone,ResrvMem,PurgeMem */
@@ -475,6 +505,8 @@ int main(int argc, char **argv) {
     if (lift_chk_active) fprintf(stderr, "[chkpc] check STILL ACTIVE at exit: entry=%06x ret=%06x sp=%x\n", chk_entry, chk_ret, chk_sp);
     if (lift_check) fprintf(stderr, "[LIFTCHECK] verified=%d mismatched=%d skipped(trap/bail)=%d (verified incl. partial-to-trap: %lu)\n", chk_ok, chk_bad, chk_skip, chk_part_n);
     if (pchist) { for (int k = 0; k < 400; k++) { unsigned best = 0; uint32_t bi = 0; for (uint32_t i = 0; i < RAM_SIZE / 2; i++) if (pchist[i] > best) { best = pchist[i]; bi = i; } if (!best) break; fprintf(stderr, "  hot %06x x%u  bytes:", bi * 2, best); for (int q = 0; q < 12; q++) fprintf(stderr, "%02x", ram[bi * 2 + q]); fprintf(stderr, "\n"); pchist[bi] = 0; } }
+    if (hl_on > 0) { for (int pass = 0; pass < 12; pass++) { int bi = -1; unsigned long bs = 0; static uint32_t seen[12][2]; for (int k = 0; k < (1 << 16); k++) if (hl_live[k].p && hl_live[k].p != 0xFFFFFFFF) { unsigned long sz = 0; int cnt = 0; for (int j = 0; j < (1 << 16); j++) if (hl_live[j].p && hl_live[j].p != 0xFFFFFFFF && hl_live[j].n == hl_live[k].n && hl_live[j].pc == hl_live[k].pc) { sz += hl_live[j].n; cnt++; } int dup = 0; for (int q = 0; q < pass; q++) if (seen[q][0] == hl_live[k].n && seen[q][1] == hl_live[k].pc) dup = 1; if (!dup && sz > bs) { bs = sz; bi = k; } } if (bi < 0) break; seen[pass][0] = hl_live[bi].n; seen[pass][1] = hl_live[bi].pc; int cnt = 0; for (int j = 0; j < (1 << 16); j++) if (hl_live[j].p && hl_live[j].p != 0xFFFFFFFF && hl_live[j].n == hl_live[bi].n && hl_live[j].pc == hl_live[bi].pc) cnt++; fprintf(stderr, "[heap] live: %d x %u bytes (total %lu) allocated at trap pc=%06x\n", cnt, hl_live[bi].n, bs, hl_live[bi].pc); } }
+    if (getenv("HEAPLOG")) fprintf(stderr, "[heap] at exit: free=%u maxblock=%u extents=%d slots=%u freeslots=%u\n", heap_free, heap_maxblock(), nfl, next_slot, nfree_slots);
     if (lift_calls) { fprintf(stderr, "bails: enter-unlifted=%lu; redirecting traps:", lift_enterbail); for (int k = 0; k < 12; k++) { int b = -1; for (int i = 0; i < 65536; i++) if (lift_trapbail[i] && (b < 0 || lift_trapbail[i] > lift_trapbail[b])) b = i; if (b < 0) break; fprintf(stderr, " %04X(%s)=%lu", b, tname(b), lift_trapbail[b]); lift_trapbail[b] = 0; } fprintf(stderr, "\n"); }
     if (lift_calls) { fprintf(stderr, "top bail targets:"); for (int k = 0; k < 12; k++) { unsigned best = 0; uint32_t bi = 0; for (uint32_t i = 0; i < (1 << 23); i++) if (lift_bh[i] > best) { best = lift_bh[i]; bi = i; } if (!best) break; fprintf(stderr, " %06x=%u", bi << 1, best); lift_bh[bi] = 0; } fprintf(stderr, "\n"); }
     if (lift_calls) { fprintf(stderr, "blocked=%lu guestcalls=%lu\n", lift_blocked, lift_guestcalls); fprintf(stderr, "unlifted enter targets:"); for (int k = 0; k < 10; k++) { unsigned best = 0; uint32_t bi = 0; for (uint32_t i = 0; i < (1 << 23); i++) if (lift_ebt[i] > best) { best = lift_ebt[i]; bi = i; } if (!best) break; fprintf(stderr, " %06x=%u", bi * 2, best); lift_ebt[bi] = 0; } fprintf(stderr, "\n"); }

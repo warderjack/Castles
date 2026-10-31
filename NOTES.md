@@ -133,3 +133,10 @@ The game's MDRV buffer proc (seg 14 +0x6de) tests low-memory SdVolume (byte at $
 ### Verified on a real Linux Mint desktop (user)
 Window + mouse + New Game work (after the Prefs-resource fix); attack on Reims (as Valois, 1 infantry recruited) reached a battle with a correct-looking map; Save Game (silent overwrite after first save) and Save/Open round-trip verified. Sound not yet re-tested after the SdVolume fix (needs pull + rebuild). Music: 'IntroSong' file absent from the distribution (-43).
 Sound confirmed by user on real hardware after the SdVolume fix: in-game music plays (so the missing 'IntroSong' only affects the intro track).
+
+### Memory fixes (user's long session crashed on reload)
+User log: `[heap] out of memory (n=145204 free=322016 max=75728)` then `[native] cannot execute pc=c0800c` (game used a NULL handle after a failed NewHandle), plus screen artifacts earlier. Causes found:
+1. **Framebuffer inside the heap range.** FB_BASE=0xA00000 (640x480) lay inside HEAP_START..HEAP_END, so a nearly full heap handed out blocks over the screen buffer (artifacts). `heap_init` now excludes [0xA00000,0xA50000).
+2. **DisposeGWorld (AB1D selector 4) was a no-op**; each Open/Close Game cycle leaked ~0.8 MB (37 live 189800-byte offscreen pixel blocks after 6 cycles). Now frees pixels, pixmap, device and port. `scripts/play/openclose_try.txt` (6 save/close/open cycles; run with `HEAPLOG=1`): heap free at exit 3.6 MB -> 9.2 MB. Not in smoke.sh (needs the file the script itself saves).
+3. **No purging.** Resource handles flagged purgeable are now freed on demand when an allocation fails (`purge_for`, reload through GetResource/LoadResource); HPurge/HNoPurge set/clear the purge bit. Only file-backed, unlocked, unmodified resources are purged.
+`HEAPLOG=1` prints live-allocation groups (count x size, trap return address) and heap stats at exit; useful for finding further leaks. Still no-ops: DisposeRgn, DisposPixMap, DisposeCTable (small).
