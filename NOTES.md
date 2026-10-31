@@ -143,3 +143,14 @@ User log: `[heap] out of memory (n=145204 free=322016 max=75728)` then `[native]
 
 ### Sound effects (open)
 Music works (SoundMusicSys-style engine: 'SONG' resources + mixer MDRV). Seg 13 holds the sound wrappers: +0x87c plays a 'SONG' (gated by prefs byte $1a = Music), +0xad4/+0x90a stop it (cmd 2), +0x690 services both Music ($1a) and Sound Effects ($1b) flags; the dispatcher is seg 2 +0x14ae (JT A5+0x792; cmd 3 = idle poll ~112k calls per soak). Callers of the seg-13 sound routines: seg 5 +0x4a2c (7+7 calls), seg 6 +0x5b46 (13 calls) (battle code), seg 3 +0xe46/+0x2342/+0x2366/+0x255e, seg 7 +0x1618/+0x1ba2, seg 10 +0x746. No effect command is ever issued by my scripts (only startup cmds 0/1/2 and idle cmd 3). `SNDCMD=1` logs every dispatcher call (cmd, word, long). Plan: have the user run a real battle with `SNDCMD=1 SNDLOG=1` and send the non-idle lines.
+
+## Issue queue (user-reported)
+- Territory with a castle under construction: people/workers animate incredibly fast; looks tied to clock speed (TickCount/Time Manager pacing or per-frame loop not throttled). Investigate after sound.
+- Load Game: the Open dialog's default button is labelled "Save" (should be "Open"/"Start"). Likely the Standard File dialog (sfg.inc) uses the SFPutFile button text for SFGetFile, or the DITL item 1 text isn't set. Fix after sound.
+
+- Verified by user on real desktop (2026-10-31): repeated castle placement across territories and close/reload cycles no longer crash or show artifacts (memory fixes 137a669).
+
+## Sound effects root causes (fixed)
+1. `Get1IndResource`/`GetIndResource` read their (type, index) args in the wrong order, so the game's effect-table builder (seg 13 +0x54c, called from the battle setup seg 7 +0x1618) found no 'snd ' ids 1000..9999 and registered zero effects; every effect request was silently dropped.
+2. The MDRV driver selector stubs (`jmp 0(a0,d0.w)` table at SB14+0x34) were only lifted for selectors seen in earlier runs; selector 17 (play sample) and 20 were unlifted ("cannot execute pc=a80198"). All 27 stubs are now seeded in gen/entries_extra.txt.
+Debug aids: SNDFX=<name> SNDFXAT=<ms> fires an effect from the harness (needs a running game); SNDDRV=1 logs driver selector calls; SNDVOICE=1 dumps effect voices.

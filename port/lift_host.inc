@@ -74,6 +74,8 @@ void lift_enter(u32 tgt) {
         A[7] -= 2; w16(A[7], m16(tgt + 2)); lift_trap(0xA9F0, tgt + 4, tgt + 6); return; }
     if (lift_dry && lift_nvis < 512) lift_vis[lift_nvis++] = tgt;
     { static int sc = -1; if (sc < 0) sc = getenv("SNDCMD") != NULL; if (sc && lift_segtab[2] && tgt == SB[2] + 0x14ae && !lift_dry) fprintf(stderr, "  [sndcmd] cmd=%04x w6=%04x l2=%08x\n", m16(A[7] + 8), m16(A[7] + 6), m32(A[7] + 2)); }
+    { static int sd = -1; if (sd < 0) sd = getenv("SNDDRV") != NULL; if (sd && (tgt >> 12) == 0xa80 && !lift_dry && m32(A[7] + 4) == 17) { fprintf(stderr, "  [snddrv] sel17 struct:"); for (int k = 0; k < 0x1c; k += 4) fprintf(stderr, " %08x", m32(m32(A[7] + 8) + k)); fprintf(stderr, "\n"); }
+    if (sd && (tgt >> 12) == 0xa80 && !lift_dry) fprintf(stderr, "  [snddrv] driver tgt=%06x SB14=%x sel=%u arg=%06x\n", tgt, SB[14], m32(A[7] + 4), m32(A[7] + 8)); if (sd && !f && !lift_dry) fprintf(stderr, "  [snddrv] bail-enter %06x sp: %08x %08x %08x %08x %08x\n", tgt, m32(A[7]), m32(A[7] + 4), m32(A[7] + 8), m32(A[7] + 12), m32(A[7] + 16)); }
     if (f) { lift_calls++; f(); } else { lift_enterbail++; if (tgt < (1u<<24)) lift_ebt[tgt >> 1]++; lift_bail(tgt); }
 }
 unsigned long lift_blocked, lift_guestcalls;

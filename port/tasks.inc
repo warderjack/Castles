@@ -6,7 +6,7 @@ static void vbl_init(void) { if (vbl_dummy) return; vbl_dummy = alloc_block(16);
 static uint32_t tm_tasks[32]; static int ntm = 0; static double tm_wake[32];
 static double now_ms(void) { if (det) return det_slices * 0.67; struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t); return t.tv_sec * 1000.0 + t.tv_nsec / 1e6; }
 
-static uint32_t call_args[2]; static int call_nargs = 0;
+static uint32_t call_args[4]; static int call_nargs = 0;
 static void call68k(uint32_t addr, uint32_t a0, uint32_t a1) {
     if (getenv("TASKLOG")) { fprintf(stderr, "[task] call %06x a0=%x a1=%x bytes:", addr, a0, a1); for (int i = 0; i < 16; i++) fprintf(stderr, "%02x", rd8(addr + i)); fprintf(stderr, "\n"); }
     uint32_t sv[18]; for (int i = 0; i < 8; i++) { sv[i] = R(M68K_REG_D0 + i); sv[8 + i] = R(M68K_REG_A0 + i); } sv[16] = R(M68K_REG_PC); sv[17] = R(M68K_REG_SR);
@@ -39,7 +39,23 @@ static double snd_queued_ms(uint32_t hdr) { if (!aud_dev) return 0; uint32_t rat
 static int snd_nodev(void) { return 1; }
 static double snd_queued_ms(uint32_t hdr) { return 0; }
 #endif
+static int fx_st = 0;
+static void snd_fx_hook(void) {
+    int st = fx_st; static double t0 = 0; const char *nm = getenv("SNDFX"); if (!nm || st > 2) return; if (!SB[13]) return;
+    double ms = now_ms(); if (!t0) t0 = ms; if (ms - t0 < (getenv("SNDFXAT") ? atof(getenv("SNDFXAT")) : 20000.0) + st * 3000) return;
+    uint32_t p = alloc_block(128); size_t l = strlen(nm); wr8(p, (uint8_t)l); for (size_t i = 0; i <= l; i++) wr8(p + 1 + i, (uint8_t)nm[i]);
+    uint32_t arg = getenv("SNDFXP") ? p : p + 1; uint32_t st4 = alloc_block(64); for (int i = 0; i < 64; i += 4) wr32(st4 + i, 0);
+    fprintf(stderr, "  [snd] FX hook #%d: call seg13+0xa30 name=%s arg=%06x\n", st, nm, arg); st++; fx_st = st;
+    { uint32_t h = rd32(A[5] - 0x2b4e); { uint32_t tb = rd32(A[5] - 0x1122); int cn = (int16_t)rd16(A[5] - 0x1124); fprintf(stderr, "  [snd] FX table=%06x count=%d:", tb, cn); for (int i = 0; i < cn && i < 40; i++) fprintf(stderr, " %d(%x)", (int16_t)rd16(tb + 0x26 * i + 0x1c), rd32(tb + 0x26 * i + 4)); fprintf(stderr, "\n"); } fprintf(stderr, "  [snd] FX drvproc=%06x -117c=%02x -1216=%04x\n", rd32(A[5] - 0x1186), rd8(A[5] - 0x117c), rd16(A[5] - 0x1216)); fprintf(stderr, "  [snd] FX -1078=%04x -111a=%02x ", rd16(A[5] - 0x1078), rd8(A[5] - 0x111a)); fprintf(stderr, "  [snd] FX prefs handle=%06x ptr=%06x byte1b=%02x\n", h, h ? rd32(h) : 0, h ? rd8(rd32(h) + 0x1b) : 0); }
+    if (st == 1) { call_args[0] = st4; call_nargs = 1; call68k(SB[13] + 0x54c, 0, 0); fprintf(stderr, "  [snd] FX idlist:"); for (int i = 0; i < 60; i++) { int v = (int16_t)rd16(A[5] - 0x139a + 2 * i); if (v == -1) break; fprintf(stderr, " %d", v); } fprintf(stderr, "\n"); } call_args[0] = 0; call_args[1] = arg; call_args[2] = st4; call_nargs = 3; call68k(SB[13] + 0x96e, 0, 0); if (getenv("SNDVOICE")) { uint32_t b = 0xa84320; { fprintf(stderr, "  [voice-find]"); for (uint32_t q = 0xa80000; q < 0xa90000; q += 2) if (rd32(q) == rd32(rd32(b + 4)) && q != rd32(b + 4)) fprintf(stderr, " %x(b+%x)", q, q - b); fprintf(stderr, "\n"); } fprintf(stderr, "  [voice-now] sel=%u arg=%x err=%04x", rd32(b), rd32(b + 4), rd16(b + 8)); for (int i = 8; i < 11; i++) { uint32_t a1 = b + 0x22d2 + 4 * i; fprintf(stderr, " v%d(p=%x e=%x st=%04x)", i, rd32(a1), rd32(a1 + 0x280), rd16(a1 + 0x200)); } fprintf(stderr, "\n"); }
+    { uint32_t tb = rd32(A[5] - 0x1122); int cn = (int16_t)rd16(A[5] - 0x1124); for (int i = 0; i < cn; i++) if ((int16_t)rd16(tb + 0x26 * i + 0x1c) == 1200) { uint32_t r = tb + 0x26 * i; fprintf(stderr, "  [snd] FX rec1200:"); for (int k = 0; k < 0x26; k++) fprintf(stderr, "%02x%s", rd8(r + k), (k & 3) == 3 ? " " : ""); uint32_t dp = rd32(r + 0xc); fprintf(stderr, "\n  [snd] FX data@%06x:", dp); for (int k = 0; k < 32; k++) fprintf(stderr, "%02x", rd8(dp + k)); { unsigned mn = 255, mx = 0; for (uint32_t k = 0; k < rd32(r + 0x10); k++) { unsigned v = rd8(dp + k); if (v < mn) mn = v; if (v > mx) mx = v; } fprintf(stderr, " range %u..%u", mn, mx); } fprintf(stderr, "\n"); } }
+}
+static void snd_voice_dump(void) {
+    static int n = 0; if (!getenv("SNDVOICE") || n > 12) return; static double last = 0; double ms = now_ms(); (void)last; (void)ms; if (!fx_st) return;
+    uint32_t b = 0xa84320; fprintf(stderr, "  [voice] 11c0=%u 11c4=%u 1830=%02x", rd16(b + 0x11c0), rd16(b + 0x11c4), rd8(b + 0x1830)); for (int i = 0; i < 11; i++) { uint32_t a1 = b + 0x22d2 + 4 * i; fprintf(stderr, " v%d(p=%x e=%x st=%04x pos=%x)", i, rd32(a1), rd32(a1 + 0x280), rd16(a1 + 0x200), rd32(a1 + 0x2c0)); } fprintf(stderr, "\n"); n++;
+}
 static void snd_tick(void) {
+    snd_fx_hook(); snd_voice_dump();
     /* keep ~300 ms of audio queued ahead in SDL; the buffer is free as soon as it has been copied, so refill immediately */
     if (!dbp.on) return; uint32_t hdr = dbp.hdr; double ms = now_ms();
     if (headless || snd_nodev()) { /* no device: keep the original real-time pacing so guest timing matches */

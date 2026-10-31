@@ -95,7 +95,7 @@ static int rm_dispatch(uint16_t w, uint16_t n, uint32_t ret) {
     case 0xA9AD: { Res *r = res_from_handle(rd32(sp)); if (r) { r->dead = 1; rfiles[r->file].changed = 1; } setsp(sp + 4); return 1; }             /* RmveResource */
     case 0xA9A7: { Res *r = res_from_handle(rd32(sp + 2)); if (r) r->attrs = rd16(sp) & 0xFF; setsp(sp + 6); return 1; }                               /* SetResAttrs */
     case 0xA9A8: {          /* GetResInfo(h, VAR id, VAR type, VAR name) */
-        Res *r = res_from_handle(rd32(sp + 12)); if (r) { if (rd32(sp + 8)) wr16(rd32(sp + 8), (uint16_t)r->id); if (rd32(sp + 4)) wr32(rd32(sp + 4), r->type); if (rd32(sp)) { wr8(rd32(sp), strlen(r->name)); for (size_t i = 0; i < strlen(r->name); i++) wr8(rd32(sp) + 1 + i, r->name[i]); } }
+        Res *r = res_from_handle(rd32(sp + 12)); if (getenv("SNDLOG") && r && r->type == 0x736E6420) fprintf(stderr, "  [snd] GetResInfo snd id=%d \"%s\"\n", r->id, r->name); if (r) { if (rd32(sp + 8)) wr16(rd32(sp + 8), (uint16_t)r->id); if (rd32(sp + 4)) wr32(rd32(sp + 4), r->type); if (rd32(sp)) { wr8(rd32(sp), strlen(r->name)); for (size_t i = 0; i < strlen(r->name); i++) wr8(rd32(sp) + 1 + i, r->name[i]); } }
         setsp(sp + 16); return 1; }
     case 0xA9A9: { Res *r = res_from_handle(rd32(sp + 6)); if (r) { r->id = rd16(sp + 4); pstring(rd32(sp), r->name, 64); rfiles[r->file].changed = 1; } setsp(sp + 10); return 1; } /* SetResInfo */
     case 0xA9C1: { uint32_t type = rd32(sp); int id = 128; for (;; id++) { int used = 0; for (int i = 0; i < nres; i++) if (!res[i].dead && res[i].type == type && res[i].id == id) used = 1; if (!used) break; } setsp(sp + 4); wr16(sp + 4, id); return 1; }
@@ -105,12 +105,14 @@ static int rm_dispatch(uint16_t w, uint16_t n, uint32_t ret) {
     case 0xA9A1: case 0xA820: {      /* Get(1)NamedResource(type, name) */
         char nm[256]; pstring(rd32(sp), nm, 256); uint32_t type = rd32(sp + 4); Res *f = NULL;
         for (int c = nchain - 1; c >= 0 && !f; c--) { if (n == 0xA820 && chain[c] != cur_rf) continue; for (int i = 0; i < nres; i++) if (res[i].file == chain[c] && !res[i].dead && res[i].type == type && !strcasecmp(res[i].name, nm)) { f = &res[i]; break; } }
+        if (type == 0x736E6420 && getenv("SNDLOG")) fprintf(stderr, "  [snd] GetNamedResource snd \"%s\" -> %s id=%d\n", nm, f ? "ok" : "missing", f ? f->id : 0);
         setsp(sp + 8); wr32(sp + 8, res_handle_of(f)); res_err = f ? 0 : -192; return 1; }
     case 0xA99C: case 0xA80D: {      /* Count(1)Resources */
-        uint32_t type = rd32(sp); int c = 0; for (int i = 0; i < nres; i++) if (!res[i].dead && res[i].type == type && (n == 0xA99C || res[i].file == cur_rf) && (n == 0xA80D || rf_from_ref(rf_refnum(res[i].file)) >= 0)) c++; setsp(sp + 4); wr16(sp + 4, c); return 1; }
+        uint32_t type = rd32(sp); int c = 0; for (int i = 0; i < nres; i++) if (!res[i].dead && res[i].type == type && (n == 0xA99C || res[i].file == cur_rf) && (n == 0xA80D || rf_from_ref(rf_refnum(res[i].file)) >= 0)) c++; if (type == 0x736E6420 && getenv("SNDLOG")) fprintf(stderr, "  [snd] Count%sResources snd -> %d (cur_rf=%p)\n", n == 0xA80D ? "1" : "", c, (void *)cur_rf); setsp(sp + 4); wr16(sp + 4, c); return 1; }
     case 0xA99D: case 0xA80E: {      /* Get(1)IndResource(type, index) */
-        uint32_t type = rd32(sp), idx = rd16(sp + 4); int c = 0; Res *f = NULL;
+        uint32_t type = rd32(sp + 2), idx = rd16(sp); int c = 0; Res *f = NULL;
         for (int cc = nchain - 1; cc >= 0 && !f; cc--) { if (n == 0xA80E && chain[cc] != cur_rf) continue; for (int i = 0; i < nres; i++) if (!res[i].dead && res[i].file == chain[cc] && res[i].type == type && ++c == (int)idx) { f = &res[i]; break; } }
+        if (type == 0x736E6420 && getenv("SNDLOG")) fprintf(stderr, "  [snd] Get%sIndResource snd %d -> %s (nchain=%d cur_rf=%d)\n", n == 0xA80E ? "1" : "", (int)idx, f ? "ok" : "NULL", nchain, (int)(intptr_t)cur_rf);
         setsp(sp + 6); wr32(sp + 6, res_handle_of(f)); return 1; }
     case 0xA99E: case 0xA81C: case 0xA99F: case 0xA80F: {      /* Count(1)Types / Get(1)IndType */
         uint32_t seen[128]; int c = 0; for (int i = 0; i < nres; i++) { if (res[i].dead || ((n == 0xA81C || n == 0xA80F) && res[i].file != cur_rf)) continue; int f = 0; for (int j = 0; j < c; j++) if (seen[j] == res[i].type) f = 1; if (!f && c < 128) seen[c++] = res[i].type; }

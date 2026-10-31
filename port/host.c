@@ -333,7 +333,7 @@ static void hle(uint16_t w, uint32_t ret) {
         setsp(sp + 8); wr32(sp + 8, hh); res_err = hh ? 0 : -192; break; }
     case 0xA81F: { uint32_t id = rd16(sp), type = rd32(sp + 2); Res *r = find_res(type, (int16_t)id); setsp(sp + 6); wr32(sp + 6, r ? res_get_handle(r) : 0); res_err = r ? 0 : -192; break; }  /* Get1Resource */
     case 0xA80D: { uint32_t type = rd32(sp); int c = 0; for (int i = 0; i < nres; i++) if (res[i].type == type) c++; setsp(sp + 4); wr16(sp + 4, c); break; }                           /* Count1Resources */
-    case 0xA80E: { uint32_t type = rd32(sp), idx = rd16(sp + 4); int c = 0; uint32_t hh = 0; for (int i = 0; i < nres; i++) if (res[i].type == type && ++c == (int)idx) { hh = res_get_handle(&res[i]); break; } setsp(sp + 6); wr32(sp + 6, hh); break; } /* Get1IndResource */
+    case 0xA80E: { uint32_t type = rd32(sp + 2), idx = rd16(sp); int c = 0; uint32_t hh = 0; for (int i = 0; i < nres; i++) if (res[i].type == type && ++c == (int)idx) { hh = res_get_handle(&res[i]); break; } setsp(sp + 6); wr32(sp + 6, hh); break; } /* Get1IndResource */
     case 0xA9B8: case 0xA9B9: case 0xA9BA: case 0xA9BB: case 0xA9BC: {      /* GetPattern/Cursor/String/Icon/Picture */
         static const uint32_t ty[] = {0x50415420, 0x43555253, 0x53545220, 0x49434F4E, 0x50494354};
         uint32_t id = rd16(sp); Res *r = find_res(ty[n - 0xA9B8], (int16_t)id); setsp(sp + 2); wr32(sp + 2, r ? res_get_handle(r) : 0); break; }
@@ -347,7 +347,7 @@ static void hle(uint16_t w, uint32_t ret) {
     case 0xA9AF: wr16(sp, (uint16_t)res_err); break;                        /* ResError */
     case 0xA9A4: setsp(sp + 4); wr16(sp + 4, 1); break;                     /* HomeResFile */
     case 0xA99C: { uint32_t type = rd32(sp); int c = 0; for (int i = 0; i < nres; i++) if (res[i].type == type) c++; setsp(sp + 4); wr16(sp + 4, c); break; }
-    case 0xA99D: { uint32_t type = rd32(sp), idx = rd16(sp + 4); int c = 0; uint32_t h = 0; for (int i = 0; i < nres; i++) if (res[i].type == type && ++c == (int)idx) { h = res_get_handle(&res[i]); break; } setsp(sp + 6); wr32(sp + 6, h); break; }
+    case 0xA99D: { uint32_t type = rd32(sp + 2), idx = rd16(sp); int c = 0; uint32_t h = 0; for (int i = 0; i < nres; i++) if (res[i].type == type && ++c == (int)idx) { h = res_get_handle(&res[i]); break; } setsp(sp + 6); wr32(sp + 6, h); break; }
     case 0xA99E: { int c = 0; uint32_t seen[64]; for (int i = 0; i < nres; i++) { int f = 0; for (int j = 0; j < c; j++) if (seen[j] == res[i].type) f = 1; if (!f && c < 64) seen[c++] = res[i].type; } wr16(sp, c); break; }
     case 0xA997: setsp(sp + 4); wr16(sp + 4, 0xFFFF); res_err = -43; break;  /* OpenResFile (not found) */
     case 0xA000: case 0xA001: case 0xA002: case 0xA003: case 0xA008: case 0xA009: case 0xA00A: case 0xA00C: case 0xA00D: case 0xA011: case 0xA012:
