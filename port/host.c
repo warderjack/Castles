@@ -443,7 +443,7 @@ int main(int argc, char **argv) {
     fprintf(stderr, "A5=%06x below=%u above=%u jt=%u@+%u\n", a5, below, above, jtlen, jtoff);
 
     wr32(0x904, a5); wr32(0x908, STACK_TOP); wr32(0x130, HEAP_END);
-    wr32(0x2AA, HEAP_START); wr32(0x2A6, HEAP_START); wr32(0x108, RAM_SIZE); wr16(0x28E, 0);
+    wr8(0x260, 0x07); wr32(0x2AA, HEAP_START); wr32(0x2A6, HEAP_START); wr32(0x108, RAM_SIZE); wr16(0x28E, 0);
     wr16(0x900, 1); /* CurApRefNum */
     { const char *an = "Castles - Siege & Conquest"; wr8(0x910, strlen(an)); for (size_t i = 0; i < strlen(an); i++) wr8(0x911 + i, an[i]); } /* CurApName */
     wr32(0, STACK_TOP - 8); wr32(4, a5 + jtoff + 2);

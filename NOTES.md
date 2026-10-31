@@ -126,3 +126,6 @@ Fresh game folder (no Castles Prefs.bin) segfaulted right after New Game > OK: t
 
 ### Sound investigation (user: no sound on real desktop)
 `SNDLOG=1` logs buffers queued to SDL (min/max), 'snd ' GetResource, SndPlay/SndDoCommand/SndDoImmediate. Findings: the game's own mixer (MDRV double buffer, 22254 Hz mono U8, 370-byte buffers) outputs only constant 0x80 then constant 0x00 across long_monkey/recruit runs -> no voice is ever mixed. The game calls GetResource on ~12 'snd ' ids (effects) but never SndPlay; 'IntroSong' (music) is missing from the distribution (-43). So effects either are triggered through SMOD/MDRV paths that never fire in my runs or something upstream (sound-capability checks, prefs, Gestalt) disables them. Next: find which routine hands a 'snd ' handle to SMOD/MDRV and why it isn't reached.
+
+### Sound root cause
+The game's MDRV buffer proc (seg 14 +0x6de) tests low-memory SdVolume (byte at $260); 0 -> it writes silence (constant 0x00 buffers). Host never initialised it. Now `wr8(0x260, 7)` at boot (Mac default); the mixer then produces real 8-bit U8 data centred on 128 (verified with SNDLOG: buffers min~112 max~144 during recruit scenario). Smoke suite still passes. Not yet heard on real hardware; audio path: SDL_QueueAudio, 22254 Hz mono U8, ~300 ms queued ahead.
