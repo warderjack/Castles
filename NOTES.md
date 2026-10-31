@@ -132,3 +132,4 @@ The game's MDRV buffer proc (seg 14 +0x6de) tests low-memory SdVolume (byte at $
 
 ### Verified on a real Linux Mint desktop (user)
 Window + mouse + New Game work (after the Prefs-resource fix); attack on Reims (as Valois, 1 infantry recruited) reached a battle with a correct-looking map; Save Game (silent overwrite after first save) and Save/Open round-trip verified. Sound not yet re-tested after the SdVolume fix (needs pull + rebuild). Music: 'IntroSong' file absent from the distribution (-43).
+Sound confirmed by user on real hardware after the SdVolume fix: in-game music plays (so the missing 'IntroSong' only affects the intro track).
