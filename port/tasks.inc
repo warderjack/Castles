@@ -26,6 +26,7 @@ static void snd_out(uint32_t buf, uint32_t hdr) {
     if (!aud_tried) { aud_tried = 1; SDL_AudioSpec w = {0}, g; w.freq = rate; w.format = AUDIO_U8; w.channels = 1; w.samples = 1024; aud_dev = SDL_OpenAudioDevice(NULL, 0, &w, &g, SDL_AUDIO_ALLOW_ANY_CHANGE);
         if (!aud_dev) fprintf(stderr, "  [snd] no audio device: %s\n", SDL_GetError()); else SDL_PauseAudioDevice(aud_dev, 0); }
     if (!aud_dev) return; uint32_t n = rd32(buf); int ch = rd16(hdr) ? rd16(hdr) : 1; n *= ch; if (n > 65536) n = 65536; if (SDL_GetQueuedAudioSize(aud_dev) > rate * 2) return;
+    { static int sl = -1; if (sl < 0) sl = getenv("SNDLOG") != NULL; if (sl) { unsigned mn = 255, mx = 0; for (uint32_t i = 0; i < n; i++) { unsigned v = ram[buf + 16 + i]; if (v < mn) mn = v; if (v > mx) mx = v; } fprintf(stderr, "  [snd] queue %u bytes min=%u max=%u queued=%u\n", n, mn, mx, SDL_GetQueuedAudioSize(aud_dev)); } }
     SDL_QueueAudio(aud_dev, ram + buf + 16, n);
 }
 #else
