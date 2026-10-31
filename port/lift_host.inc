@@ -57,6 +57,9 @@ void lift_poll(u32 resume_pc) {
 u32 lift_get_sr(void) { return (R(M68K_REG_SR) & ~0x1Fu) | (fX << 4) | (fN << 3) | (fZ << 2) | (fV << 1) | fC; }
 void lift_set_sr(u32 v) { W(M68K_REG_SR, v & 0xFFE0u); fX = (v >> 4) & 1; fN = (v >> 3) & 1; fZ = (v >> 2) & 1; fV = (v >> 1) & 1; fC = v & 1; }
 u32 lift_entring[32]; unsigned lift_entri;
+u32 lift_ww_lo = 1, lift_ww_hi = 0;
+void lift_wwatch(u32 a, u32 v, int sz) { fprintf(stderr, "  [wwatch] write%d %06x <- %08x  rs:", sz, a, v); for (int i = 0; i < 6 && i < lift_rsp; i++) fprintf(stderr, " %06x", lift_rs[(lift_rsp - 1 - i) & 255]); fprintf(stderr, "  A0-3: %06x %06x %06x %06x  ent:", A[0], A[1], A[2], A[3]); for (int i = 1; i <= 4; i++) fprintf(stderr, " %06x", lift_entring[(lift_entri - i) & 31]); fprintf(stderr, "\n"); { static int vs; if (lift_rsp > 0 && lift_rs[(lift_rsp - 1) & 255] == 0xa82098 && vs++ < 1) { fprintf(stderr, "   [wwatch] driver words pointing into freed 24K block:"); for (u32 q = 0xa80120; q < 0xa87468; q += 2) { u32 w = m32(q); if (w >= 0xad6230 && w < 0xadc230) fprintf(stderr, " [%x]=%x", q, w); } fprintf(stderr, "\n"); } }
+    { static int vd; if (lift_rsp > 0 && lift_rs[(lift_rsp - 1) & 255] == 0xa82098 && vd++ < 2) { for (int i = 0; i < 11; i++) { u32 a1 = 0xa84320 + 0x22d2 + 4 * i; fprintf(stderr, "   [wwatch] voice%d p=%06x e=%06x st=%04x\n", i, m32(a1), m32(a1 + 0x280), m16(a1 + 0x200)); } } } }
 void lift_enter(u32 tgt) {
     lift_entring[lift_entri++ & 31] = tgt;
     for (int k = 0; k < 4 && m16(tgt) == 0x4EF9; k++) tgt = m32(tgt + 2);      /* follow jump-table stubs */

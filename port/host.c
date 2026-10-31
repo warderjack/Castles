@@ -134,6 +134,7 @@ static int purge_for(uint32_t need); static int purging;
 static struct { uint32_t p, n, pc; } hl_live[1 << 16]; static int hl_on = -1; static uint32_t trap_pc, hl_ret;
 static void hl_add(uint32_t p, uint32_t n) { if (hl_on < 0) hl_on = getenv("HEAPLOG") != NULL; if (!hl_on) return; for (int i = 0; i < (1 << 16); i++) { int k = (int)(((p >> 3) + i) & 0xFFFF); if (!hl_live[k].p) { hl_live[k].p = p; hl_live[k].n = n; hl_live[k].pc = hl_ret; return; } } }
 static void hl_del(uint32_t p) { if (!hl_on) return; for (int i = 0; i < (1 << 16); i++) { int k = (int)(((p >> 3) + i) & 0xFFFF); if (hl_live[k].p == p) { hl_live[k].p = 0xFFFFFFFF; return; } if (!hl_live[k].p) return; } }
+static uint32_t quar[6]; static int nquar = 0; static void quar_flush(void);
 static uint32_t alloc_block(uint32_t n) {
     if (!heap_ready) heap_init();
     n = (n + 3) & ~3u; if (n == 0) n = 4;
@@ -141,16 +142,26 @@ static uint32_t alloc_block(uint32_t n) {
 retry:
     best = -1;
     for (int i = 0; i < nfl; i++) if (fl[i].n >= need && (best < 0 || fl[i].n < fl[best].n)) { best = i; if (fl[i].n == need) break; }
+    if (best < 0 && nquar) { quar_flush(); goto retry; }
     if (best < 0 && !purged_once && !purging) { purged_once = 1; if (purge_for(need)) goto retry; }
     if (best < 0) { fprintf(stderr, "[heap] out of memory (n=%u free=%u max=%u)\n", n, heap_free, heap_maxblock()); return 0; }
     uint32_t b = fl[best].a, tot = fl[best].n;
     if (tot - need >= 24) { fl[best].a += need; fl[best].n -= need; tot = need; }
     else { memmove(&fl[best], &fl[best + 1], (nfl - best - 1) * sizeof(Ext)); nfl--; }
     heap_free -= tot; wr32(b, tot - 8); wr32(b + 4, 1); memset(ram + b + 8, 0, tot - 8);
+    { static uint32_t hw = 1; if (hw == 1) hw = getenv("HEAPWATCH") ? (uint32_t)strtoul(getenv("HEAPWATCH"), 0, 16) : 0; if (hw && hw >= b + 8 && hw < b + tot) fprintf(stderr, "  [hwatch] alloc %06x..%06x covers %06x (need=%u) trap_pc=%06x\n", b + 8, b + tot, hw, n, trap_pc); }
     hl_add(b + 8, tot - 8); return b + 8;
 }
+static void free_block_real(uint32_t p);
+static void quar_flush(void) { while (nquar > 0) free_block_real(quar[--nquar]); }
 static void free_block(uint32_t p) {
+    if (p && p - 8 >= HEAP_START && p - 8 < HEAP_END && rd32(p - 4) == 1 && rd32(p - 8) >= 8192 && getenv("QUAR")) {   /* the sound driver keeps using buffers the game has already freed; hold big freed blocks back so small new allocations do not land under its stale writes */
+        if (nquar == 6) { free_block_real(quar[0]); memmove(quar, quar + 1, 5 * sizeof(uint32_t)); nquar--; } quar[nquar++] = p; hl_del(p); return; }
+    free_block_real(p);
+}
+static void free_block_real(uint32_t p) {
     if (!p) return; uint32_t b = p - 8; if (b < HEAP_START || b >= HEAP_END || rd32(b + 4) != 1) return;
+    { static uint32_t hw = 1; if (hw == 1) hw = getenv("HEAPWATCH") ? (uint32_t)strtoul(getenv("HEAPWATCH"), 0, 16) : 0; if (hw && hw >= p && hw < b + rd32(b) + 8) fprintf(stderr, "  [hwatch] FREE %06x (size %u) covers %06x trap_pc=%06x\n", p, rd32(b), hw, trap_pc); }
     hl_del(p); uint32_t tot = rd32(b) + 8; wr32(b + 4, 0); heap_free += tot; fl_insert(b, tot);
 }
 static uint32_t new_handle(uint32_t n) {
@@ -447,7 +458,7 @@ int m68k_execute(int cycles) {
         castles_instr_hook(pc);
         if (native_end_slice || halted) break;
         if (native_regs[M68K_REG_PC] == pc && pc != YIELD_PC + 2) {
-            fprintf(stderr, "[native] cannot execute pc=%06x op=%04x sp=%06x (not lifted; rebuild with the interpreter: ./build.sh)\n  recent lift entries:", pc, rd16(pc), SP); for (int q = 31; q >= 0; q--) fprintf(stderr, " %06x", lift_entring[(lift_entri - 1 - q) & 31]); fprintf(stderr, "\n  stack:"); for (int q = 0; q < 8; q++) fprintf(stderr, " %08x", rd32(SP + 4 * q)); fprintf(stderr, "\n");
+            fprintf(stderr, "[native] cannot execute pc=%06x op=%04x sp=%06x (not lifted; rebuild with the interpreter: ./build.sh)\n  bytes@pc:", pc, rd16(pc), SP); for (int q = 0; q < 24; q++) fprintf(stderr, "%02x", rd8(pc + q)); fprintf(stderr, "\n  recent lift entries:"); for (int q = 31; q >= 0; q--) fprintf(stderr, " %06x", lift_entring[(lift_entri - 1 - q) & 31]); fprintf(stderr, "\n  stack:"); for (int q = 0; q < 8; q++) fprintf(stderr, " %08x", rd32(SP + 4 * q)); fprintf(stderr, "\n");
             if (call_depth > 0) { fprintf(stderr, "  [native] abandoning host-called routine (stale/garbage target)\n"); call_done = 1; native_end_slice = 1; break; }   /* VBL/Time Manager/sound callback went astray: drop the call, keep playing */
             halted = 1; quit_requested = 1; break;
         }
@@ -458,6 +469,7 @@ int m68k_execute(int cycles) {
 /* ---------------- Launch ---------------- */
 int main(int argc, char **argv) {
     if (argc < 2) { fprintf(stderr, "usage: %s <game folder | app.bin | rsrc.fork> [game folder]\n", argv[0]); return 2; }
+    { const char *ww = getenv("WRITEWATCH"); if (ww) { lift_ww_lo = strtoul(ww, 0, 16); const char *c = strchr(ww, ','); lift_ww_hi = c ? strtoul(c + 1, 0, 16) : lift_ww_lo + 1; } }
     det = getenv("CASTLES_DET") != NULL; if (getenv("DET_STOP")) det_stop = strtoul(getenv("DET_STOP"), 0, 10); if (getenv("DET_YMAX")) det_ymax = strtoul(getenv("DET_YMAX"), 0, 10); if (getenv("DET_EVERY")) det_every = strtoul(getenv("DET_EVERY"), 0, 10);
     if (getenv("LIFTCHECK")) { lift_check = 1; if (atoi(getenv("LIFTCHECK")) > 1) lift_chk_max = atoi(getenv("LIFTCHECK")); }
     if (getenv("NOLIFT")) lift_on = 0;

@@ -163,3 +163,8 @@ The game always calls WaitNextEvent with sleep=0 (verified with WNESLEEP=1), so 
 - KNOWN FLAKE (headless smoke under CPU contention): fuzz/mn occasionally hit "[native] cannot execute pc=ad97bc op=6106" — the heap dispatch thunk used for the sound-driver proc (periodic entries ad97bc,c07c6c,a80120,a80164) gets overwritten/reused. Passes when run alone. Investigate stale thunk after free (low priority).
 
 - FIXED (pending user check): sticky menu-title highlight. Dropdown open/close toggled the title with an XOR invert, which is not reversible through palette matching on the 8-bit screen; now the menu bar is redrawn with an explicit highlight id.
+
+## WNE pacing rolled back to opt-in (CASTLES_WNEHZ=60)
+With the 60 Hz null-event pacing on, headless smoke (openclose_try, fuzz, mn, attack_try, design2) crashes intermittently: after the game re-inits sound, the MDRV mixer (seg14 +0x20a2, called from the selector-4 service poll) writes through a pointer around the next heap objects (the 12-byte heap dispatch thunk at the driver proc and the new SndChannel get overwritten; thunk first/last words zeroed). Reproduces only when the game runs slower; with pacing off it never fails. Root cause not yet found; tools: HEAPWATCH=<hexaddr>, WRITEWATCH=lo,hi (lift writes, prints call chain + A0-A3), SNDDRV=1, QUAR=1 (quarantine of big frees: did not help).
+Castle-build animation speed is therefore NOT fixed yet; need to find the animation's own timing instead of global pacing.
+- Movies/animated sequences (intro movie, battle/event movies): user unsure whether they play or are triggered; needs a test pass (find movie triggers via PlotData/Intro PICT sequences, movie.inc, and which game events call them).

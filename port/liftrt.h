@@ -10,12 +10,13 @@ extern uint8_t ram[];
 extern u32 D[8], A[8], SB[16], REL_A4, REL_A5;
 extern u32 fX, fN, fZ, fV, fC;
 
+extern u32 lift_ww_lo, lift_ww_hi; void lift_wwatch(u32 a, u32 v, int sz);
 static inline u32 m8(u32 a)  { return ram[a & 0xFFFFFF]; }
 static inline u32 m16(u32 a) { a &= 0xFFFFFF; return (ram[a] << 8) | ram[a + 1]; }
 static inline u32 m32(u32 a) { a &= 0xFFFFFF; return ((u32)ram[a] << 24) | (ram[a + 1] << 16) | (ram[a + 2] << 8) | ram[a + 3]; }
-static inline void w8(u32 a, u32 v)  { ram[a & 0xFFFFFF] = v; }
-static inline void w16(u32 a, u32 v) { a &= 0xFFFFFF; ram[a] = v >> 8; ram[a + 1] = v; }
-static inline void w32(u32 a, u32 v) { a &= 0xFFFFFF; ram[a] = v >> 24; ram[a + 1] = v >> 16; ram[a + 2] = v >> 8; ram[a + 3] = v; }
+static inline void w8(u32 a, u32 v)  { if ((a & 0xFFFFFF) >= lift_ww_lo && (a & 0xFFFFFF) < lift_ww_hi) lift_wwatch(a & 0xFFFFFF, v, 1); ram[a & 0xFFFFFF] = v; }
+static inline void w16(u32 a, u32 v) { a &= 0xFFFFFF; if (a >= lift_ww_lo && a < lift_ww_hi) lift_wwatch(a, v, 2); ram[a] = v >> 8; ram[a + 1] = v; }
+static inline void w32(u32 a, u32 v) { a &= 0xFFFFFF; if (a + 3 >= lift_ww_lo && a < lift_ww_hi) lift_wwatch(a, v, 4); ram[a] = v >> 24; ram[a + 1] = v >> 16; ram[a + 2] = v >> 8; ram[a + 3] = v; }
 
 typedef void (*LiftFn)(void);
 typedef struct { int seg; u32 off; LiftFn fn; } LiftEnt;
