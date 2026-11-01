@@ -98,6 +98,8 @@ static void movie_draw(Movie *m) {
     uint32_t port = m->port ? m->port : the_port(); if (!port) return; DC d; dc_init(&d, port); Rc dst = m->box; if (getenv("QTDBG")) { static int dn; if (dn++ < 6) fprintf(stderr, "  [qt] draw port=%x (the_port=%x) box=%d,%d,%d,%d clipn=%d bnd=%d,%d,%d,%d depth=%d\n", port, the_port(), dst.t, dst.l, dst.b, dst.r, d.clip.n, d.s.bnd.t, d.s.bnd.l, d.s.bnd.b, d.s.bnd.r, d.s.depth); } int dw = dst.r - dst.l, dh = dst.b - dst.t; if (dw <= 0 || dh <= 0) { dc_free(&d); return; }
     for (int ci = 0; ci < d.clip.n; ci++) { Rc c = d.clip.r[ci]; int y0 = c.t > dst.t ? c.t : dst.t, y1 = c.b < dst.b ? c.b : dst.b, x0 = c.l > dst.l ? c.l : dst.l, x1 = c.r < dst.r ? c.r : dst.r;
         for (int y = y0; y < y1; y++) { int sy = (y - dst.t) * m->h / dh; for (int x = x0; x < x1; x++) { int sx = (x - dst.l) * m->w / dw; const uint8_t *px = m->fb + (sy * m->w + sx) * 3; RGB col = {px[0] * 257, px[1] * 257, px[2] * 257}; pp(&d.s, x, y, rgb_px(&d.s, col)); } } }
+    if (getenv("QTDBG")) { static int dn2; if (dn2++ < 6) { fprintf(stderr, "  [qt] clip rects:"); for (int ci = 0; ci < d.clip.n; ci++) fprintf(stderr, " (%d,%d,%d,%d)", d.clip.r[ci].t, d.clip.r[ci].l, d.clip.r[ci].b, d.clip.r[ci].r); fprintf(stderr, " frame=%d/%d\n", m->cur, m->ns); } }
+    if (getenv("QTSHOT") && m->cur == m->ns / 2) { static int sh; char fn[300]; snprintf(fn, sizeof fn, "%s%d.ppm", getenv("QTSHOT"), sh++); plat_present(); write_ppm(fn); fprintf(stderr, "  [qt] screenshot %s\n", fn); }
     dc_free(&d); gfx_dirty = 1;
 }
 static Movie *movie_of(uint32_t rec) { for (int i = 0; i < 8; i++) if (movies[i].used && movies[i].rec == rec) return &movies[i]; return NULL; }
