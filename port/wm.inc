@@ -23,6 +23,7 @@ static void ev_post(int what, uint32_t msg, int mods) {
 static int quit_requested = 0, swallow_up = 0;
 static void ev_pump(void) {
     PEvt e; int guard = 0;
+    { static uint32_t last_pr; uint32_t t = ticks_now(); if (t - last_pr >= 2) { plat_present(); last_pr = t; } }      /* tight game loops (About credits) may never reach the main loop's present */
     while (guard++ < 200 && plat_poll(&e, ticks_now())) {
         switch (e.type) {
         case PE_QUIT: quit_requested = 1; break;
