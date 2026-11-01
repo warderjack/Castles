@@ -22,8 +22,12 @@ static Rc sfg_btn_rc(int k) { static const int ys[4] = {34, 62, 98, 126}; return
 static void sfg_ctext(DC *d, Rc r, const char *s, int face) { int w = text_w(s, 0, 12, face); text_at(d, (r.l + r.r - w) / 2, r.b - 6, s, 0, 12, face); }
 static void sfg_draw(void) {
     RL all = {0}; rl_add(&all, sfg.sa); DC d; screen_dc(&d, &all); Rc b = sfg.box;
-    fill_rect_dc(&d, (Rc){b.b, b.l + 3, b.b + 2, b.r + 2}, 1); fill_rect_dc(&d, (Rc){b.t + 3, b.r, b.b + 2, b.r + 2}, 1);
-    fill_rect_dc(&d, b, 0); frame_rect_dc(&d, b, 1); frame_rect_dc(&d, (Rc){b.t + 2, b.l + 2, b.b - 2, b.r - 2}, 1);
+    fill_rect_dc(&d, b, 0); frame_rect_dc(&d, b, 1);      /* System 7 color dialog frame, same as dBoxProc windows */
+    { static const int gv[3] = {0xD8, 0xB8, 0x90};
+      for (int k = 0; k < 3; k++) { Rc q = {b.t + 1 + k, b.l + 1 + k, b.b - 1 - k, b.r - 1 - k}; int lt = gv[k], dk = gv[2 - k];
+          fill_rgb_dc(&d, (Rc){q.t, q.l, q.t + 1, q.r}, lt, lt + 8); fill_rgb_dc(&d, (Rc){q.t, q.l, q.b, q.l + 1}, lt, lt + 8);
+          fill_rgb_dc(&d, (Rc){q.b - 1, q.l, q.b, q.r}, dk, dk + 8); fill_rgb_dc(&d, (Rc){q.t, q.r - 1, q.b, q.r}, dk, dk + 8); }
+      frame_rect_dc(&d, (Rc){b.t + 4, b.l + 4, b.b - 4, b.r - 4}, 1); }
     const char *dn = strrchr(sfg.dir, '/'); dn = dn ? dn + 1 : sfg.dir; Rc tr = {b.t + 6, b.l + 14, b.t + 28, b.l + 226}; frame_rect_dc(&d, tr, 1); fill_rect_dc(&d, (Rc){tr.b, tr.l + 2, tr.b + 1, tr.r + 1}, 1); fill_rect_dc(&d, (Rc){tr.t + 2, tr.r, tr.b + 1, tr.r + 1}, 1);
     fill_rect_dc(&d, (Rc){tr.t + 7, tr.l + 5, tr.t + 8, tr.l + 15}, 1); fill_rect_dc(&d, (Rc){tr.t + 8, tr.l + 5, tr.t + 16, tr.l + 6}, 1); fill_rect_dc(&d, (Rc){tr.t + 15, tr.l + 5, tr.t + 16, tr.l + 17}, 1); fill_rect_dc(&d, (Rc){tr.t + 8, tr.l + 16, tr.t + 16, tr.l + 17}, 1);
     text_at(&d, tr.l + 24, tr.b - 6, dn, 0, 12, 0);
