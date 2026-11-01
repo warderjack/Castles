@@ -182,3 +182,9 @@ Castle-build animation speed is therefore NOT fixed yet; need to find the animat
 - The original install ships only 23 of 33 movie numbers (no 05,13,18,25,27-32): nothing missing from the user's copy.
 - Text: glyphs are now 4bpp antialiased Liberation blended through the palette (gen/genfont.py; old 1-bit generator kept as gen/genfont_1bit.py.bak).
 - tools/hfsx.py extracts classic HFS floppy images.
+
+## Classic Mac fonts (optional, local) 2026-11-01
+- The game uses QuickDraw system fonts: id 0 Chicago 12 (menus, copyright line), id 3 Geneva 9 (body/credits/dialog text), id 21 Helvetica 18 bold (map header). Not in the app; they live in the Mac System file (Apple's, not redistributable).
+- Default text = Liberation Sans/Serif/Mono hard 1-bit strikes (gen/genfont.py, committed fontdata.h).
+- Optional pixel-exact look: get the "classic Apple fonts" collection (tinkerdifferent.com resource 130: ChicagoFLF.ttf, geneva_9.ttf ...), then `python3 port/gen/genfont_local.py <fontdir>` writes port/fontdata_local.h (git-ignored, mixed font licenses so never commit) and rebuild. pick_strike() uses it for font ids 0 (Chicago 12) and 3 (Geneva 9; space advance forced to 4, bold = 1px smear). geneva_9.ttf: em 1024 = 16 px grid, render at 16 px.
+- Debug: FONTLOG=1 prints each distinct (font id, size, face) the game draws.

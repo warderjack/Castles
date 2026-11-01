@@ -1,5 +1,11 @@
 /* ---- QuickDraw stage B: rasterizer. Surfaces, patterns, shapes, lines, text, CopyBits, PICT ---- */
 #include "fontdata.h"
+#if defined(__has_include)
+#if __has_include("fontdata_local.h")
+#include "fontdata_local.h"
+#define HAVE_LOCAL_FONTS 1
+#endif
+#endif
 #include <math.h>
 
 typedef struct { uint16_t r, g, b; } RGB;
@@ -272,6 +278,10 @@ static void rgn_frame(DC *d, uint32_t rgn, int pw, int ph) {
 
 /* ---- text ---- */
 static const FStrike *pick_strike(int font, int face, int size) {
+#ifdef HAVE_LOCAL_FONTS
+    { int lf = font == 0 ? 3 : font == 3 ? 4 : 0;   /* QuickDraw system font (Chicago) and Geneva: classic pixel fonts when supplied */
+      if (lf) for (int i = 0; i < N_LSTRIKES; i++) if (local_strikes[i].fam == lf && local_strikes[i].bold == (face & 1)) return &local_strikes[i]; }
+#endif
     int fam = (font == 4 || font == 22) ? 2 : (font == 2 || font == 20 || font == 6 || font == 7 || font == 16) ? 1 : 0;
     if (size <= 0) size = 12; int bold = face & 1; const FStrike *best = NULL; int bd = 1 << 30;
     for (int i = 0; i < N_FSTRIKES; i++) { const FStrike *f = &font_strikes[i]; if (f->fam != fam || f->bold != bold) continue; int dd = abs(f->size - size) * 2 + (f->size > size ? 1 : 0); if (dd < bd) { bd = dd; best = f; } }
@@ -285,6 +295,7 @@ static int str_width(uint32_t port, const uint8_t *s, int n) {
 }
 static void draw_text(DC *d, const uint8_t *s, int n) {
     uint32_t port = d->port; int font = (int16_t)rd16(port + 68), face = rd8(port + 70), size = (int16_t)rd16(port + 74), tmode = (int16_t)rd16(port + 72);
+    { static int fl = -1; static unsigned seen[512]; static int ns; if (fl < 0) fl = getenv("FONTLOG") != NULL; if (fl) { unsigned key = ((unsigned)font << 16) | (size << 8) | face; int k = 0; for (; k < ns; k++) if (seen[k] == key) break; if (k == ns && ns < 512) { seen[ns++] = key; fprintf(stderr, "  [font] id=%d size=%d face=%d sample=%.*s\n", font, size, face, n < 24 ? n : 24, s); } } }
     const FStrike *f = pick_strike(font, face, size); int px = (int16_t)rd16(port + 50), py = (int16_t)rd16(port + 48);   /* pnLoc: v at +48, h at +50 */
     if (!f) return; int ex = text_extra(port), startx = px; int hidden = (int16_t)rd16(port + 66) < 0;
     uint32_t m = depth_mask(d->s.depth);
@@ -292,10 +303,16 @@ static void draw_text(DC *d, const uint8_t *s, int n) {
         const FGlyph *g = &f->g[s[i]];
         if (!hidden && (tmode & 7) == 0) { Rc cell = {py - f->ascent, px, py + f->descent, px + g->adv + (s[i] == ' ' ? ex : 0)}; uint8_t b[8]; memset(b, 0, 8); int sm = d->mode; uint32_t sf = d->fg; dc_set_pat8(d, b); d->mode = 8; dc_rect(d, cell); d->mode = sm; d->fg = sf; }
         if (!hidden && g->w > 0) {
-            int rb = (g->w + 1) / 2; RGB fgc = px_rgb(&d->s, d->fg); int aa = ((tmode & 7) == 0 || (tmode & 7) == 1) && d->s.depth >= 8;
+            int rb = (g->w + 1) / 2;
+#ifdef HAVE_LOCAL_FONTS
+            const uint8_t *gblob = g->off >= 0x40000000u ? local_blob + (g->off - 0x40000000u) : font_blob + g->off;
+#else
+            const uint8_t *gblob = font_blob + g->off;
+#endif
+            RGB fgc = px_rgb(&d->s, d->fg); int aa = ((tmode & 7) == 0 || (tmode & 7) == 1) && d->s.depth >= 8;
             for (int gy = 0; gy < g->h; gy++) {
                 int y = py - g->top + gy; int shear = (face & 2) ? (g->top - gy) / 4 : 0;
-                for (int gx = 0; gx < g->w; gx++) { int cov = (font_blob[g->off + gy * rb + (gx >> 1)] >> ((gx & 1) ? 0 : 4)) & 15; if (!cov) continue;
+                for (int gx = 0; gx < g->w; gx++) { int cov = (gblob[gy * rb + (gx >> 1)] >> ((gx & 1) ? 0 : 4)) & 15; if (!cov) continue;
                     int x = px + g->lb + gx + shear;
                     for (int ci = 0; ci < d->clip.n; ci++) { Rc c = d->clip.r[ci]; if (x >= c.l && x < c.r && y >= c.t && y < c.b) {
                         uint32_t dst = gp(&d->s, x, y), v;

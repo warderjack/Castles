@@ -1,6 +1,8 @@
-build/
-musashi-upstream/
 *.fork
-work/
+build/
 extract/
+fonts/
+musashi-upstream/
+port/fontdata_local.h
 tools/
+work/
