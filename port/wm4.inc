@@ -54,7 +54,9 @@ static int wm_dispatch(uint16_t w, uint16_t n, uint32_t ret) {
         Res *r = find_res(0x57494E44, id); uint32_t wn = 0;
         if (r) { const uint8_t *d = r->buf + r->off; Rc b = {(int16_t)be16(d), (int16_t)be16(d + 2), (int16_t)be16(d + 4), (int16_t)be16(d + 6)}; int proc = (int16_t)be16(d + 8); int vis = d[10] != 0; int go = d[12] != 0; uint32_t ref = be32(d + 14);
             uint32_t tp = alloc_block(260); wr8(tp, d[18]); for (int i = 0; i < d[18]; i++) wr8(tp + 1 + i, d[19 + i]);
-            wn = wm_make_window(storage, b, tp, vis, proc, behind, go, ref, n == 0xAA46); free_block(tp); }
+            wn = wm_make_window(storage, b, tp, vis, proc, behind, go, ref, n == 0xAA46); free_block(tp);
+            if (wn && n == 0xAA46) { Res *wc = find_res(0x77637462 /*wctb*/, id); WInfo *wi = winfo_of(wn);      /* content color from the window color table */
+                if (wc && wi && wc->len >= 8 + 8) { const uint8_t *q = wc->buf + wc->off; int cnt = be16(q + 6) + 1; for (int i = 0; i < cnt && 8 + i * 8 + 8 <= (int)wc->len; i++) { const uint8_t *e = q + 8 + i * 8; if (be16(e) == 0) { wi->cc_set = 1; wi->cc[0] = be16(e + 2); wi->cc[1] = be16(e + 4); wi->cc[2] = be16(e + 6); break; } } } } }
         wr32(sp + 10, wn); return 1; }
     case 0xA915: { uint32_t wn = rd32(sp); setsp(sp + 4); if (is_window(wn)) wm_show_hide(wn, 1); return 1; }
     case 0xA916: { uint32_t wn = rd32(sp); setsp(sp + 4); if (is_window(wn)) wm_show_hide(wn, 0); return 1; }

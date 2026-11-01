@@ -1,5 +1,5 @@
 /* ---- Window Manager (part 2): window table, frames, creation, z-order, update/activate ---- */
-typedef struct { uint32_t w; int proc; uint32_t saved_vis; int alloc; } WInfo;
+typedef struct { uint32_t w; int proc; uint32_t saved_vis; int alloc; int cc_set; uint16_t cc[3]; } WInfo;
 static WInfo winfo[64]; static int nwinfo = 0;
 static WInfo *winfo_of(uint32_t w) { for (int i = 0; i < nwinfo; i++) if (winfo[i].w == w) return &winfo[i]; return NULL; }
 static uint32_t active_win = 0;
@@ -60,7 +60,7 @@ static uint32_t wm_make_window(uint32_t storage, Rc bounds, uint32_t title, int 
     wr32(storage + WR_STRUC, new_rgn()); wr32(storage + WR_CONT, new_rgn()); wr32(storage + WR_UPDATE, new_rgn()); wr32(storage + WR_REF, refcon);
     uint32_t th = new_handle(256); uint32_t tl = title ? rd8(title) : 0; wr8(rd32(th), tl); for (uint32_t i = 0; i < tl; i++) wr8(rd32(th) + 1 + i, rd8(title + 1 + i)); wr32(storage + WR_TITLE, th);
     wr32(storage + WR_NEXT, 0);
-    winfo[nwinfo].w = storage; winfo[nwinfo].proc = proc; winfo[nwinfo].saved_vis = 0; winfo[nwinfo].alloc = alloc; nwinfo++;
+    winfo[nwinfo].w = storage; winfo[nwinfo].proc = proc; winfo[nwinfo].saved_vis = 0; winfo[nwinfo].alloc = alloc; winfo[nwinfo].cc_set = 0; nwinfo++;
     win_set_regions(storage, bounds);
     /* link into list */
     if (behind == 0xFFFFFFFF || !win_list_head()) { wr32(storage + WR_NEXT, win_list_head()); wr32(0x9D6, storage); }
@@ -80,6 +80,9 @@ static void wm_show_hide(uint32_t w, int show) {
     if (show) { RL u = {0}; Rc c = win_cont_global(w); int ox, oy; win_origin(w, &ox, &oy); Rc lc = {c.t - oy, c.l - ox, c.b - oy, c.r - ox}; rl_add(&u, lc); rgn_set(rd32(w + WR_UPDATE), &u); rl_free(&u); }
     else { if (w == active_win) { wr8(w + WR_HILITED, 0); post_activate(w, 0); active_win = 0; } }
     WM_SNAP_END(); wm_activate_front(); draw_desktop_and_frames();
+    if (show) { WInfo *wi = winfo_of(w); if (wi && wi->cc_set) {      /* ShowWindow paints the content area with the window's content color (wctb) */
+        RL g = {0}; win_vis_global(w, &g); DC d; screen_dc(&d, &g); uint8_t p8[8]; memset(p8, 0xFF, 8); d.fg = rgb_px(&d.s, (RGB){wi->cc[0], wi->cc[1], wi->cc[2]}); dc_set_pat8(&d, p8); d.mode = 8;
+        Rc c = win_cont_global(w); dc_rect(&d, c); dc_free(&d); rl_free(&g); gfx_dirty = 1; } }
 }
 static void wm_bring_to_front(uint32_t w) {
     if (win_list_head() == w) return; WM_SNAP_BEGIN(); wm_remove(w); wr32(w + WR_NEXT, win_list_head()); wr32(0x9D6, w); WM_SNAP_END(); wm_activate_front(); draw_desktop_and_frames();
