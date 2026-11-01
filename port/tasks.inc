@@ -62,6 +62,7 @@ static struct { int on; uint32_t chan, completion; double t_end; int ndone; uint
 #endif
 } fp;
 static double aiff_rate80(const uint8_t *p) { int e = ((p[0] & 0x7F) << 8) | p[1]; uint64_t m = 0; for (int i = 0; i < 8; i++) m = (m << 8) | p[2 + i]; return e == 0 && m == 0 ? 0 : ldexp((double)m, e - 16383 - 63); }
+static int fp_chan_match(uint32_t chan) { return fp.on && chan == fp.chan; }
 static void filep_stop(void) {
     fp.on = 0;
 #ifdef HAVE_SDL

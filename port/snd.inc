@@ -1,4 +1,4 @@
-static int filep_start(uint32_t chan, int fref, uint32_t completion); static void filep_stop(void);
+static int fp_chan_match(uint32_t chan); static int filep_start(uint32_t chan, int fref, uint32_t completion); static void filep_stop(void);
 /* ---- Sound Manager (timing-accurate simulated playback; real mixing via SDL audio later) ---- */
 static struct { int on; uint32_t chan, hdr; int cur; double t_end; } dbp;
 static double snd_buf_ms(uint32_t buf, uint32_t hdr) { uint32_t rate = rd32(hdr + 8) >> 16; if (!rate) rate = 22254; return rd32(buf) * 1000.0 / rate; }
@@ -19,10 +19,10 @@ static int snd_dispatch(uint16_t w, uint16_t n, uint32_t ret) {
             setsp(sp + 8); wr16(sp + 8, 0); return 1; }
         fprintf(stderr, "  SoundDispatch selector %08x not implemented\n", sel); return 0; }
     case 0xA807: { uint32_t chp = rd32(sp + 10); (void)chp; uint32_t ch = alloc_block(32 + 64); wr32(chp, ch); setsp(sp + 14); wr16(sp + 14, 0); return 1; }  /* SndNewChannel */
-    case 0xA801: if (dbp.on && rd32(sp + 2) == dbp.chan) { dbp.on = 0; if (getenv("SNDLOG")) fprintf(stderr, "  [snd] SndDisposeChannel stops double buffer\n"); } setsp(sp + 6); wr16(sp + 6, 0); return 1;                /* SndDisposeChannel */
+    case 0xA801: if (fp_chan_match(rd32(sp + 2))) filep_stop(); if (dbp.on && rd32(sp + 2) == dbp.chan) { dbp.on = 0; if (getenv("SNDLOG")) fprintf(stderr, "  [snd] SndDisposeChannel stops double buffer\n"); } setsp(sp + 6); wr16(sp + 6, 0); return 1;                /* SndDisposeChannel */
     case 0xA802: setsp(sp + 14); wr16(sp + 14, 0); return 1;              /* SndAddModifier */
-    case 0xA803: if (getenv("SNDLOG")) fprintf(stderr, "  [snd] SndDoCommand cmd=%04x p1=%04x p2=%08x\n", rd16(rd32(sp)), rd16(rd32(sp) + 2), rd32(rd32(sp) + 4)); setsp(sp + 10); wr16(sp + 10, 0); return 1;              /* SndDoCommand */
-    case 0xA804: if (getenv("SNDLOG")) fprintf(stderr, "  [snd] SndDoImmediate cmd=%04x p1=%04x p2=%08x\n", rd16(rd32(sp)), rd16(rd32(sp) + 2), rd32(rd32(sp) + 4)); setsp(sp + 8); wr16(sp + 8, 0); return 1;                /* SndDoImmediate */
+    case 0xA803: { int c = rd16(rd32(sp + 2)); if ((c == 3 || c == 4) && fp_chan_match(rd32(sp + 6))) filep_stop(); } if (getenv("SNDLOG")) fprintf(stderr, "  [snd] SndDoCommand cmd=%04x p1=%04x p2=%08x\n", rd16(rd32(sp)), rd16(rd32(sp) + 2), rd32(rd32(sp) + 4)); setsp(sp + 10); wr16(sp + 10, 0); return 1;              /* SndDoCommand */
+    case 0xA804: { int c = rd16(rd32(sp)); if ((c == 3 || c == 4) && fp_chan_match(rd32(sp + 4))) filep_stop(); } if (getenv("SNDLOG")) fprintf(stderr, "  [snd] SndDoImmediate cmd=%04x p1=%04x p2=%08x\n", rd16(rd32(sp)), rd16(rd32(sp) + 2), rd32(rd32(sp) + 4)); setsp(sp + 8); wr16(sp + 8, 0); return 1;                /* SndDoImmediate */
     case 0xA805: if (getenv("SNDLOG")) fprintf(stderr, "  [snd] SndPlay chan=%06x h=%06x async=%d\n", rd32(sp + 6), rd32(sp + 2), rd8(sp)); setsp(sp + 10); wr16(sp + 10, 0); return 1;              /* SndPlay */
     case 0xA806: setsp(sp + 6); wr16(sp + 6, 0); return 1;                /* SndControl */
     default: return 0;
