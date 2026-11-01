@@ -54,8 +54,54 @@ static void snd_voice_dump(void) {
     static int n = 0; if (!getenv("SNDVOICE") || n > 12) return; static double last = 0; double ms = now_ms(); (void)last; (void)ms; if (!fx_st) return;
     uint32_t b = 0xa84320; fprintf(stderr, "  [voice] 11c0=%u 11c4=%u 1830=%02x", rd16(b + 0x11c0), rd16(b + 0x11c4), rd8(b + 0x1830)); for (int i = 0; i < 11; i++) { uint32_t a1 = b + 0x22d2 + 4 * i; fprintf(stderr, " v%d(p=%x e=%x st=%04x pos=%x)", i, rd32(a1), rd32(a1 + 0x280), rd16(a1 + 0x200), rd32(a1 + 0x2c0)); } fprintf(stderr, "\n"); n++;
 }
+
+/* ---- Sound Manager file play (SndStartFilePlay): the game streams 'IntroSong' (AIFF) through its own channel; play it on a second SDL device ---- */
+static struct { int on; uint32_t chan, completion; double t_end; int ndone; uint8_t *pcm; size_t len; int has_dev;
+#ifdef HAVE_SDL
+    SDL_AudioDeviceID dev;
+#endif
+} fp;
+static double aiff_rate80(const uint8_t *p) { int e = ((p[0] & 0x7F) << 8) | p[1]; uint64_t m = 0; for (int i = 0; i < 8; i++) m = (m << 8) | p[2 + i]; return e == 0 && m == 0 ? 0 : ldexp((double)m, e - 16383 - 63); }
+static void filep_stop(void) {
+    fp.on = 0;
+#ifdef HAVE_SDL
+    if (fp.dev) { SDL_ClearQueuedAudio(fp.dev); SDL_CloseAudioDevice(fp.dev); fp.dev = 0; }
+#endif
+    free(fp.pcm); fp.pcm = NULL;
+}
+static int filep_start(uint32_t chan, int fref, uint32_t completion) {
+    OF *o = getof(fref); if (!o || !o->f) { fprintf(stderr, "  [snd] SndStartFilePlay: bad refnum %d\n", fref); return -43; }
+    filep_stop();
+    long len = o->len; if (len <= 0 || len > (64L << 20)) { fseek(o->f, 0, SEEK_END); len = ftell(o->f) - o->base; }
+    uint8_t *d = malloc(len); if (!d) return -108; fseek(o->f, o->base, SEEK_SET); size_t got = fread(d, 1, len, o->f); 
+    int ch = 1, bits = 16; uint32_t frames = 0; double rate = 22254; size_t off = 0, n = 0;
+    if (got < 12 || memcmp(d, "FORM", 4)) { fprintf(stderr, "  [snd] SndStartFilePlay: not an AIFF file\n"); free(d); return -50; }
+    for (size_t p = 12; p + 8 <= got;) { uint32_t sz = (d[p+4] << 24) | (d[p+5] << 16) | (d[p+6] << 8) | d[p+7]; const uint8_t *c = d + p + 8;
+        if (!memcmp(d + p, "COMM", 4) && p + 8 + 18 <= got) { ch = (c[0] << 8) | c[1]; frames = (c[2] << 24) | (c[3] << 16) | (c[4] << 8) | c[5]; bits = (c[6] << 8) | c[7]; rate = aiff_rate80(c + 8); }
+        else if (!memcmp(d + p, "SSND", 4)) { uint32_t so = (c[0] << 24) | (c[1] << 16) | (c[2] << 8) | c[3]; off = p + 16 + so; n = sz >= 8 + so ? sz - 8 - so : 0; if (off + n > got) n = off < got ? got - off : 0; }
+        p += 8 + sz + (sz & 1); }
+    if (!n || !ch) { fprintf(stderr, "  [snd] SndStartFilePlay: no sound data\n"); free(d); return -50; }
+    (void)frames; fprintf(stderr, "  [snd] SndStartFilePlay: AIFF %d ch %d-bit %.0f Hz %zu bytes (%.1f s)\n", ch, bits, rate, n, n / (double)(ch * (bits / 8)) / rate);
+    fp.pcm = malloc(n); memcpy(fp.pcm, d + off, n); fp.len = n; free(d);
+    fp.chan = chan; fp.completion = completion; fp.on = 1; fp.t_end = now_ms() + n * 1000.0 / (ch * (bits / 8) * rate);
+#ifdef HAVE_SDL
+    if (!headless) { SDL_AudioSpec w = {0}, g; w.freq = (int)rate; w.format = bits == 8 ? AUDIO_S8 : AUDIO_S16MSB; w.channels = ch; w.samples = 2048;
+        fp.dev = SDL_OpenAudioDevice(NULL, 0, &w, &g, 0);
+        if (fp.dev) { SDL_QueueAudio(fp.dev, fp.pcm, (Uint32)n); SDL_PauseAudioDevice(fp.dev, 0); } else fprintf(stderr, "  [snd] no audio device for file play: %s\n", SDL_GetError()); }
+#endif
+    return 0;
+}
+static void filep_poll(void) {
+    if (!fp.on) return; int done = 0;
+#ifdef HAVE_SDL
+    if (fp.dev) done = SDL_GetQueuedAudioSize(fp.dev) == 0; else
+#endif
+    done = now_ms() >= fp.t_end;
+    if (done) { uint32_t comp = fp.completion, chan = fp.chan; filep_stop(); if (comp) { call_args[0] = chan; call_nargs = 1; call68k(comp, 0, 0); } }
+}
 static void snd_tick(void) {
     snd_fx_hook(); snd_voice_dump();
+    filep_poll();
     /* keep ~300 ms of audio queued ahead in SDL; the buffer is free as soon as it has been copied, so refill immediately */
     if (!dbp.on) return; uint32_t hdr = dbp.hdr; double ms = now_ms();
     if (headless || snd_nodev()) { /* no device: keep the original real-time pacing so guest timing matches */
