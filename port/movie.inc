@@ -107,7 +107,7 @@ static void movie_task(Movie *m) {
     if (want > m->cur) { for (int i = m->cur + 1; i <= want; i++) { MSample *s = &m->sm[i]; if (s->off + s->size <= (uint32_t)m->datalen) cv_decode(m, m->data + s->off, s->size); } m->cur = want; movie_draw(m); }
 }
 static int qt_dispatch(uint16_t w, uint16_t n, uint32_t ret) {
-    if (n != 0xAAAA) return 0; uint32_t sp = SP; int sel = D(0) & 0xFFFF;
+    if (n != 0xAAAA) return 0; uint32_t sp = SP; int sel = D(0) & 0xFFFF; if (getenv("QTDBG")) fprintf(stderr, "  [qt] call sel=%04x sp=%x ret=%06x\n", sel, sp, ret);
     switch (sel) {
     case 0x0001: wr16(sp, 0); return 1;                                  /* EnterMovies */
     case 0x0002: return 1;                                               /* ExitMovies */
@@ -127,6 +127,7 @@ static int qt_dispatch(uint16_t w, uint16_t n, uint32_t ret) {
     case 0x0192: {      /* OpenMovieFile(FSSpec*, &refnum, perm) */
         uint32_t spec = rd32(sp + 6), rnp = rd32(sp + 2); setsp(sp + 10); int err = -43; char nm[80]; pstr(spec + 6, nm, 64); uint32_t parid = rd32(spec + 2); const char *base = dir_path(parid ? parid : cur_dir); char path[1100]; int isdir;
         if (base && lookup(base, nm, path, &isdir, 1)) { for (int i = 0; i < 8; i++) if (!mfiles[i].used) { mfiles[i].used = 1; size_t L = strlen(path); if (L > 4 && !strcasecmp(path + L - 4, ".bin")) path[L - 4] = 0; strncpy(mfiles[i].path, path, 1099); wr16(rnp, 0x300 + i); err = 0; break; } }
+        if (getenv("QTDBG")) fprintf(stderr, "  [qt] OpenMovieFile \"%s\" parid=%u base=%s -> %d\n", nm, parid, base ? base : "(null)", err);
         wr16(sp + 10, err); return 1; }
     default: fprintf(stderr, "  [qt] selector %04x not implemented\n", sel); return 0;
     }
