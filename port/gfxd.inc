@@ -12,7 +12,7 @@ static int rgn_rec_on = 0; static RL rgn_rec;
 static void rgn_rec_shape(int kind, Rc r, int ow, int oh) { for (int y = r.t; y < r.b; y++) { int a, b; if (shape_span(kind, r, ow, oh, y, &a, &b)) rl_add(&rgn_rec, (Rc){y, a, y + 1, b}); } }
 static int shape_op(DC *d, int which, int kind, Rc r, int ow, int oh) {      /* which: 0 frame,1 paint,2 erase,3 invert */
     uint32_t port = d->port;
-    if (rgn_rec_on && which == 0) { rgn_rec_shape(kind, r, ow, oh); return 1; } int pw = (int16_t)rd16(port + 54), ph = (int16_t)rd16(port + 52); if (pw < 1) pw = 1; if (ph < 1) ph = 1;
+    if (rgn_rec_on && which == 0) { rgn_rec_shape(kind, r, ow, oh); return 1; } int pw = (int16_t)rd16(port + 54), ph = (int16_t)rd16(port + 52); if (which == 0 && (pw <= 0 || ph <= 0)) return 1; /* zero-size pen draws nothing */ if (pw < 1) pw = 1; if (ph < 1) ph = 1;
     switch (which) {
     case 0: if (!pen_hidden(port)) shape_frame(d, kind, r, ow, oh, pw, ph); break;
     case 1: if (!pen_hidden(port)) shape_paint(d, kind, r, ow, oh); break;
@@ -158,7 +158,7 @@ static int gfx_dispatch(uint16_t w, uint16_t n, uint32_t ret) {
             uint32_t v = gp(&ss, sx, sy); if (ss.depth != ds.depth || (ss.depth == 8 && ss.ctab != ds.ctab)) v = rgb_px(&ds, px_rgb(&ss, v)); pp(&ds, x, y, v); }
         dc_free(&d); return 1; }
     case 0xA8EF: { uint32_t upd = rd32(sp); int dv = (int16_t)rd16(sp + 4), dh = (int16_t)rd16(sp + 6); uint32_t rp = rd32(sp + 8); setsp(sp + 12); if (port) do_scroll(rp, dh, dv, upd); return 1; }   /* ScrollRect */
-    case 0xA8F6: { uint32_t rp = rd32(sp); uint32_t ph = rd32(sp + 4); setsp(sp + 8); if (getenv("RECTDBG")) { Rc q = rc_get(rp); fprintf(stderr, "[drawpict] dst=(%d,%d,%d,%d) port=%06x pic=%06x size=%d frame=(%d,%d,%d,%d)\n", q.l, q.t, q.r, q.b, port, ph, rd16(rd32(ph)), (int16_t)rd16(rd32(ph)+4), (int16_t)rd16(rd32(ph)+6), (int16_t)rd16(rd32(ph)+8), (int16_t)rd16(rd32(ph)+10)); } if (port && ph && rd32(ph)) draw_pict(ph, rc_get(rp)); return 1; }          /* DrawPicture(pic, rect*) */
+    case 0xA8F6: { uint32_t rp = rd32(sp); uint32_t ph = rd32(sp + 4); setsp(sp + 8); if (getenv("RECTDBG")) { Rc q = rc_get(rp); if (rd16(rd32(ph)) == 78) { fprintf(stderr, "[pict78]"); for (int i = 0; i < 78; i++) fprintf(stderr, " %02x", rd8(rd32(ph) + i)); fprintf(stderr, "\n"); } fprintf(stderr, "[drawpict] fg=%04x,%04x,%04x color=%d ", rd16(port + 36), rd16(port + 38), rd16(port + 40), port_is_color(port)); fprintf(stderr, "[drawpict] dst=(%d,%d,%d,%d) port=%06x pic=%06x size=%d frame=(%d,%d,%d,%d)\n", q.l, q.t, q.r, q.b, port, ph, rd16(rd32(ph)), (int16_t)rd16(rd32(ph)+4), (int16_t)rd16(rd32(ph)+6), (int16_t)rd16(rd32(ph)+8), (int16_t)rd16(rd32(ph)+10)); } if (port && ph && rd32(ph) && !(getenv("NOPICT78") && rd16(rd32(ph)) == 78)) draw_pict(ph, rc_get(rp)); return 1; }          /* DrawPicture(pic, rect*) */
     case 0xA8F3: { Rc fr = rc_get(rd32(sp)); setsp(sp + 4); wr32(sp + 4, pic_open(fr)); return 1; }          /* OpenPicture */
     case 0xA8F4: if (pic_on) pic_close(); return 1;                                                           /* ClosePicture */
     case 0xA8F5: { uint32_t ph = rd32(sp); setsp(sp + 4); dispose_handle(ph); return 1; }                                                                          /* KillPicture */

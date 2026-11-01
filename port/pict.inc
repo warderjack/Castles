@@ -103,7 +103,7 @@ static void draw_pict(uint32_t pich, Rc dest) {
         if (op == 0x04) { wr8(port + 70, rd8(p)); p += 1; continue; }
         if (op == 0x05) { wr16(port + 72, rd16(p)); p += 2; continue; }
         if (op == 0x06) { wr32(port + 76, rd32(p)); p += 4; continue; }
-        if (op == 0x07) { int v = (int16_t)rd16(p), h = (int16_t)rd16(p + 2); p += 4; sc_pw = h < 1 ? 1 : h; sc_ph = v < 1 ? 1 : v; wr16(port + 52, (sc_ph * dh + fh / 2) / fh ? (sc_ph * dh + fh / 2) / fh : 1); wr16(port + 54, (sc_pw * dw + fw / 2) / fw ? (sc_pw * dw + fw / 2) / fw : 1); continue; }
+        if (op == 0x07) { int v = (int16_t)rd16(p), h = (int16_t)rd16(p + 2); p += 4; sc_pw = h < 1 ? 1 : h; sc_ph = v < 1 ? 1 : v; if (h <= 0 || v <= 0) { wr16(port + 52, 0); wr16(port + 54, 0); continue; } wr16(port + 52, (sc_ph * dh + fh / 2) / fh ? (sc_ph * dh + fh / 2) / fh : 1); wr16(port + 54, (sc_pw * dw + fw / 2) / fw ? (sc_pw * dw + fw / 2) / fw : 1); continue; }
         if (op == 0x08) { wr16(port + 56, rd16(p)); p += 2; continue; }
         if (op == 0x09) { uint8_t b[8]; for (int i = 0; i < 8; i++) b[i] = rd8(p + i); ensure_pixpat(port, 58, b); p += 8; continue; }
         if (op == 0x0A) { for (int i = 0; i < 8; i++) fillp[i] = rd8(p + i); p += 8; continue; }

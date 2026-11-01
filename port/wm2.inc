@@ -26,7 +26,7 @@ static void draw_window_frame(uint32_t w, const RL *clip) {
         fill_rect_dc(&d, (Rc){c.t - 1, st.l, c.t, st.r}, 1);
         if (active) for (int y = bar.t + 2; y < bar.b - 2; y += 2) fill_rect_dc(&d, (Rc){y, bar.l + 2, y + 1, bar.r - 2}, 1);
         uint32_t th = rd32(w + WR_TITLE); char t[256]; int l = 0; if (th && rd32(th)) { l = rd8(rd32(th)); for (int i = 0; i < l; i++) t[i] = rd8(rd32(th) + 1 + i); } t[l] = 0;
-        int tw = text_w(t, 0, 12, 1) + 12, tx = (bar.l + bar.r) / 2 - tw / 2; if (l) { fill_rect_dc(&d, (Rc){bar.t, tx, bar.b, tx + tw}, 0); text_at(&d, tx + 6, bar.b - 5, t, 0, 12, 1); }
+        int tw = text_w(t, 0, 12, 0) + 12, tx = (bar.l + bar.r) / 2 - tw / 2; if (l) { fill_rect_dc(&d, (Rc){bar.t, tx, bar.b, tx + tw}, 0); text_at(&d, tx + 6, bar.b - 5, t, 0, 12, 0); }
         if (rd8(w + WR_GOAWAY) && active) { Rc g = {bar.t + 3, bar.l + 7, bar.t + 14, bar.l + 18}; fill_rect_dc(&d, (Rc){g.t - 1, g.l - 1, g.b + 1, g.r + 1}, 0); frame_rect_dc(&d, g, 1); }
         break; }
     default: frame_rect_dc(&d, st, 1); break;
@@ -39,6 +39,7 @@ static void wm_activate_front(void) {
     active_win = f; if (f) { wr8(f + WR_HILITED, 1); post_activate(f, 1); }
 }
 static uint32_t wm_make_window(uint32_t storage, Rc bounds, uint32_t title, int visible, int proc, uint32_t behind, int goaway, uint32_t refcon, int color) {
+    if (getenv("WINDBG")) fprintf(stderr, "[newwindow] proc=%d vis=%d bounds=(%d,%d,%d,%d) color=%d\n", proc, visible, bounds.t, bounds.l, bounds.b, bounds.r, color);
     if (nwinfo >= 64) return 0;
     int alloc = 0; if (!storage) { storage = alloc_block(160); alloc = 1; } if (!storage) return 0; memset(ram + storage, 0, 160);
     int w = bounds.r - bounds.l, h = bounds.b - bounds.t;
