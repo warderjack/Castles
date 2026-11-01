@@ -121,7 +121,7 @@ static int qt_dispatch(uint16_t w, uint16_t n, uint32_t ret) {
         uint32_t changed = rd32(sp), mvp = rd32(sp + 16); int rn = rd16(sp + 14); setsp(sp + 20); int err = -43;
         if (changed) wr8(changed, 0);
         if (rn >= 0x300 && rn < 0x308 && mfiles[rn - 0x300].used) { Movie *m = NULL; for (int i = 0; i < 8; i++) if (!movies[i].used) { m = &movies[i]; break; }
-            if (m) { memset(m, 0, sizeof *m); err = movie_load(m, mfiles[rn - 0x300].path); if (err == 0) { m->used = 1; m->rec = alloc_block(16); wr32(m->rec, 0x4D4F5649); wr32(mvp, m->rec); } else { wr32(mvp, 0); free(m->data); free(m->sm); free(m->fb); } } else err = -108; }
+            if (m) { memset(m, 0, sizeof *m); err = movie_load(m, mfiles[rn - 0x300].path); if (err == 0) { fprintf(stderr, "  [qt] movie opened: %s (%dx%d, %d frames)\n", strrchr(mfiles[rn - 0x300].path, '/') ? strrchr(mfiles[rn - 0x300].path, '/') + 1 : mfiles[rn - 0x300].path, m->w, m->h, m->ns); m->used = 1; m->rec = alloc_block(16); wr32(m->rec, 0x4D4F5649); wr32(mvp, m->rec); } else { wr32(mvp, 0); free(m->data); free(m->sm); free(m->fb); } } else err = -108; }
         wr16(sp + 20, err); return 1; }
     case 0x00F9: case 0x00FA: { uint32_t boxp = rd32(sp), mv = rd32(sp + 4); setsp(sp + 8); Movie *m = movie_of(mv); if (m) { if (sel == 0x00F9) rc_put(boxp, m->box); else m->box = rc_get(boxp); } return 1; }      /* Get/SetMovieBox */
     case 0x0192: {      /* OpenMovieFile(FSSpec*, &refnum, perm) */
