@@ -292,14 +292,15 @@ static void draw_text(DC *d, const uint8_t *s, int n) {
         const FGlyph *g = &f->g[s[i]];
         if (!hidden && (tmode & 7) == 0) { Rc cell = {py - f->ascent, px, py + f->descent, px + g->adv + (s[i] == ' ' ? ex : 0)}; uint8_t b[8]; memset(b, 0, 8); int sm = d->mode; uint32_t sf = d->fg; dc_set_pat8(d, b); d->mode = 8; dc_rect(d, cell); d->mode = sm; d->fg = sf; }
         if (!hidden && g->w > 0) {
-            int rb = (g->w + 7) / 8;
+            int rb = (g->w + 1) / 2; RGB fgc = px_rgb(&d->s, d->fg); int aa = ((tmode & 7) == 0 || (tmode & 7) == 1) && d->s.depth >= 8;
             for (int gy = 0; gy < g->h; gy++) {
                 int y = py - g->top + gy; int shear = (face & 2) ? (g->top - gy) / 4 : 0;
-                for (int gx = 0; gx < g->w; gx++) if (font_blob[g->off + gy * rb + (gx >> 3)] & (0x80 >> (gx & 7))) {
-                    int x = px + g->lb + gx + shear; int o = (face & 1) && 0;
-                    (void)o;
+                for (int gx = 0; gx < g->w; gx++) { int cov = (font_blob[g->off + gy * rb + (gx >> 1)] >> ((gx & 1) ? 0 : 4)) & 15; if (!cov) continue;
+                    int x = px + g->lb + gx + shear;
                     for (int ci = 0; ci < d->clip.n; ci++) { Rc c = d->clip.r[ci]; if (x >= c.l && x < c.r && y >= c.t && y < c.b) {
                         uint32_t dst = gp(&d->s, x, y), v;
+                        if (aa && cov < 15) { RGB dc = px_rgb(&d->s, dst); RGB o; o.r = (dc.r * (15 - cov) + fgc.r * cov) / 15; o.g = (dc.g * (15 - cov) + fgc.g * cov) / 15; o.b = (dc.b * (15 - cov) + fgc.b * cov) / 15; v = rgb_px(&d->s, o); pp(&d->s, x, y, v); break; }
+                        if (cov < 8 && !aa) break;
                         switch (tmode & 7) { case 0: case 1: v = d->fg; break; case 2: v = dst ^ m; break; case 3: v = d->bg; break; case 4: v = d->bg; break; default: v = d->fg; break; }
                         pp(&d->s, x, y, v); break; } }
                     if (face & 0x10) { /* shadow: offset copy */ int x2 = x + 1, y2 = y + 1; for (int ci = 0; ci < d->clip.n; ci++) { Rc c = d->clip.r[ci]; if (x2 >= c.l && x2 < c.r && y2 >= c.t && y2 < c.b) { pp(&d->s, x2, y2, d->fg); break; } } }

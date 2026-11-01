@@ -23,20 +23,21 @@ for fam,(reg,bold) in FAM.items():
                 adv = int(round(f.getlength(ch)))
                 if c < 32 or c == 127: adv = 0
                 im = Image.new('L', (sz*3, sz*3), 0); d = ImageDraw.Draw(im)
-                d.fontmode = '1'   # no antialias
+                d.fontmode = 'L'   # antialiased (4 bpp coverage in the blob)
                 d.text((sz, sz), ch, font=f, fill=255, anchor='ls')  # baseline at y=sz
-                bb = im.point(lambda v: 255 if v>127 else 0).getbbox()
+                bb = im.point(lambda v: 255 if v>=24 else 0).getbbox()
                 if not bb or ch == ' ':
                     glyphs.append((adv,0,0,0,0,b'')); continue
                 l,t,r,bt = bb; w=r-l; h=bt-t
-                rb = (w+7)//8; rows = bytearray()
+                rb = (w+1)//2; rows = bytearray()
                 px = im.load()
                 for y in range(t,bt):
                     for xb in range(rb):
                         v=0
-                        for k in range(8):
-                            x=l+xb*8+k
-                            if x<r and px[x,y]>127: v|=0x80>>k
+                        for k in range(2):
+                            x=l+xb*2+k
+                            c = min(15, (px[x,y]*15+127)//255) if x<r and px[x,y]>=24 else 0
+                            v |= c << (4 if k==0 else 0)
                         rows.append(v)
                 glyphs.append((adv, l-sz, w, h, sz-t, bytes(rows)))   # left bearing, ascent of top above baseline
             off = len(blob)
