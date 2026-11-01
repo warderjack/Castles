@@ -107,6 +107,7 @@ static int text_w(const char *str, int font, int size, int face) {
     int w = str_width(port, (const uint8_t *)str, strlen(str)); wr16(port + 68, sf); wr16(port + 74, ss); wr8(port + 70, sfa); return w;
 }
 static void fill_rect_dc(DC *d, Rc r, int black) { uint8_t b[8]; memset(b, black ? 0xFF : 0, 8); dc_set_pat8(d, b); d->mode = 8; dc_rect(d, r); }
+static void fill_rgb_dc(DC *d, Rc r, int g, int b) { uint8_t p[8]; memset(p, 0xFF, 8); uint32_t sf = d->fg; d->fg = rgb_px(&d->s, (RGB){(uint16_t)(g * 257), (uint16_t)(g * 257), (uint16_t)(b * 257)}); dc_set_pat8(d, p); d->mode = 8; dc_rect(d, r); d->fg = sf; }
 static void frame_rect_dc(DC *d, Rc r, int black) {
     fill_rect_dc(d, (Rc){r.t, r.l, r.t + 1, r.r}, black); fill_rect_dc(d, (Rc){r.b - 1, r.l, r.b, r.r}, black);
     fill_rect_dc(d, (Rc){r.t, r.l, r.b, r.l + 1}, black); fill_rect_dc(d, (Rc){r.t, r.r - 1, r.b, r.r}, black);

@@ -6,7 +6,7 @@ static uint32_t active_win = 0;
 typedef struct { uint32_t w; int on; } PAct; static PAct pacts[32]; static int npacts = 0;
 static void post_activate(uint32_t w, int on) { for (int i = 0; i < npacts; i++) if (pacts[i].w == w) { pacts[i].on = on; return; } if (npacts < 32) { pacts[npacts].w = w; pacts[npacts].on = on; npacts++; } }
 static void margins(int proc, int *mt, int *ml, int *mb, int *mr) {
-    switch (proc & 0xF) { case 1: *mt = *ml = *mb = *mr = 3; break; case 2: *mt = *ml = *mb = *mr = 1; break; case 3: *mt = *ml = 1; *mb = *mr = 3; break;
+    switch (proc & 0xF) { case 1: *mt = *ml = *mb = *mr = 5; break; case 2: *mt = *ml = *mb = *mr = 1; break; case 3: *mt = *ml = 1; *mb = *mr = 3; break;
     case 0: case 4: case 8: case 12: *mt = 19; *ml = *mb = *mr = 1; break; default: *mt = *ml = *mb = *mr = 1; break; }
 }
 static void win_set_regions(uint32_t w, Rc cont) {
@@ -18,7 +18,12 @@ static void draw_window_frame(uint32_t w, const RL *clip) {
     DC d; screen_dc(&d, clip); int blk = rgb_px(&d.s, (RGB){0, 0, 0}), wht = rgb_px(&d.s, (RGB){0xFFFF, 0xFFFF, 0xFFFF}); (void)blk; (void)wht;
     int mt, ml, mb, mr; margins(proc, &mt, &ml, &mb, &mr); Rc st = {c.t - mt, c.l - ml, c.b + mb, c.r + mr};
     switch (proc & 0xF) {
-    case 1: frame_rect_dc(&d, st, 1); frame_rect_dc(&d, (Rc){st.t + 1, st.l + 1, st.b - 1, st.r - 1}, 0); frame_rect_dc(&d, (Rc){st.t + 2, st.l + 2, st.b - 2, st.r - 2}, 1); break;
+    case 1: {      /* System 7 color dialog frame: black, 3px light-to-dark bevel (light from top-left), black */
+        static const int gv[3] = {0xD8, 0xB8, 0x90}; frame_rect_dc(&d, st, 1);
+        for (int k = 0; k < 3; k++) { Rc q = {st.t + 1 + k, st.l + 1 + k, st.b - 1 - k, st.r - 1 - k}; int lt = gv[k], dk = gv[2 - k];
+            fill_rgb_dc(&d, (Rc){q.t, q.l, q.t + 1, q.r}, lt, lt + 8); fill_rgb_dc(&d, (Rc){q.t, q.l, q.b, q.l + 1}, lt, lt + 8);
+            fill_rgb_dc(&d, (Rc){q.b - 1, q.l, q.b, q.r}, dk, dk + 8); fill_rgb_dc(&d, (Rc){q.t, q.r - 1, q.b, q.r}, dk, dk + 8); }
+        frame_rect_dc(&d, (Rc){st.t + 4, st.l + 4, st.b - 4, st.r - 4}, 1); break; }
     case 2: frame_rect_dc(&d, st, 1); break;
     case 3: { Rc f = {st.t, st.l, st.b - 2, st.r - 2}; frame_rect_dc(&d, f, 1); fill_rect_dc(&d, (Rc){f.t + 2, f.r, f.b + 2, f.r + 2}, 1); fill_rect_dc(&d, (Rc){f.b, f.l + 2, f.b + 2, f.r + 2}, 1); break; }
     case 0: case 4: case 8: case 12: {
