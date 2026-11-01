@@ -1,0 +1,19 @@
+T 900 D 320 240
+T 910 U 320 240
+T 1200 D 48 9
+T 1220 M 70 27
+T 1240 M 70 28
+T 1250 U 70 28
+T 1530 D 322 370
+T 1540 U 322 370
+T 3000 S /tmp/castles-play/ai0.ppm
+T 3100 D 15 9
+T 3120 M 40 26
+T 3140 M 40 27
+T 3160 U 40 27
+T 3300 S /tmp/castles-play/ai1.ppm
+T 3500 S /tmp/castles-play/ai2.ppm
+T 3900 S /tmp/castles-play/ai3.ppm
+T 4800 S /tmp/castles-play/ai4.ppm
+
+T 9000 Q

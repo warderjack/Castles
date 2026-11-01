@@ -18,7 +18,11 @@ static int wm_dispatch(uint16_t w, uint16_t n, uint32_t ret) {
     uint32_t sp = SP;
     switch (n) {
     /* ---------------- events ---------------- */
-    case 0xA970: case 0xA971: { uint32_t evp = rd32(sp); int mask = rd16(sp + 4); int r = get_event(evp, mask, n == 0xA970); setsp(sp + 6); wr_bool(sp + 6, r); if (!r) idle_hint = 1; return 1; }
+    case 0xA970: case 0xA971: { uint32_t evp = rd32(sp); int mask = rd16(sp + 4); int r = get_event(evp, mask, n == 0xA970);
+        if (!r && n == 0xA971 && !det) {   /* EventAvail polled by an animation loop (credits scroll etc.): the original ran these at the speed of a 1990s Mac's drawing, so pace null polls to CASTLES_EAHZ (default 20/s; 0 = off) */
+            static double hz = -1; static struct timespec lastn; if (hz < 0) { const char *e = getenv("CASTLES_EAHZ"); hz = e ? atof(e) : 20.0; }
+            if (hz > 0) { for (;;) { struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t); double dt = (t.tv_sec - lastn.tv_sec) * 1e3 + (t.tv_nsec - lastn.tv_nsec) / 1e6; if (dt >= 1000.0 / hz || dt < 0) { lastn = t; break; } usleep(500); r = get_event(evp, mask, 0); if (r) break; } } }
+        setsp(sp + 6); wr_bool(sp + 6, r); if (!r) idle_hint = 1; return 1; }
     case 0xA860: { uint32_t evp = rd32(sp + 8); int mask = rd16(sp + 12); uint32_t sleep = rd32(sp + 4); int r = get_event(evp, mask, 1);
         if (!r && !det) {   /* pace null-event polling like a period Mac: at most CASTLES_WNEHZ (default off: it made the game run slower and exposed a sound-driver stale-pointer crash) idle passes per second, so frame-per-idle animations don't run at host speed */
             static double hz = -1; static struct timespec lastn; if (hz < 0) { const char *e = getenv("CASTLES_WNEHZ"); hz = e ? atof(e) : 0.0; }

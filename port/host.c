@@ -378,7 +378,8 @@ static void hle(uint16_t w, uint32_t ret) {
     case 0xA9C8: case 0xA9E5: setsp(sp + 2); break;                        /* SysBeep, InitPack */
     case 0xA032: SETD(0, 0); break;                                         /* FlushEvents */
     case 0xA03F: break;
-    case 0xA975: setsp(sp); wr32(sp, ticks_now()); break;                  /* TickCount */
+    case 0xA975: { static uint32_t tp[64], tc[64]; static int ntp, tpon = -1; if (tpon < 0) tpon = getenv("TICKPC") != NULL; if (tpon) { int k = 0; for (; k < ntp; k++) if (tp[k] == ret) break; if (k == ntp && ntp < 64) { tp[ntp] = ret; tc[ntp++] = 0; } if (k < 64) tc[k]++; static unsigned long tot; if ((++tot % 50000) == 0) { fprintf(stderr, "  [tickpc]"); for (int q = 0; q < ntp; q++) if (tc[q] > 500) fprintf(stderr, " %06x=%u", tp[q], tc[q]); fprintf(stderr, "\n"); } } }
+    setsp(sp); wr32(sp, ticks_now()); break;                  /* TickCount */
     case 0xA861: { uint32_t sd = rd32(cur_a5() - 4 - 126); sd = sd * 16807u % 2147483647u; wr32(cur_a5() - 4 - 126, sd); if (getenv("RNDLOG")) fprintf(stderr, "[rnd] %08x sp=%06x D=%x,%x,%x,%x,%x,%x A=%x,%x,%x,%x,%x\n", sd, sp, R(M68K_REG_D0), R(M68K_REG_D3), R(M68K_REG_D4), R(M68K_REG_D5), R(M68K_REG_D6), R(M68K_REG_D7), R(M68K_REG_A0), R(M68K_REG_A2), R(M68K_REG_A3), R(M68K_REG_A4), R(M68K_REG_A6)); wr16(sp, (int16_t)(sd & 0xFFFF)); break; }
     case 0xA970: case 0xA971: { uint32_t ev = rd32(sp); for (int i = 0; i < 16; i++) wr8(ev + i, 0); wr32(ev + 10, ticks_now()); setsp(sp + 6); wr16(sp + 6, 0); break; }
     case 0xA860: { uint32_t ev = rd32(sp + 8); for (int i = 0; i < 16; i++) wr8(ev + i, 0); wr32(ev + 10, ticks_now()); setsp(sp + 14); wr16(sp + 14, 0); break; }

@@ -146,6 +146,7 @@ static int menu_select_step(int startx, int starty, uint32_t *result) {      /* 
     }
     ev_pump();
     int mx = plat_mx, my = plat_my, btn = plat_btn;
+    { static int md = -1; static int lb = -2, lm = -2, li = -2, ly = -2; if (md < 0) md = getenv("MENUDBG") != NULL; if (md && (btn != lb || msel.midx != lm || msel.item != li || (my / 8) != ly)) { fprintf(stderr, "  [menu] step btn=%d pos=%d,%d midx=%d item=%d sticky=%d\n", btn, mx, my, msel.midx, msel.item, msel.sticky); lb = btn; lm = msel.midx; li = msel.item; ly = my / 8; } }
     if (!btn && msel.sticky && !msel.item) { /* waiting for a click while sticky */ }
     if (btn || msel.sticky) {
         int t = (my < mbar_height) ? mbar_title_at(mx) : -1;
