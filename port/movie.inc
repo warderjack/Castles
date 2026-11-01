@@ -143,7 +143,7 @@ static int misc_dispatch(uint16_t w, uint16_t n, uint32_t ret) {
         return 0;
     case 0xAA52:
         if ((sel & 0xF) == 1) {      /* FSMakeFSSpec(vRef, dirID, name, spec) */
-            uint32_t spec = rd32(sp), name = rd32(sp + 4), dirid = rd32(sp + 8); setsp(sp + 14); char nm[200]; pstr(name, nm, 190);
+            uint32_t spec = rd32(sp), name = rd32(sp + 4), dirid = rd32(sp + 8); int vref = (int16_t)rd16(sp + 12); if (!dirid && vref >= 0x100) dirid = (uint32_t)(vref - 0x100); setsp(sp + 14); char nm[200]; pstr(name, nm, 190);
             char path[1100], par[1100]; int isdir = 0, err = resolve(dirid, name, path, &isdir); uint32_t pid = dirid ? dirid : cur_dir; const char *lf = nm; { const char *c = strrchr(nm, ':'); if (c && c[1]) lf = c + 1; else if (c) { char t[200]; strncpy(t, nm, 199); t[strlen(t) - 1] = 0; const char *c2 = strrchr(t, ':'); lf = c2 ? nm + (c2 - t) + 1 : nm; } }
             if (!err) { dir_of_path(path, par); pid = dir_id_for(par); }
             if (getenv("QTDBG")) fprintf(stderr, "  [qt] FSMakeFSSpec dir=%u name=\"%s\" -> err=%d parent=%u\n", dirid, nm, err, pid);
