@@ -175,3 +175,10 @@ Castle-build animation speed is therefore NOT fixed yet; need to find the animat
 - SndNewChannel HLE allocates only 96 bytes; a real SndChannel is ~1056 bytes (queue[128]); not yet shown to matter (writes are BELOW chan).
 - Tried: SndDisposeChannel now stops the double-buffer poll (kept, harmless); stale-task guard for TM/VBL (reverted: false positives on a52e70); QUAR quarantine (no effect). Next idea: find which driver word supplies the base for the write (watch [a84378..]) and whether the game's second init should have run a driver init selector before the poll starts; or hold the first poll until the game has issued its init selectors.
 - Castle-build animation speed still unfixed: idle loop is WNE/FindWindow/Button/AB1D per pass with sleep=0; EventAvail pacing (CASTLES_EAHZ=20 default) fixed only the credits scroll.
+
+## Status 2026-10-31 (evening)
+- Castle-building workers move very fast: user watched a YouTube playthrough of the original game; the builders move equally fast there, so this is faithful (original quirk), not a port bug. Closed; do not slow the idle loop (that would also avoid the sound-driver stale-pointer crash exposure). Credits scroll in the About box is still paced (CASTLES_EAHZ, default 20).
+- IntroSong now exists (extracted from the 7-disk installer, which is one StuffIt archive: strip 100 bytes from each disk's data fork and concatenate; `unar` reads it). Implemented Sound Manager file play (SndStartFilePlay 0D000008, Pause 02010008, Stop 03020008, SndManagerStatus 03080008) plus stop on SndDisposeChannel / quiet+flush; played on a second SDL device. User verified: song plays and stops on click.
+- The original install ships only 23 of 33 movie numbers (no 05,13,18,25,27-32): nothing missing from the user's copy.
+- Text: glyphs are now 4bpp antialiased Liberation blended through the palette (gen/genfont.py; old 1-bit generator kept as gen/genfont_1bit.py.bak).
+- tools/hfsx.py extracts classic HFS floppy images.
