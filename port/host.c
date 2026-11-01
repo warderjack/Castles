@@ -389,7 +389,7 @@ static void hle(uint16_t w, uint32_t ret) {
     case 0xA0AD: {
         uint32_t sel = D(0), v = 0; int ok = 1;
         switch (sel) { case 0x73797376: v = 0x0710; break; case 0x71642020: v = 0x0300; break; case 0x70726F63: v = 4; break;
-                       case 0x66707520: v = 3; break; case 0x6D616368: v = 25; break; case 0x6B626420: v = 3; break; default: ok = 0; }
+                       case 0x66707520: v = 3; break; case 0x6D616368: v = 25; break; case 0x6B626420: v = 3; break; case 0x7174696D: v = 0x02108000; break; default: ok = 0; }
         SETA(0, v); SETD(0, ok ? 0 : (uint32_t)-5551); break; }
     /* ---- Segment loader / process ---- */
     case 0xA9F0: do_loadseg(ret); redirected = 1; break;
