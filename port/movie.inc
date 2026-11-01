@@ -95,7 +95,7 @@ static void cv_decode(Movie *m, const uint8_t *d, uint32_t len) {
     }
 }
 static void movie_draw(Movie *m) {
-    uint32_t port = m->port ? m->port : the_port(); if (!port) return; DC d; dc_init(&d, port); Rc dst = m->box; int dw = dst.r - dst.l, dh = dst.b - dst.t; if (dw <= 0 || dh <= 0) { dc_free(&d); return; }
+    uint32_t port = m->port ? m->port : the_port(); if (!port) return; DC d; dc_init(&d, port); Rc dst = m->box; if (getenv("QTDBG")) { static int dn; if (dn++ < 6) fprintf(stderr, "  [qt] draw port=%x (the_port=%x) box=%d,%d,%d,%d clipn=%d bnd=%d,%d,%d,%d depth=%d\n", port, the_port(), dst.t, dst.l, dst.b, dst.r, d.clip.n, d.s.bnd.t, d.s.bnd.l, d.s.bnd.b, d.s.bnd.r, d.s.depth); } int dw = dst.r - dst.l, dh = dst.b - dst.t; if (dw <= 0 || dh <= 0) { dc_free(&d); return; }
     for (int ci = 0; ci < d.clip.n; ci++) { Rc c = d.clip.r[ci]; int y0 = c.t > dst.t ? c.t : dst.t, y1 = c.b < dst.b ? c.b : dst.b, x0 = c.l > dst.l ? c.l : dst.l, x1 = c.r < dst.r ? c.r : dst.r;
         for (int y = y0; y < y1; y++) { int sy = (y - dst.t) * m->h / dh; for (int x = x0; x < x1; x++) { int sx = (x - dst.l) * m->w / dw; const uint8_t *px = m->fb + (sy * m->w + sx) * 3; RGB col = {px[0] * 257, px[1] * 257, px[2] * 257}; pp(&d.s, x, y, rgb_px(&d.s, col)); } } }
     dc_free(&d); gfx_dirty = 1;
@@ -172,4 +172,14 @@ static int sf_dispatch(uint16_t w, uint16_t n, uint32_t ret) {
     case 4: { uint32_t reply = rd32(sp + 2); setsp(sp + 34); wr8(reply, 0); fprintf(stderr, "  [sf] SFPGetFile -> cancel\n"); return 1; }
     }
     return 0;
+}
+
+/* debug: QTPLAY=NN plays Movie NN onto the current port from the event poll (once, after ~300 polls); QTSHOT=prefix writes frames */
+static void qt_selftest(void) {
+    static int cnt, done; if (done || ++cnt < 30) return; done = 1;
+    char pa[1200]; snprintf(pa, sizeof pa, "%s/Castles Movies/Movie%02d", game_root, atoi(getenv("QTPLAY"))); Movie *m = &movies[7]; memset(m, 0, sizeof *m);
+    int e = movie_load(m, pa); fprintf(stderr, "[qtplay] load %s -> %d (%dx%d)\n", pa, e, m->w, m->h); if (e) return;
+    m->used = 1; m->port = 0; m->box = (Rc){120, 160, 120 + m->h * 2, 160 + m->w * 2}; m->playing = 1; m->start_ms = now_ms(); m->cur = -1;
+    int shot = 0; while (m->playing) { movie_task(m); if (!shot && m->cur > m->ns / 2) { shot = 1; plat_present(); if (getenv("QTSHOT")) write_ppm(getenv("QTSHOT")); } double el = now_ms() - m->start_ms; if ((uint32_t)(el * m->mscale / 1000.0) >= m->mdur) m->playing = 0; usleep(2000); }
+    fprintf(stderr, "[qtplay] done frames=%d cur=%d\n", m->ns, m->cur);
 }
