@@ -15,10 +15,14 @@ static int snd_dispatch(uint16_t w, uint16_t n, uint32_t ret) {
         if (sel == 0x00200008) {        /* SndPlayDoubleBuffer(chan, SndDoubleBufferHeader*): OSErr -- accepted, silent for now */
             uint32_t hdr = rd32(sp); fprintf(stderr, "  SndPlayDoubleBuffer chan=%06x hdr=%06x chans=%d bits=%d rate=%u buf0=%06x buf1=%06x proc=%06x\n", rd32(sp + 4), hdr,
                 rd16(hdr), rd16(hdr + 2), rd32(hdr + 8) >> 16, rd32(hdr + 12), rd32(hdr + 16), rd32(hdr + 20));
+            { uint32_t a4 = rd32(hdr + 20) + 0x3b20; if (getenv("SNDLOG")) fprintf(stderr, "  [snd] driver state a4=%06x [58]=%08x voices=%d+%d\n", a4, rd32(a4 + 0x58), rd16(a4 + 0x11c0), rd16(a4 + 0x11c4)); }
             dbp.on = 1; dbp.chan = rd32(sp + 4); dbp.hdr = hdr; dbp.cur = 0; dbp.t_end = -1;
             setsp(sp + 8); wr16(sp + 8, 0); return 1; }
         fprintf(stderr, "  SoundDispatch selector %08x not implemented\n", sel); return 0; }
-    case 0xA807: { uint32_t chp = rd32(sp + 10); (void)chp; uint32_t ch = alloc_block(32 + 64); wr32(chp, ch); setsp(sp + 14); wr16(sp + 14, 0); return 1; }  /* SndNewChannel */
+    case 0xA807: { uint32_t chp = rd32(sp + 10), ch = rd32(chp);      /* SndNewChannel(VAR chan, synth, init, userRoutine): allocate a full zeroed SndChannel (queue[128]) */
+        if (getenv("SNDLOG")) fprintf(stderr, "  [snd] SndNewChannel *chan=%06x\n", ch);
+        ch = alloc_block(1100); if (ch) memset(ram + ch, 0, 1100);      /* caller-supplied *chan is ignored (the game leaves stale values there) */
+        if (ch) { wr32(ch + 8, rd32(sp)); wr16(ch + 34, 128); } wr32(chp, ch); setsp(sp + 14); wr16(sp + 14, ch ? 0 : (uint16_t)-108); return 1; }  /* SndNewChannel */
     case 0xA801: if (fp_chan_match(rd32(sp + 2))) filep_stop(); if (dbp.on && rd32(sp + 2) == dbp.chan) { dbp.on = 0; if (getenv("SNDLOG")) fprintf(stderr, "  [snd] SndDisposeChannel stops double buffer\n"); } setsp(sp + 6); wr16(sp + 6, 0); return 1;                /* SndDisposeChannel */
     case 0xA802: setsp(sp + 14); wr16(sp + 14, 0); return 1;              /* SndAddModifier */
     case 0xA803: { int c = rd16(rd32(sp + 2)); if ((c == 3 || c == 4) && fp_chan_match(rd32(sp + 6))) filep_stop(); } if (getenv("SNDLOG")) fprintf(stderr, "  [snd] SndDoCommand cmd=%04x p1=%04x p2=%08x\n", rd16(rd32(sp)), rd16(rd32(sp) + 2), rd32(rd32(sp) + 4)); setsp(sp + 10); wr16(sp + 10, 0); return 1;              /* SndDoCommand */
