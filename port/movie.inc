@@ -143,10 +143,13 @@ static int misc_dispatch(uint16_t w, uint16_t n, uint32_t ret) {
         return 0;
     case 0xAA52:
         if ((sel & 0xF) == 1) {      /* FSMakeFSSpec(vRef, dirID, name, spec) */
-            uint32_t spec = rd32(sp), name = rd32(sp + 4), dirid = rd32(sp + 8); setsp(sp + 14); char nm[80]; pstr(name, nm, 64); char *c = strrchr(nm, ':'); const char *leaf = c ? c + 1 : nm;
-            const char *base = dir_path(dirid ? dirid : cur_dir); char path[1100]; int isdir, err = base ? 0 : -43;
-            if (base && *leaf && !lookup(base, leaf, path, &isdir, 1)) err = -43;
-            wr16(spec, (uint16_t)-1); wr32(spec + 2, dirid ? dirid : cur_dir); int L = strlen(leaf); if (L > 63) L = 63; wr8(spec + 6, L); for (int i = 0; i < L; i++) wr8(spec + 7 + i, leaf[i]);
+            uint32_t spec = rd32(sp), name = rd32(sp + 4), dirid = rd32(sp + 8); setsp(sp + 14); char nm[200]; pstr(name, nm, 190);
+            char path[1100], par[1100]; int isdir = 0, err = resolve(dirid, name, path, &isdir); uint32_t pid = dirid ? dirid : cur_dir; const char *lf = nm; { const char *c = strrchr(nm, ':'); if (c && c[1]) lf = c + 1; else if (c) { char t[200]; strncpy(t, nm, 199); t[strlen(t) - 1] = 0; const char *c2 = strrchr(t, ':'); lf = c2 ? nm + (c2 - t) + 1 : nm; } }
+            if (!err) { dir_of_path(path, par); pid = dir_id_for(par); }
+            if (getenv("QTDBG")) fprintf(stderr, "  [qt] FSMakeFSSpec dir=%u name=\"%s\" -> err=%d parent=%u\n", dirid, nm, err, pid);
+            if (err) err = -43;
+            char leaf[80]; strncpy(leaf, lf, 63); leaf[63] = 0; { size_t ll = strlen(leaf); if (ll && leaf[ll - 1] == ':') leaf[ll - 1] = 0; }
+            wr16(spec, (uint16_t)-1); wr32(spec + 2, pid); int L = strlen(leaf); if (L > 63) L = 63; wr8(spec + 6, L); for (int i = 0; i < L; i++) wr8(spec + 7 + i, leaf[i]);
             wr16(sp + 14, (uint16_t)err); return 1;
         }
         return 0;
