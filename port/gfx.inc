@@ -4,6 +4,9 @@
 #if __has_include("fontdata_local.h")
 #include "fontdata_local.h"
 #define HAVE_LOCAL_FONTS 1
+#elif __has_include("fontdata_classic.h")
+#include "fontdata_classic.h"
+#define HAVE_LOCAL_FONTS 1
 #endif
 #endif
 #include <math.h>

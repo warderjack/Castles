@@ -19,7 +19,7 @@ No emulator, just gcc + SDL2:
     cd port && ./build_native.sh
     build/castles_native <rsrc.fork> "/path/to/game folder"
 
-Optional exact classic Mac fonts: put the fonts .zip (or `ChicagoFLF.ttf` and `geneva_9.ttf`) in a `fonts/` folder at the top of the repo and run `./build_native.sh` again (needs `python3` and Pillow: `pip install pillow`). They are not distributed with this project.
+Fonts: Chicago and Geneva 9 pixel fonts (public domain / CC BY 3.0) are bundled; see FONTS.md for credits and how to override them.
 
 Expectations: it runs the lifted game code directly (no 68k interpreter). Idle CPU is low
 (the game's event loop sleeps ~1 ms after two empty polls), roughly 15% of a core while the game is running.
