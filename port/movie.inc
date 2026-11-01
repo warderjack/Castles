@@ -20,6 +20,7 @@ static int movie_load(Movie *m, const char *path) {
     uint32_t doff = be32(rs), moff = be32(rs + 4); const uint8_t *map = rs + moff; uint32_t tl = be16(map + 24); const uint8_t *tbl = map + tl; int nt = (int)be16(tbl) + 1; const uint8_t *moov = NULL; long moovlen = 0;
     for (int i = 0; i < nt; i++) { const uint8_t *e = tbl + 2 + i * 8; if (!memcmp(e, "moov", 4)) { uint32_t ro = be16(e + 6); const uint8_t *rr = tbl + ro; uint32_t dataoff = be32(rr + 4) & 0xFFFFFF; moovlen = be32(rs + doff + dataoff); moov = rs + doff + dataoff + 4; break; } }
     if (!moov) { free(rs); return -1; }
+    if (moovlen >= 8 && !memcmp(moov + 4, "moov", 4)) { moov += 8; moovlen -= 8; }      /* resource holds the whole moov atom */
     long mlen; const uint8_t *mvhd = atom_find(moov, moovlen, "mvhd", &mlen); if (mvhd) { m->ts = be32(mvhd + 12); m->dur = be32(mvhd + 16); }
     long tlen; const uint8_t *trak = atom_find(moov, moovlen, "trak", &tlen); if (!trak) { free(rs); return -1; }
     const uint8_t *tkhd = atom_find(trak, tlen, "tkhd", &mlen); if (tkhd) { m->w = be16(tkhd + 76); m->h = be16(tkhd + 80); }
