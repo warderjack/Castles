@@ -54,7 +54,7 @@ static void menu_calc(uint32_t mh, int *w, int *h) {
 typedef struct { uint32_t mh; int x0, x1; } MBT; static MBT mbt[40]; static int nmbt = 0;
 static void mb_layout(void) {
     nmbt = 0; int x = 10;
-    for (int i = 0; i < nmenus; i++) { char t[256]; menu_cstr(menu_title_addr(menus[i]), t); int w = (t[0] == 0x14) ? 22 : text_w(t, 0, 12, 1) + 16; mbt[nmbt].mh = menus[i]; mbt[nmbt].x0 = x; mbt[nmbt].x1 = x + w; nmbt++; x += w; }
+    for (int i = 0; i < nmenus; i++) { char t[256]; menu_cstr(menu_title_addr(menus[i]), t); int w = (t[0] == 0x14) ? 22 : text_w(t, 0, 12, 0) + 16; mbt[nmbt].mh = menus[i]; mbt[nmbt].x0 = x; mbt[nmbt].x1 = x + w; nmbt++; x += w; }
 }
 static void draw_apple(DC *d, int x, int y, int inv) {            /* tiny apple glyph (13x14) */
     static const uint16_t g[14] = {0x0030, 0x0060, 0x00C0, 0x0000, 0x0CE0, 0x1FF0, 0x3FE0, 0x3FC0, 0x3FC0, 0x3FE0, 0x3FF0, 0x1FF0, 0x0FE0, 0x0660};
@@ -72,7 +72,7 @@ static void menubar_draw(void) {
     mb_layout();
     for (int i = 0; i < nmbt; i++) {
         char t[256]; menu_cstr(menu_title_addr(mbt[i].mh), t);
-        if (t[0] == 0x14) draw_apple(&d, mbt[i].x0 + 4, 3, 0); else text_at(&d, mbt[i].x0 + 8, mbar_height - 6, t, 0, 12, 1);
+        if (t[0] == 0x14) draw_apple(&d, mbt[i].x0 + 4, 3, 0); else text_at(&d, mbt[i].x0 + 8, mbar_height - 6, t, 0, 12, 0);
         if (menu_id(mbt[i].mh) == hilite_menu_id && hilite_menu_id) invert_rect_dc(&d, (Rc){0, mbt[i].x0, mbar_height - 1, mbt[i].x1});
     }
     dc_free(&d); rl_free(&all);
