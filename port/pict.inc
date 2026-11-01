@@ -50,7 +50,7 @@ static int pic_record(uint16_t n, uint32_t sp) {
     case 0xA884: { uint32_t p = rd32(sp); setsp(sp + 4); uint8_t b[256]; int l = rd8(p); for (int i = 0; i < l; i++) b[i] = rd8(p + 1 + i); pic_pnloc_text(port, b, l); return 1; }
     case 0xA885: { int cnt = rd16(sp), first = rd16(sp + 2); uint32_t buf = rd32(sp + 4); setsp(sp + 8); if (cnt > 0 && cnt < 256) pic_pnloc_text(port, ram + ((buf + first) & 0xFFFFFF), cnt); return 1; }
     /* rect */
-    case 0xA8A1: case 0xA8A2: case 0xA8A3: case 0xA8A4: { Rc r = rc_get(rd32(sp)); setsp(sp + 4); pe_op(0x0030 + (n - 0xA8A1)); pe_rect(r); return 1; }
+    case 0xA8A1: case 0xA8A2: case 0xA8A3: case 0xA8A4: { Rc r = rc_get(rd32(sp)); setsp(sp + 4); if (getenv("RECTDBG")) fprintf(stderr, "[pictrec] rect op=%d (%d,%d,%d,%d)\n", n - 0xA8A1, r.l, r.t, r.r, r.b); pe_op(0x0030 + (n - 0xA8A1)); pe_rect(r); return 1; }
     case 0xA8A5: { uint32_t pat = rd32(sp); Rc r = rc_get(rd32(sp + 4)); setsp(sp + 8); pe_op(0x000A); pe_bytes(pat, 8); pe_op(0x0034); pe_rect(r); return 1; }
     /* oval */
     case 0xA8B7: case 0xA8B8: case 0xA8B9: case 0xA8BA: { Rc r = rc_get(rd32(sp)); setsp(sp + 4); pe_op(0x0050 + (n - 0xA8B7)); pe_rect(r); return 1; }

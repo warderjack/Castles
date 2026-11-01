@@ -218,7 +218,7 @@ static int qd_dispatch(uint16_t w, uint16_t n, uint32_t ret) {
     /* ---- clip ---- */
     case 0xA879: { uint32_t port = the_port(), rgn = rd32(sp); RL l = {0}; rgn_get(rgn, &l); rgn_set(rd32(port + 28), &l); rl_free(&l); setsp(sp + 4); return 1; }  /* SetClip */
     case 0xA87A: { uint32_t port = the_port(), rgn = rd32(sp); RL l = {0}; rgn_get(rd32(port + 28), &l); rgn_set(rgn, &l); rl_free(&l); setsp(sp + 4); return 1; }   /* GetClip */
-    case 0xA87B: { uint32_t port = the_port(); rgn_set_rect(rd32(port + 28), rc_get(rd32(sp))); setsp(sp + 4); return 1; }                                            /* ClipRect */
+    case 0xA87B: { uint32_t port = the_port(); if (getenv("RECTDBG")) { Rc q = rc_get(rd32(sp)); fprintf(stderr, "[cliprect] (%d,%d,%d,%d) port=%06x\n", q.l, q.t, q.r, q.b, port); } rgn_set_rect(rd32(port + 28), rc_get(rd32(sp))); setsp(sp + 4); return 1; }                                            /* ClipRect */
     default: return 0;
     }
 }

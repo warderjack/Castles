@@ -48,7 +48,7 @@ static int gfx_dispatch(uint16_t w, uint16_t n, uint32_t ret) {
     case 0xA8DB: { uint32_t dst = rd32(sp); setsp(sp + 4); rgn_rec_on = 0; RL m = {0}; for (int i = 0; i < rgn_rec.n; i++) { RL one = {0}, t = {0}; rl_add(&one, rgn_rec.r[i]); rl_union(&m, &one, &t); rl_free(&m); rl_free(&one); m = t; } rgn_set(dst, &m); rl_free(&m); rl_free(&rgn_rec); return 1; }     /* CloseRgn */
     /* ---- rect / oval / roundrect: frame paint erase invert (4-byte arg) ---- */
     case 0xA8A1: case 0xA8A2: case 0xA8A3: case 0xA8A4: case 0xA8B7: case 0xA8B8: case 0xA8B9: case 0xA8BA: {
-        int rect = n < 0xA8B0; int which = rect ? n - 0xA8A1 : n - 0xA8B7; Rc r = rc_get(rd32(sp)); setsp(sp + 4); if (!port) return 1;
+        int rect = n < 0xA8B0; int which = rect ? n - 0xA8A1 : n - 0xA8B7; Rc r = rc_get(rd32(sp)); setsp(sp + 4); if (getenv("RECTDBG")) fprintf(stderr, "[rect] trap %04X op=%d (%d,%d,%d,%d) port=%06x pnmode=%d\n", n, which, r.l, r.t, r.r, r.b, port, (int16_t)rd16(port + 56)); if (!port) return 1;
         DC d; dc_init(&d, port); shape_op(&d, which, rect ? SH_RECT : SH_OVAL, r, 0, 0); dc_free(&d); return 1; }
     case 0xA8A5: case 0xA8BB: {   /* FillRect / FillOval(r, pat) */
         uint32_t pat = rd32(sp); Rc r = rc_get(rd32(sp + 4)); setsp(sp + 8); if (!port) return 1;
@@ -158,7 +158,7 @@ static int gfx_dispatch(uint16_t w, uint16_t n, uint32_t ret) {
             uint32_t v = gp(&ss, sx, sy); if (ss.depth != ds.depth || (ss.depth == 8 && ss.ctab != ds.ctab)) v = rgb_px(&ds, px_rgb(&ss, v)); pp(&ds, x, y, v); }
         dc_free(&d); return 1; }
     case 0xA8EF: { uint32_t upd = rd32(sp); int dv = (int16_t)rd16(sp + 4), dh = (int16_t)rd16(sp + 6); uint32_t rp = rd32(sp + 8); setsp(sp + 12); if (port) do_scroll(rp, dh, dv, upd); return 1; }   /* ScrollRect */
-    case 0xA8F6: { uint32_t rp = rd32(sp); uint32_t ph = rd32(sp + 4); setsp(sp + 8); if (port && ph && rd32(ph)) draw_pict(ph, rc_get(rp)); return 1; }          /* DrawPicture(pic, rect*) */
+    case 0xA8F6: { uint32_t rp = rd32(sp); uint32_t ph = rd32(sp + 4); setsp(sp + 8); if (getenv("RECTDBG")) { Rc q = rc_get(rp); fprintf(stderr, "[drawpict] dst=(%d,%d,%d,%d) port=%06x pic=%06x size=%d frame=(%d,%d,%d,%d)\n", q.l, q.t, q.r, q.b, port, ph, rd16(rd32(ph)), (int16_t)rd16(rd32(ph)+4), (int16_t)rd16(rd32(ph)+6), (int16_t)rd16(rd32(ph)+8), (int16_t)rd16(rd32(ph)+10)); } if (port && ph && rd32(ph)) draw_pict(ph, rc_get(rp)); return 1; }          /* DrawPicture(pic, rect*) */
     case 0xA8F3: { Rc fr = rc_get(rd32(sp)); setsp(sp + 4); wr32(sp + 4, pic_open(fr)); return 1; }          /* OpenPicture */
     case 0xA8F4: if (pic_on) pic_close(); return 1;                                                           /* ClosePicture */
     case 0xA8F5: { uint32_t ph = rd32(sp); setsp(sp + 4); dispose_handle(ph); return 1; }                                                                          /* KillPicture */
