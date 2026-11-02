@@ -140,7 +140,12 @@ unpack_archive() { # unpack_archive FILE -> sets GAME to the unpacked game folde
   fi
   [ -n "$conv" ] || { say "Unpacked, but no \"Castles Data\" folder was found inside. (Send me the output of: find ~/Castles-game -maxdepth 3)"; return; }
   conv=$(dirname "$conv"); convert_forks "$conv"
-  if valid "$conv"; then GAME="$conv"; say "Game folder ready: $GAME"; else FIXABLE=0; diagnose "$conv"; GAME="$conv"; fi
+  if valid "$conv"; then
+    # tidy: keep only the game folder, as <archive name>/Castles (drops the disk images and installer leftovers)
+    NEWT="$HOME/Castles-game/.tidy_$$"; rm -rf "$NEWT"
+    if [ "$conv" != "$OUT/Castles" ] && mv "$conv" "$NEWT" 2>/dev/null; then rm -rf "$OUT"; mkdir -p "$OUT"; mv "$NEWT" "$OUT/Castles"; conv="$OUT/Castles"; fi
+    GAME="$conv"; say "Game folder ready: $GAME"
+  else FIXABLE=0; diagnose "$conv"; GAME="$conv"; fi
 }
 add_song() { # the intro music lives in "Castles Data/IntroSong"; some archives lack it, so borrow it from another copy
   [ -n "$GAME" ] && [ -d "$GAME/Castles Data" ] || return 0
