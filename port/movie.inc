@@ -3,7 +3,7 @@ typedef struct { uint32_t off, size, t; } MSample;
 typedef struct { uint8_t y[4]; int8_t u, v; uint8_t rgb[4][3]; } CvCode;
 typedef struct {
     int used; uint32_t rec; char datapath[1100]; uint8_t *data; long datalen;
-    uint32_t mscale, mdur, ts, dur; int ns; MSample *sm; int w, h; uint32_t port; Rc box; int playing; double start_ms; int cur; uint8_t *fb; CvCode v1[256], v4[256]; uint32_t last_draw_cur;
+    uint32_t mscale, mdur, ts, dur; int ns; MSample *sm; int w, h; uint32_t port; Rc box; int playing; double start_ms; int cur; uint8_t *fb; CvCode v1[256], v4[256]; CvCode cs1[16][256], cs4[16][256]; uint32_t last_draw_cur;
 } Movie;
 static Movie movies[8];
 typedef struct { int used; char path[1100]; } MFile;
@@ -67,10 +67,10 @@ static void cv_codebook(CvCode *cb, int id, const uint8_t *d, int size) {
 static void cv_put(Movie *m, int x, int y, const uint8_t *rgb) { if (x < 0 || y < 0 || x >= m->w || y >= m->h) return; uint8_t *p = m->fb + (y * m->w + x) * 3; p[0] = rgb[0]; p[1] = rgb[1]; p[2] = rgb[2]; }
 static void cv_decode(Movie *m, const uint8_t *d, uint32_t len) {
     if (len < 10) return; int strips = be16(d + 8); const uint8_t *p = d + 10, *end = d + len; int y0 = 0; CvCode *v1 = m->v1, *v4 = m->v4; (void)v1; (void)v4;
-    static CvCode sv1[256], sv4[256];
     for (int s = 0; s < strips && p + 12 <= end; s++) {
         int sid = be16(p), ssize = be16(p + 2); int sh = (int)be16(p + 8) - (int)be16(p + 4); int y1 = y0, y2 = y0 + sh; y0 = y2; const uint8_t *sp = p + 12, *se = p + ssize; if (se > end) se = end;
-        if (s > 0) { /* codebooks carry over from the previous strip (kept in sv1/sv4) */ }
+        int si_ = s < 16 ? s : 15; if (s > 0 && !(d[0] & 1)) { memcpy(m->cs1[si_], m->cs1[si_ - 1 < 0 ? 0 : (s < 16 ? s - 1 : 15)], sizeof m->cs1[0]); memcpy(m->cs4[si_], m->cs4[s < 16 ? s - 1 : 15], sizeof m->cs4[0]); }      /* as in the Cinepak reference: strips after the first start from the previous strip's codebooks, strip 0 keeps its own from the previous frame */
+        CvCode *sv1 = m->cs1[si_], *sv4 = m->cs4[si_];
         (void)sid;
         while (sp + 4 <= se) {
             int cid = be16(sp), csz = be16(sp + 2); const uint8_t *cd = sp + 4; if (csz < 4) break; int cl = csz - 4; if (sp + csz > se) cl = (int)(se - cd);

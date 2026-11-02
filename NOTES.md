@@ -224,3 +224,7 @@ CD gameplay check: after New Game, clicking a territory selects it (Reims) and t
 
 ### CD: startup probe of Movie9901 (user report: "An internal error occurred")
 The CD program probes for `Castles CD Movies/Movie9901` at startup. The cut-down sample lacked it, so it passed; the full disc has it, and the program then plays it through QuickTime. Needed (all additive, floppy path unchanged): resource forks stored as `name.rsrc` (open_fork), movies whose first `trak` is empty (use the first track with a sample table), QuickTime selectors GetMovieTime 0x39, GetMovieDuration 0x2B, LoadMovieIntoRam 0x07, PrerollMovie 0x06, GetMoviePreferredRate 0xF3, GetMovieColorTable 0x206, and OSEventAvail/GetOSEvent (A030/A031). Known: CD movie frames decode with noise (codec variant to check).
+
+### CD: Cinepak codebook inheritance
+Multi-strip Cinepak frames: strips after the first start from the previous strip's codebooks (unless frame flag bit 0 is set); strip 0 keeps its own from the previous frame. Codebooks are now per movie and per strip. This removed the noise/dark speckles in the CD movies and title picture.
+Performance: the 68k path spends ~400M instructions in a bit-test loop (map/territory bitmap scan, CODE offsets near a80a42) on New Game and on each map click; native PPC code did this fast. Real fix: lift the CD's 68k code to C like the floppy build.
