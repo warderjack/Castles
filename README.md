@@ -8,9 +8,11 @@ QuickTime/Cinepak movies, file manager) natively on SDL2. No Apple ROM or system
 ## Game files (not included)
 This project contains only the port, not the game. Castles: Siege & Conquest is still copyrighted
 (Interplay), so its files cannot be distributed here. You need your own copy of the **Macintosh** version
-(the folder containing `Castles - Siege & Conquest.bin` plus "Castles Data", "Castles Movies", "Castle Plans").
+(the **floppy-disk version**; see below) (the folder containing `Castles - Siege & Conquest.bin` plus "Castles Data", "Castles Movies", "Castle Plans").
 Typical sources are your original Mac CD/disks, or a disk image or archive made from them (extract archives as
-described in Quick start). The Windows/DOS release of "Castles II" sold on some stores is a different program
+described in Quick start). This port is built for and tested with the **floppy-disk release** of the Mac game. A CD-ROM release also exists;
+it is a different release that has not been tested here and may not work.
+The Windows/DOS release of "Castles II" sold on some stores is a different program
 and does not work with this port. No Apple ROM or system software is needed.
 
 ## Quick start (any Linux distribution)
@@ -25,8 +27,10 @@ Then start it by double-clicking the icon (if your desktop shows a warning, righ
 `--yes` (no questions), `--no-deps` (never install packages), `--no-shortcut` (no Desktop icon), `--uninstall`.
 
 Your game folder is the one that contains `Castles Data`, `Castles Movies` and the game's `.bin` file.
-If your copy is an archive (.sit, .hqx, .zip, .dmg ...), extract it first, e.g. with `unar` (package "unar"
-or "unarchiver"); keep the MacBinary `.bin` files as they are.
+If your copy is an archive (.sit, .hqx, .cpt, .zip, .7z ...), just point the installer at it (it offers archives it finds,
+or type the path): it unpacks it with `unar` (offering to install it), joins the Mac resource forks into the
+`.bin` files the game expects, and tells you exactly what is missing if the folder is incomplete.
+Disk images (.img/.dmg/.iso) are not unpacked automatically; copy the files out of them first.
 
 Manual build, if you prefer (needs gcc or clang, and SDL2 development files):
 
