@@ -38,7 +38,7 @@ static void movie_load_audio(Movie *m, const uint8_t *moov, long moovlen) {
 static SDL_AudioDeviceID mov_dev; static int mov_rate, mov_fmt;
 static void movie_audio_stop(void) { if (mov_dev) { SDL_ClearQueuedAudio(mov_dev); SDL_PauseAudioDevice(mov_dev, 1); } }
 static void movie_audio_start(Movie *m) {
-    if (headless || !m->aud) return;
+    if (headless || !m->aud || getenv("NOMOVSND")) return;
     if (mov_dev && (mov_rate != m->arate || mov_fmt != m->afmt * 4 + m->achan)) { SDL_CloseAudioDevice(mov_dev); mov_dev = 0; }
     if (!mov_dev) { SDL_AudioSpec w = {0}, g; w.freq = m->arate; w.format = m->afmt == 1 ? AUDIO_S16MSB : m->afmt == 2 ? AUDIO_S8 : AUDIO_U8; w.channels = m->achan; w.samples = 1024; mov_dev = SDL_OpenAudioDevice(NULL, 0, &w, &g, 0); mov_rate = m->arate; mov_fmt = m->afmt * 4 + m->achan; if (mov_dev) SDL_PauseAudioDevice(mov_dev, 0); }
     if (mov_dev) { SDL_ClearQueuedAudio(mov_dev); SDL_QueueAudio(mov_dev, m->aud, (Uint32)m->audlen); SDL_PauseAudioDevice(mov_dev, 0); }
