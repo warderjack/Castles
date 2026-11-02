@@ -14,4 +14,7 @@ Everything the CD release needed from the shared host is additive and does not c
 ## Installing the CD release (experimental)
 `./install.sh` first (builds the shared parts), then `./cd/install_cd.sh /path/to/CD.cue` (.iso/.bin/.zip also work).
 It extracts the game to `~/Castles-game/CD/Castles` and adds the command `castles-cd`. The floppy install is untouched.
-Status: runs through New Game to the strategic map in the interpreter host; movies and CD audio music are not done yet.
+Start it with `castles-cd` (or `./cd/run_cd.sh`).
+Status: plays the game from the title screen through New Game and the strategic map. Working: intro movie (with sound), Encyclopedia, Castles and Tutorial movies (Cinepak and Animation video, 8/16-bit sound), About Castles, in-game music from the game files. Not done: the CD's own audio tracks, translation of the CD's 68k code to C (the interpreter is slower than the floppy build).
+
+Diagnostics (environment variables): `CASTLES_PERF=1` prints one timing line per second to stderr; `QTDBG=1` logs QuickTime calls; `NOMOVSND=1` turns movie sound off; `MOVSNDFMT=fmt,ch` forces the movie sound format (0=u8, 1=s16, 2=s8; 1 or 2 channels).
