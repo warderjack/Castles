@@ -8,16 +8,29 @@ QuickTime/Cinepak movies, file manager) natively on SDL2. No Apple ROM or system
 You must supply your own copy of the game (the folder containing
 `Castles - Siege & Conquest.bin` plus "Castles Data", "Castles Movies", "Castle Plans").
 
-## Build (Linux Mint / Ubuntu)
-    sudo apt install build-essential git libsdl2-dev
-    cd port && ./build.sh
-## Run
-    port/build/castles_host "/path/to/Castles - Siege and Conquest"
-### Standalone build (recommended)
-No emulator, just gcc + SDL2:
+## Quick start (any Linux distribution)
+    git clone https://github.com/warderjack/castles
+    cd castles
+    ./install.sh
+
+`install.sh` checks for a C compiler and the SDL2 development package (and offers to install them with your
+distribution's package manager: apt, dnf, pacman, zypper, apk, xbps or emerge), builds the game (about a minute),
+looks for your game folder, and adds a `castles` command plus an entry in your application menu.
+Then start it with `castles` or from the Games menu. Useful options: `--game DIR` (give the game folder),
+`--yes` (no questions), `--no-deps` (never install packages), `--uninstall`.
+
+Your game folder is the one that contains `Castles Data`, `Castles Movies` and the game's `.bin` file.
+If your copy is an archive (.sit, .hqx, .zip, .dmg ...), extract it first, e.g. with `unar` (package "unar"
+or "unarchiver"); keep the MacBinary `.bin` files as they are.
+
+Manual build, if you prefer (needs gcc or clang, and SDL2 development files):
 
     cd port && ./build_native.sh
-    build/castles_native <rsrc.fork> "/path/to/game folder"
+    build/castles_native "/path/to/game folder"
+
+Package names for SDL2 development files: Debian/Ubuntu/Mint `libsdl2-dev`, Fedora `SDL2-devel`, Arch `sdl2`,
+openSUSE `SDL2-devel`, Alpine `sdl2-dev`. The old Musashi-based reference build is `port/build.sh`
+(`castles_host`); you do not need it.
 
 Fonts: Chicago and Geneva 9 pixel fonts (public domain / CC BY 3.0) are bundled; see FONTS.md for credits and how to override them.
 
