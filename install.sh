@@ -143,13 +143,19 @@ if [ -z "$GAME" ]; then
     if [ -f "$GAME" ]; then unpack_archive "$GAME"; fi
   fi
 fi
+if [ -n "$GAME" ] && [ ! -e "$GAME" ]; then
+  say "Error: \"$GAME\" does not exist. Check the path (use the real location of your game folder or archive, in quotes)."; GAME=""
+fi
+if [ -n "$GAME" ] && [ -f "$GAME" ]; then
+  say "Error: \"$GAME\" is a file but not a type of archive I can unpack (.sit, .hqx, .cpt, .sea, .zip, .7z, .rar)."; GAME=""
+fi
 if [ -n "$GAME" ] && ! valid "$GAME"; then
   say "The folder $GAME is not a complete game folder:"; diagnose "$GAME"
   if [ "$FIXABLE" = 1 ] && ask "Try to repair it?"; then convert_forks "$GAME"; fi
   if valid "$GAME"; then say "Repaired: $GAME"; else say "I'll remember it anyway; fix the items above and start the game again."; fi
 fi
 mkdir -p "$CFG" "$BIN" "$APPS"
-[ -n "$GAME" ] && printf '%s\n' "$GAME" > "$CFG/game"
+[ -n "$GAME" ] && [ -d "$GAME" ] && printf '%s\n' "$GAME" > "$CFG/game"
 
 # ---- 4. launcher + menu entry ------------------------------------------------------------
 cat > "$BIN/castles" <<EOF
@@ -195,5 +201,6 @@ say ""
 say "Done."
 [ "$SHORT" = 1 ] && say "A \"Castles\" icon was added to your Desktop (if it shows a warning, right-click it and choose Allow Launching)."
 say "You can also find it in your application menu under Games."
+if [ -z "$GAME" ] && [ ! -r "$CFG/game" ]; then say ""; say "NOTE: no game folder is set yet, so the icon will not start the game. Run install.sh again with --game \"/real/path\"."; fi
 if [ -n "$GAME" ]; then say "To start it from a terminal right now:  $BIN/castles"; else say "Set your game folder once with:  $BIN/castles \"/path/to/game folder\""; fi
 case ":$PATH:" in *":$BIN:"*) ;; *) say "(After you next log in, the short command  castles  will work too.)";; esac
