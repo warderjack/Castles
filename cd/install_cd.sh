@@ -38,7 +38,11 @@ cat > "$BIN/castles-cd" <<EOF
 #!/bin/sh
 # Castles CD-ROM release (experimental interpreter host)
 cd "$HERE/port" 2>/dev/null
-NOLIFT=1 exec "$HERE/cd/build/host_cd" "$G/Castles CD.rsrc" "$G" "\$@"
+# the program creates its preferences file on the very first start and then quits; start it again once so you land in the game
+NEW=0; [ -f "$G/Castles CD Prefs.bin" ] || NEW=1
+NOLIFT=1 "$HERE/cd/build/host_cd" "$G/Castles CD.rsrc" "$G" "\$@" 2>/dev/null
+[ "\$NEW" = 1 ] && [ -f "$G/Castles CD Prefs.bin" ] && NOLIFT=1 exec "$HERE/cd/build/host_cd" "$G/Castles CD.rsrc" "$G" "\$@" 2>/dev/null
+exit 0
 EOF
 chmod +x "$BIN/castles-cd"
 say "Done. Start it with:  $BIN/castles-cd"
