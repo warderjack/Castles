@@ -65,7 +65,7 @@ static int sfg_step(uint32_t ret, uint32_t reply, int vv, int hh, int put, uint3
     int done = 0, openit = 0; ev_pump(); { static int cnt; if (getenv("SFGDBG") && (++cnt % 200 == 1 || plat_btn)) fprintf(stderr, "  [sfg] step %d evq=%d btn=%d mx=%d my=%d\n", cnt, evq_n, plat_btn, plat_mx, plat_my); }
     if (sfg.track == 1) {      /* tracking a button press */
         Rc r = sfg_btn_rc(sfg.btn - 1); int inside = plat_mx >= r.l && plat_mx < r.r && plat_my >= r.t && plat_my < r.b;
-        if (plat_btn) { if (!inside) { if (sfg.btn > 0) { sfg.btn = -sfg.btn; sfg_draw(); } } else if (sfg.btn < 0) { sfg.btn = -sfg.btn; sfg_draw(); } idle_hint = 1; rewind_trap(ret); return 0; }
+        if (plat_btn) { if (!inside) { if (sfg.btn > 0) { sfg.btn = -sfg.btn; sfg_draw(); } } else if (sfg.btn < 0) { sfg.btn = -sfg.btn; sfg_draw(); } idle_hint++; rewind_trap(ret); return 0; }
         int k = sfg.btn; sfg.btn = 0; sfg.track = 0; if (k > 0) { if (k == 4) { sfg.result = 0; done = 1; } else if (k == 3) { if (sfg.put) { sfg.result = 1; done = 1; } else openit = 1; } } sfg_draw();
     } else if (get_event(evp, (1 << 1) | (1 << 3) | (1 << 5), 1)) {
         int what = rd16(evp); if (getenv("SFGDBG")) fprintf(stderr, "  [sfg] event %d v=%d h=%d\n", what, (int16_t)rd16(evp + 10), (int16_t)rd16(evp + 12));
@@ -84,7 +84,7 @@ static int sfg_step(uint32_t ret, uint32_t reply, int vv, int hh, int put, uint3
     }
     if (openit && sfg.sel >= 0) { if (sfg.isdir[sfg.sel]) { char nm[64]; strcpy(nm, sfg.name[sfg.sel]); sfg_enter(nm); sfg_draw(); }
         else { sfg.result = 1; done = 1; } }
-    if (!done) { idle_hint = 1; rewind_trap(ret); return 0; }
+    if (!done) { idle_hint++; rewind_trap(ret); return 0; }
     int sw = sfg.sa.r - sfg.sa.l, sh = sfg.sa.b - sfg.sa.t; for (int y = 0; y < sh; y++) memcpy(ram + FB_BASE + (sfg.sa.t + y) * SCR_W + sfg.sa.l, sfg.saved + y * sw, sw);
     free(sfg.saved); sfg.saved = NULL; gfx_dirty = 1; sfg.active = 0;
     wr8(reply, sfg.result); wr8(reply + 1, 0); wr32(reply + 2, 0); wr16(reply + 8, 1);

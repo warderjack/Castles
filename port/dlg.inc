@@ -180,10 +180,10 @@ static int modal_step(uint32_t ret, uint32_t filter) {
     if (md.phase == 1) {         /* tracking a control */
         ev_pump(); Dlg *dd = d; int item = md.track; DItem *it = &dd->it[item]; int ox, oy; win_origin(md.dlg, &ox, &oy); int lx = plat_mx - ox, ly = plat_my - oy;
         Rc b = it->box; int inside = lx >= b.l && lx < b.r && ly >= b.t && ly < b.b;
-        if (plat_btn) { if (inside != md.inside) { md.inside = inside; md_hilite(dd, item, inside); } idle_hint = 1; rewind_trap(ret); return 0; }
+        if (plat_btn) { if (inside != md.inside) { md.inside = inside; md_hilite(dd, item, inside); } idle_hint++; rewind_trap(ret); return 0; }
         md_hilite(dd, item, 0); md.phase = 0; if (md.inside) { md.hit = item + 1; return 1; } md.have_ev = 0; }
     if (md.phase == 2) {         /* key flash */
-        ev_pump(); if (ticks_now() < md.until) { idle_hint = 1; rewind_trap(ret); return 0; }
+        ev_pump(); if (ticks_now() < md.until) { idle_hint++; rewind_trap(ret); return 0; }
         md_hilite(d, md.track, 0); md.phase = 0; md.hit = md.track + 1; return 1; }
     if (!md.have_ev) { md.er = get_event(evp, 0xFFFF, 1); md.have_ev = 1; md.filt_state = 0; }
     int what = rd16(evp);
@@ -205,7 +205,7 @@ static int modal_step(uint32_t ret, uint32_t filter) {
         else if (ch == 9) { int n = d->n, c = d->edit; for (int k = 1; k <= n && c >= 0; k++) { int j = (c + k) % n; if (d->it[j].type == 16) { set_the_port(md.dlg); int old = d->edit; d->edit = j; d->selall = 1; draw_item(d, old); edit_redraw(d); break; } } }
         else edit_key(d, ch);
         rewind_trap(ret); return 0; }
-    if (!md.er) idle_hint = 1;
+    if (!md.er) idle_hint++;
     rewind_trap(ret); return 0;
 }
 static void md_start(uint32_t dlg) { memset(&md, 0, sizeof md); md.active = 1; md.dlg = dlg; set_the_port(dlg); win_validate_all(dlg); }
@@ -231,7 +231,7 @@ static int pu_step(uint32_t ret, uint32_t mh, int top, int left, int popitem, ui
     ev_pump(); int mx = plat_mx, my = plat_my, n = menu_count(pu.mh); int it = 0;
     if (mx >= pu.box.l && mx < pu.box.r - 1 && my >= pu.box.t && my < pu.box.b - 1) { it = (my - pu.box.t) / 16 + 1; if (it > n || !menu_item_enabled(pu.mh, it)) it = 0; }
     if (it != pu.item) { RL a2 = {0}; rl_add(&a2, pu.sa); DC d2; screen_dc(&d2, &a2); if (pu.item) pu_draw_item(&d2, pu.item, 0); if (it) pu_draw_item(&d2, it, 1); dc_free(&d2); rl_free(&a2); pu.item = it; }
-    if (plat_btn) { idle_hint = 1; rewind_trap(ret); return 0; }
+    if (plat_btn) { idle_hint++; rewind_trap(ret); return 0; }
     int sw = pu.sa.r - pu.sa.l, sh = pu.sa.b - pu.sa.t; for (int y = 0; y < sh; y++) memcpy(ram + FB_BASE + (pu.sa.t + y) * SCR_W + pu.sa.l, pu.saved + y * sw, sw);
     free(pu.saved); pu.saved = NULL; gfx_dirty = 1; *result = pu.item ? (((uint32_t)(menu_id(pu.mh) & 0xFFFF)) << 16) | (uint32_t)pu.item : 0; pu.active = 0; return 1;
 }

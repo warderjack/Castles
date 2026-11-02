@@ -25,16 +25,16 @@ static int wm_dispatch(uint16_t w, uint16_t n, uint32_t ret) {
         if (!r && n == 0xA971 && !det) {   /* EventAvail polled by an animation loop (credits scroll etc.): the original ran these at the speed of a 1990s Mac's drawing, so pace null polls to CASTLES_EAHZ (default 20/s; 0 = off) */
             static double hz = -1; static struct timespec lastn; if (hz < 0) { const char *e = getenv("CASTLES_EAHZ"); hz = e ? atof(e) : 20.0; }
             if (hz > 0) { for (;;) { struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t); double dt = (t.tv_sec - lastn.tv_sec) * 1e3 + (t.tv_nsec - lastn.tv_nsec) / 1e6; if (dt >= 1000.0 / hz || dt < 0) { lastn = t; break; } usleep(500); r = get_event(evp, mask, 0); if (r) break; } } }
-        setsp(sp + 6); wr_bool(sp + 6, r); if (!r) idle_hint = 1; return 1; }
+        setsp(sp + 6); wr_bool(sp + 6, r); if (!r) idle_hint++; return 1; }
     case 0xA860: { if (getenv("QTPLAY")) qt_selftest(); uint32_t evp = rd32(sp + 8); int mask = rd16(sp + 12); uint32_t sleep = rd32(sp + 4); int r = get_event(evp, mask, 1);
         if (!r && !det) {   /* pace null-event polling like a period Mac: at most CASTLES_WNEHZ (default off: it made the game run slower and exposed a sound-driver stale-pointer crash) idle passes per second, so frame-per-idle animations don't run at host speed */
             static double hz = -1; static struct timespec lastn; if (hz < 0) { const char *e = getenv("CASTLES_WNEHZ"); hz = e ? atof(e) : 0.0; }
             if (hz > 0) { for (;;) { struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t); double dt = (t.tv_sec - lastn.tv_sec) * 1e3 + (t.tv_nsec - lastn.tv_nsec) / 1e6; if (dt >= 1000.0 / hz || dt < 0) { lastn = t; break; } usleep(500); if (getenv("WNEPOLL")) { r = get_event(evp, mask, 1); if (r) break; } } }
         }
         { static unsigned hist[8]; static int nn; static uint32_t lt; if (getenv("WNESLEEP")) { hist[sleep == 0 ? 0 : sleep < 3 ? 1 : sleep < 10 ? 2 : sleep < 60 ? 3 : 4]++; if ((++nn % 5000) == 0) fprintf(stderr, "[wnesleep] tick=%u s0=%u s1-2=%u s3-9=%u s10-59=%u s60+=%u last=%u\n", ticks_now(), hist[0], hist[1], hist[2], hist[3], hist[4], sleep); (void)lt; } }
-        { static int wn; if (getenv("WNEDBG") && (wn++ % 20000) == 0) { fprintf(stderr, "[wne] mask=%04x r=%d what=%d front=%06x active=%06x\n", mask, r, rd16(evp), win_list_head(), active_win); for (uint32_t p = win_list_head(); p; p = rd32(p + WR_NEXT)) { RL u = {0}; rgn_get(rd32(p + WR_UPDATE), &u); fprintf(stderr, "   win %06x vis=%d hil=%d upd_empty=%d\n", p, win_visible(p), rd8(p + WR_HILITED), rl_isempty(&u)); rl_free(&u); } } } setsp(sp + 14); wr_bool(sp + 14, r); { static int nullrun; if (r) nullrun = 0; else if (++nullrun > 2 || sleep) idle_hint = 1; } return 1; }
+        { static int wn; if (getenv("WNEDBG") && (wn++ % 20000) == 0) { fprintf(stderr, "[wne] mask=%04x r=%d what=%d front=%06x active=%06x\n", mask, r, rd16(evp), win_list_head(), active_win); for (uint32_t p = win_list_head(); p; p = rd32(p + WR_NEXT)) { RL u = {0}; rgn_get(rd32(p + WR_UPDATE), &u); fprintf(stderr, "   win %06x vis=%d hil=%d upd_empty=%d\n", p, win_visible(p), rd8(p + WR_HILITED), rl_isempty(&u)); rl_free(&u); } } } setsp(sp + 14); wr_bool(sp + 14, r); { static int nullrun; if (r) nullrun = 0; else if (++nullrun > 2 || sleep) idle_hint++; } return 1; }
     case 0xA974: { ev_pump(); if (qt_btn_gate && !plat_btn) qt_btn_gate = 0; wr_bool(sp, plat_btn && !qt_btn_gate); return 1; }
-    case 0xA973: { ev_pump(); wr_bool(sp, plat_btn); if (plat_btn) idle_hint = 1; return 1; }
+    case 0xA973: { ev_pump(); wr_bool(sp, plat_btn); if (plat_btn) idle_hint++; return 1; }
     case 0xA977: { ev_pump(); if (plat_btn) { rewind_trap(ret); return 1; } for (int i = 0; i < evq_n; i++) if (evq[(evq_h + i) & 255].what == 2) { for (int j = i; j + 1 < evq_n; j++) evq[(evq_h + j) & 255] = evq[(evq_h + j + 1) & 255]; evq_n--; break; } wr_bool(sp, 0); return 1; }
     case 0xA972: { uint32_t p = rd32(sp); setsp(sp + 4); ev_pump(); uint32_t port = the_port(); int ox = 0, oy = 0; if (port) { Rc b = rc_get(port_bnd_addr(port)); ox = b.l; oy = b.t; } wr16(p, plat_my + oy); wr16(p + 2, plat_mx + ox); return 1; }
     case 0xA976: { uint32_t p = rd32(sp); setsp(sp + 4); ev_pump(); memcpy(ram + p, keymap_state, 16); return 1; }
@@ -42,7 +42,7 @@ static int wm_dispatch(uint16_t w, uint16_t n, uint32_t ret) {
     case 0xA032: { uint32_t m = D(0) & 0xFFFF; for (int i = 0; i < evq_n; i++) if (m & (1 << evq[(evq_h + i) & 255].what)) { for (int j = i; j + 1 < evq_n; j++) evq[(evq_h + j) & 255] = evq[(evq_h + j + 1) & 255]; evq_n--; i--; } SETD(0, 0); return 1; }   /* FlushEvents */
     case 0xA03B: {      /* Delay(ticks) */
         if (!delay_active) { delay_active = 1; delay_until = ticks_now() + D(0); }
-        ev_pump(); if (ticks_now() < delay_until) { idle_hint = 1; rewind_trap(ret); return 1; }
+        ev_pump(); if (ticks_now() < delay_until) { idle_hint++; rewind_trap(ret); return 1; }
         delay_active = 0; SETD(0, ticks_now()); return 1; }
     /* ---------------- Window Manager ---------------- */
     case 0xA912: { rc_put(0x6C, (Rc){0, 0, SCR_H, SCR_W}); wr16(0xBAA, 20); wr32(0x9D6, 0); if (screen_port) draw_desktop_and_frames(); return 1; }     /* InitWindows */
@@ -136,7 +136,7 @@ static int wm_dispatch(uint16_t w, uint16_t n, uint32_t ret) {
     case 0xA948: { uint32_t mh = rd32(sp); setsp(sp + 4); int ww, hh; if (mh) menu_calc(mh, &ww, &hh); return 1; }
     case 0xA93D: { /* MenuSelect(startPt): long */
         int v = (int16_t)rd16(sp), h = (int16_t)rd16(sp + 2); uint32_t res = 0;
-        if (menu_select_step(h, v, &res)) { if (getenv("MENUDBG")) fprintf(stderr, "  [menu] select -> %08x\n", res); setsp(sp + 4); wr32(sp + 4, res); } else { rewind_trap(ret); idle_hint = 1; } return 1; }
+        if (menu_select_step(h, v, &res)) { if (getenv("MENUDBG")) fprintf(stderr, "  [menu] select -> %08x\n", res); setsp(sp + 4); wr32(sp + 4, res); } else { rewind_trap(ret); idle_hint++; } return 1; }
     case 0xA93E: {      /* MenuKey(ch): long */
         int ch = rd16(sp) & 0xFF; setsp(sp + 2); if (ch >= 'a' && ch <= 'z') ch -= 32; uint32_t res = 0;
         for (int i = 0; i < nmenus && !res; i++) { uint32_t mh = menus[i]; int c = menu_count(mh); for (int k = 1; k <= c; k++) { uint32_t p = menu_item_addr(mh, k); int key = rd8(p + 1 + rd8(p) + 1); if (key >= 'a' && key <= 'z') key -= 32; if (key && key == ch && menu_item_enabled(mh, k)) { res = ((uint32_t)menu_id(mh) << 16) | k; hilite_menu_id = menu_id(mh); menubar_draw(); gfx_dirty = 1; break; } } }
