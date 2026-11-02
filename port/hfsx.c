@@ -1,6 +1,6 @@
 /* hfsx: minimal read-only extractor for classic Mac HFS floppy images (raw or Disk Copy 4.2).
  * usage: hfsx <image> <outdir>   (image: Disk Copy 4.2, raw HFS floppy, .iso or raw .bin CD with a partition map)
- * env: HFSX_LIST=1 only lists files (full path, sizes); HFSX_FILTER='prefix|prefix' only handles files whose path starts with one of the prefixes.
+ * env: HFSX_LIST=1 only lists files (full path, sizes); HFSX_FILTER='prefix|prefix' only handles files whose path starts with one of the prefixes (a prefix ending in $ must match the whole path).
  * Writes every file as <outdir>/<path>/<name> (data fork) and <name>.rsrc (resource fork, if any). Used by install.sh
  * to open the original floppy-disk images of the game's installer. */
 #include <stdio.h>
@@ -62,7 +62,7 @@ static void file_cb(const uint8_t *key, const uint8_t *rec) {
     if (rec[0] != 2) return; char nm[64], dir[2048], path[3000]; clean(key + 7, key[6], nm); path_of(be32(key + 2), dir);
     uint32_t fnum = be32(rec + 20), dsz = be32(rec + 26), rsz = be32(rec + 36), got;
     { const char *rel = dir + strlen(OUT); if (*rel == '/') rel++; const char *fl = getenv("HFSX_FILTER"); char full[3100]; snprintf(full, sizeof full, "%s%s%s", rel, *rel ? "/" : "", nm);
-      if (fl && *fl) { char tmp[2048]; snprintf(tmp, sizeof tmp, "%s", fl); int hit = 0; for (char *t = strtok(tmp, "|"); t; t = strtok(NULL, "|")) if (!strncasecmp(full, t, strlen(t))) hit = 1; if (!hit) return; }
+      if (fl && *fl) { char tmp[2048]; snprintf(tmp, sizeof tmp, "%s", fl); int hit = 0; for (char *t = strtok(tmp, "|"); t; t = strtok(NULL, "|")) { size_t tl = strlen(t); if (tl && t[tl - 1] == '$') { if (strlen(full) == tl - 1 && !strncasecmp(full, t, tl - 1)) hit = 1; } else if (!strncasecmp(full, t, tl)) hit = 1; } if (!hit) return; }
       if (getenv("HFSX_LIST")) { printf("%s data=%u rsrc=%u\n", full, dsz, rsz); nfiles++; return; } }
     mk(dir);
     uint8_t *d = read_fork(fnum, 0, rec + 74, dsz, &got); snprintf(path, sizeof path, "%s/%s", dir, nm); FILE *f = fopen(path, "wb"); if (f) { fwrite(d, 1, got, f); fclose(f); } free(d);
