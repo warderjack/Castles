@@ -108,7 +108,7 @@ unpack_archive() { # unpack_archive FILE -> sets GAME to the unpacked game folde
     if [ -n "$UC" ] && [ "$DEPS" = 1 ]; then say "To unpack Mac archives I need the tool 'unar':  $SUDO $UC"; ask "Install it now?" && $SUDO sh -c "$UC"; fi
   fi
   command -v unar >/dev/null 2>&1 || { say "Can't unpack $A without the 'unar' tool. Install it (package \"unar\" or \"unarchiver\") and run ./install.sh again."; return; }
-  OUT="$HOME/Castles-game"; mkdir -p "$OUT"; say "Unpacking $A into $OUT ..."
+  OUT="$HOME/Castles-game/$(basename "$A" | sed 's/\.[^.]*$//')"; rm -rf "$OUT"; mkdir -p "$OUT"; say "Unpacking $A into $OUT ..."
   unar -q -f -o "$OUT" "$A" >/dev/null 2>&1 || { say "Could not unpack $A. If it is a disk image (.img/.dmg/.iso) copy the game files out of it first (e.g. mount it with a Mac-disk tool), or extract it with another program."; return; }
   conv=$(find "$OUT" -type d -name 'Castles Data' 2>/dev/null | head -1)
   if [ -z "$conv" ] && find "$OUT" -type f -iname '*disk*.image' 2>/dev/null | grep -q .; then
