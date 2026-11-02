@@ -5,8 +5,13 @@ translated to C (tools/lift.py -> port/gen/lift_*.c, verified against the Musash
 and the Mac Toolbox (QuickDraw, windows, menus, dialogs, sound,
 QuickTime/Cinepak movies, file manager) natively on SDL2. No Apple ROM or system software is used.
 
-You must supply your own copy of the game (the folder containing
-`Castles - Siege & Conquest.bin` plus "Castles Data", "Castles Movies", "Castle Plans").
+## Game files (not included)
+This project contains only the port, not the game. Castles: Siege & Conquest is still copyrighted
+(Interplay), so its files cannot be distributed here. You need your own copy of the **Macintosh** version
+(the folder containing `Castles - Siege & Conquest.bin` plus "Castles Data", "Castles Movies", "Castle Plans").
+Typical sources are your original Mac CD/disks, or a disk image or archive made from them (extract archives as
+described in Quick start). The Windows/DOS release of "Castles II" sold on some stores is a different program
+and does not work with this port. No Apple ROM or system software is needed.
 
 ## Quick start (any Linux distribution)
     git clone https://github.com/warderjack/castles
