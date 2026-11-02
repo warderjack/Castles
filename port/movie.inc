@@ -39,6 +39,7 @@ static SDL_AudioDeviceID mov_dev; static int mov_rate, mov_fmt;
 static void movie_audio_stop(void) { if (mov_dev) { SDL_ClearQueuedAudio(mov_dev); SDL_PauseAudioDevice(mov_dev, 1); SDL_CloseAudioDevice(mov_dev); mov_dev = 0; } }      /* close it: an idle open stream is not wanted while the game runs */
 static void movie_audio_start(Movie *m) {
     if (headless || !m->aud || getenv("NOMOVSND")) return;
+    if (getenv("MOVSNDFMT")) { int f = 0, c = 1; if (sscanf(getenv("MOVSNDFMT"), "%d,%d", &f, &c) == 2) { m->afmt = f; m->achan = c; } }      /* diagnostic: force format (0=u8 1=s16 2=s8) and channels */
     if (mov_dev) { SDL_CloseAudioDevice(mov_dev); mov_dev = 0; }
     if (!mov_dev) { SDL_AudioSpec w = {0}, g; w.freq = m->arate; w.format = m->afmt == 1 ? AUDIO_S16MSB : m->afmt == 2 ? AUDIO_S8 : AUDIO_U8; w.channels = m->achan; w.samples = 1024; mov_dev = SDL_OpenAudioDevice(NULL, 0, &w, &g, 0); mov_rate = m->arate; mov_fmt = m->afmt * 4 + m->achan; if (mov_dev) SDL_PauseAudioDevice(mov_dev, 0); }
     if (mov_dev) { SDL_ClearQueuedAudio(mov_dev); SDL_QueueAudio(mov_dev, m->aud, (Uint32)m->audlen); SDL_PauseAudioDevice(mov_dev, 0); }
