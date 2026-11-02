@@ -5,7 +5,13 @@
 set -e
 HERE=$(cd "$(dirname "$0")/.." && pwd); IMG="$1"
 say() { printf '%s\n' "$*"; }
-[ -n "$IMG" ] && [ -f "$IMG" ] || { say "usage: cd/install_cd.sh CD-image.cue|.iso|.bin|.zip"; exit 2; }
+[ -n "$IMG" ] || { say "usage: cd/install_cd.sh CD-image.cue|.iso|.bin|.zip   (or the folder that holds it)"; exit 2; }
+if [ -d "$IMG" ]; then   # a folder: pick the CD image or zip inside it
+  F=$(find "$IMG" -maxdepth 3 -type f \( -iname '*.cue' -o -iname '*.iso' -o -iname '*.zip' \) | head -1)
+  [ -n "$F" ] || F=$(find "$IMG" -maxdepth 3 -type f -iname '*.bin' -size +50000k | head -1)
+  [ -n "$F" ] && { say "Using $F"; IMG="$F"; }
+fi
+[ -f "$IMG" ] || { say "Not found: $IMG"; say "Give the real path of the CD .cue/.iso/.bin/.zip (or the folder holding it). Try:  find ~ -iname '*.cue' -o -iname 'CDMCR*'"; exit 2; }
 [ -f "$HERE/port/build/lift_seg1.o" ] || { say "Run ./install.sh first (it builds the shared parts)."; exit 1; }
 OUT="$HOME/Castles-game/CD"; rm -rf "$OUT"; mkdir -p "$OUT"
 case "$IMG" in
