@@ -62,6 +62,8 @@ static int open_fork(const char *path, int rf, int wr) {
     else {
         const char *src = path;
         if (!isbin) { snprintf(other, sizeof other, "%s.bin", path); src = other; }
+        if (rf && !isbin) { char rs[1200]; snprintf(rs, sizeof rs, "%s.rsrc", path); FILE *tf = fopen(src, "rb"); if (tf) fclose(tf); else if ((tf = fopen(rs, "rb"))) {      /* CD release: the resource fork is a separate name.rsrc file next to the data fork */
+            o->f = tf; o->base = 0; o->len = fsize(rs); return slot; } }
         long dl, rl; if (!mb_parse(src, &dl, &rl)) return rf ? -43 : -43;
         o->f = fopen(src, "rb"); if (!o->f) return -43;
         if (rf) { o->base = 128 + ((dl + 127) / 128) * 128; o->len = rl; } else { o->base = 128; o->len = dl; }

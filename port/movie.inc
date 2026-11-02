@@ -22,7 +22,13 @@ static int movie_load(Movie *m, const char *path) {
     if (!moov) { free(rs); return -1; }
     if (moovlen >= 8 && !memcmp(moov + 4, "moov", 4)) { moov += 8; moovlen -= 8; }      /* resource holds the whole moov atom */
     long mlen; const uint8_t *mvhd = atom_find(moov, moovlen, "mvhd", &mlen); if (mvhd) { m->ts = be32(mvhd + 12); m->dur = be32(mvhd + 16); }
-    long tlen; const uint8_t *trak = atom_find(moov, moovlen, "trak", &tlen); if (!trak) { free(rs); return -1; }
+    long tlen; const uint8_t *trak = NULL;
+    for (long to = 0; to + 8 <= moovlen; ) {      /* CD movies start with an empty track: take the first track that has a sample table */
+        uint32_t tsz = be32(moov + to); if (tsz < 8 || to + tsz > moovlen) break;
+        if (!memcmp(moov + to + 4, "trak", 4)) { long l1_, l2_, l3_, l4_; const uint8_t *md_ = atom_find(moov + to + 8, tsz - 8, "mdia", &l1_), *mi_ = md_ ? atom_find(md_, l1_, "minf", &l2_) : NULL, *sb_ = mi_ ? atom_find(mi_, l2_, "stbl", &l3_) : NULL;
+            if (sb_ && atom_find(sb_, l3_, "stts", &l4_)) { trak = moov + to + 8; tlen = tsz - 8; break; } if (!trak) { trak = moov + to + 8; tlen = tsz - 8; } }
+        to += tsz; }
+    if (!trak) { free(rs); return -1; }
     const uint8_t *tkhd = atom_find(trak, tlen, "tkhd", &mlen); if (tkhd) { m->w = be16(tkhd + 76); m->h = be16(tkhd + 80); }
     long mdl; const uint8_t *mdia = atom_find(trak, tlen, "mdia", &mdl); const uint8_t *mdhd = atom_find(mdia, mdl, "mdhd", &mlen); if (mdhd) { m->mscale = be32(mdhd + 12); m->mdur = be32(mdhd + 16); }
     long minl; const uint8_t *minf = atom_find(mdia, mdl, "minf", &minl); long stl; const uint8_t *stbl = atom_find(minf, minl, "stbl", &stl);
@@ -125,7 +131,15 @@ static int qt_dispatch(uint16_t w, uint16_t n, uint32_t ret) {
         if (changed) wr8(changed, 0);
         if (rn >= 0x300 && rn < 0x308 && mfiles[rn - 0x300].used) { Movie *m = NULL; for (int i = 0; i < 8; i++) if (!movies[i].used) { m = &movies[i]; break; }
             if (m) { memset(m, 0, sizeof *m); err = movie_load(m, mfiles[rn - 0x300].path); if (err == 0) { fprintf(stderr, "  [qt] movie opened: %s (%dx%d, %d frames)\n", strrchr(mfiles[rn - 0x300].path, '/') ? strrchr(mfiles[rn - 0x300].path, '/') + 1 : mfiles[rn - 0x300].path, m->w, m->h, m->ns); m->used = 1; m->rec = alloc_block(16); wr32(m->rec, 0x4D4F5649); wr32(mvp, m->rec); } else { wr32(mvp, 0); free(m->data); free(m->sm); free(m->fb); } } else err = -108; }
+        if (getenv("QTDBG")) fprintf(stderr, "  [qt] NewMovieFromFile rn=%x -> %d\n", rn, err);
+        if (getenv("QTDBG")) fprintf(stderr, "  [qt] NewMovieFromFile rn=%x -> %d\n", rn, err);
         wr16(sp + 20, err); return 1; }
+    case 0x0206: { uint32_t cp = rd32(sp); setsp(sp + 8); if (cp) wr32(cp, 0); wr16(sp + 8, 0); return 1; }      /* GetMovieColorTable(movie, &ctab): none (CD release) */
+    case 0x0039: { setsp(sp + 8); wr32(sp + 8, 0); return 1; }                                          /* GetMovieTime(movie, NULL): start of the movie */
+    case 0x002B: { uint32_t mv = rd32(sp); setsp(sp + 4); Movie *m = movie_of(mv); wr32(sp + 4, m ? m->dur : 0); return 1; }      /* GetMovieDuration */
+    case 0x0007: setsp(sp + 16); wr16(sp + 16, 0); return 1;                                             /* LoadMovieIntoRam(movie, time, duration, flags) */
+    case 0x0006: setsp(sp + 12); wr16(sp + 12, 0); return 1;                                             /* PrerollMovie(movie, time, rate) */
+    case 0x00F3: setsp(sp + 4); wr32(sp + 4, 0x10000); return 1;                                         /* GetMoviePreferredRate: 1.0 */
     case 0x00F9: case 0x00FA: { uint32_t boxp = rd32(sp), mv = rd32(sp + 4); setsp(sp + 8); Movie *m = movie_of(mv); if (m) { if (sel == 0x00F9) rc_put(boxp, m->box); else m->box = rc_get(boxp); } return 1; }      /* Get/SetMovieBox */
     case 0x0192: {      /* OpenMovieFile(FSSpec*, &refnum, perm) */
         uint32_t spec = rd32(sp + 6), rnp = rd32(sp + 2); setsp(sp + 10); int err = -43; char nm[80]; pstr(spec + 6, nm, 64); uint32_t parid = rd32(spec + 2); const char *base = dir_path(parid ? parid : cur_dir); char path[1100]; int isdir;

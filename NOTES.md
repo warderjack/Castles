@@ -221,3 +221,6 @@ Not yet: New Game and play, movies (121 files, new names), CD audio track, lifti
 ### CD: New Game crash root cause
 SANE `x80_put` wrote a 12-byte extended (pad word at +10). CodeWarrior's CD build keeps true 10-byte extendeds on the stack, so the pad word clobbered the saved A6 of the caller's frame. Fixed additively: pad word is skipped when the CD marker resource ('CS&C') is present; floppy behavior unchanged. CD now reaches the strategic map (Valois, April 11, 1312) in the interpreter host.
 CD gameplay check: after New Game, clicking a territory selects it (Reims) and the date advances; no unimplemented traps logged (cd/ng3.txt).
+
+### CD: startup probe of Movie9901 (user report: "An internal error occurred")
+The CD program probes for `Castles CD Movies/Movie9901` at startup. The cut-down sample lacked it, so it passed; the full disc has it, and the program then plays it through QuickTime. Needed (all additive, floppy path unchanged): resource forks stored as `name.rsrc` (open_fork), movies whose first `trak` is empty (use the first track with a sample table), QuickTime selectors GetMovieTime 0x39, GetMovieDuration 0x2B, LoadMovieIntoRam 0x07, PrerollMovie 0x06, GetMoviePreferredRate 0xF3, GetMovieColorTable 0x206, and OSEventAvail/GetOSEvent (A030/A031). Known: CD movie frames decode with noise (codec variant to check).

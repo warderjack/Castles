@@ -19,6 +19,7 @@ static int wm_dispatch(uint16_t w, uint16_t n, uint32_t ret) {
     uint32_t sp = SP;
     switch (n) {
     /* ---------------- events ---------------- */
+    case 0xA030: case 0xA031: { int r = get_event(A(0), D(0) & 0xFFFF, n == 0xA031); SETD(0, r ? 0 : 0xFFFF); return 1; }      /* OSEventAvail / GetOSEvent (register based): D0 = 0 when an event is there, -1 (evtNotEnb) when not */
     case 0xA970: case 0xA971: { if (getenv("QTPLAY")) qt_selftest(); uint32_t evp = rd32(sp); int mask = rd16(sp + 4); int r = get_event(evp, mask, n == 0xA970);
         if (r && getenv("EVDBG") && n == 0xA971) fprintf(stderr, "[eventavail] mask=%04x what=%d msg=%08x tick=%u\n", mask, rd16(evp), rd32(evp + 2), ticks_now());
         if (!r && n == 0xA971 && !det) {   /* EventAvail polled by an animation loop (credits scroll etc.): the original ran these at the speed of a 1990s Mac's drawing, so pace null polls to CASTLES_EAHZ (default 20/s; 0 = off) */
