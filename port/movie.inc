@@ -121,8 +121,8 @@ static int qt_dispatch(uint16_t w, uint16_t n, uint32_t ret) {
     case 0x0001: wr16(sp, 0); return 1;                                  /* EnterMovies */
     case 0x0002: return 1;                                               /* ExitMovies */
     case 0x0005: { uint32_t mv = rd32(sp + 4); setsp(sp + 8); Movie *m = movie_of(mv); if (m) movie_task(m); return 1; }      /* MoviesTask */
-    case 0x000B: { uint32_t mv = rd32(sp); setsp(sp + 4); Movie *m = movie_of(mv); if (m) { m->playing = 1; m->start_ms = now_ms(); m->cur = -1; movie_task(m); } return 1; }      /* StartMovie */
-    case 0x000C: { uint32_t mv = rd32(sp); setsp(sp + 4); Movie *m = movie_of(mv); if (m) m->playing = 0; return 1; }      /* StopMovie */
+    case 0x000B: { uint32_t mv = rd32(sp); setsp(sp + 4); Movie *m = movie_of(mv); ev_pump(); qt_btn_gate = plat_btn; { int k = 0; for (int i = 0; i < evq_n; i++) { MEvt e = evq[(evq_h + i) & 255]; if (e.what == 1 || e.what == 2) continue; evq[(evq_h + k++) & 255] = e; } evq_n = k; } if (m) { m->playing = 1; m->start_ms = now_ms(); m->cur = -1; movie_task(m); } return 1; }      /* StartMovie */
+    case 0x000C: { uint32_t mv = rd32(sp); setsp(sp + 4); Movie *m = movie_of(mv); if (getenv("QTDBG") && m) fprintf(stderr, "  [qt] StopMovie: playing=%d elapsed=%.0fms of %.0fms frame=%d/%d btn=%d gate=%d\n", m->playing, now_ms() - m->start_ms, m->mdur * 1000.0 / (m->mscale ? m->mscale : 1), m->cur, m->ns, plat_btn, qt_btn_gate); if (m) m->playing = 0; return 1; }      /* StopMovie */
     case 0x0016: { uint32_t mv = rd32(sp + 8), port = rd32(sp + 4); setsp(sp + 12); Movie *m = movie_of(mv); if (m) m->port = port; return 1; }      /* SetMovieGWorld */
     case 0x00D5: { int rn = rd16(sp); setsp(sp + 2); wr16(sp + 2, 0); if (rn >= 0x300 && rn < 0x308) mfiles[rn - 0x300].used = 0; return 1; }      /* CloseMovieFile */
     case 0x00DD: { uint32_t mv = rd32(sp); setsp(sp + 4); Movie *m = movie_of(mv); int done = 1; if (m) { double el = now_ms() - m->start_ms; done = !m->playing || (uint32_t)(el * m->mscale / 1000.0) >= m->mdur; if (done) m->playing = 0; } wr_bool(sp + 4, done); return 1; }      /* IsMovieDone */

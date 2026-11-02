@@ -14,7 +14,7 @@ static int rl_contains(const RL *l, int x, int y) { for (int i = 0; i < l->n; i+
 
 /* ---------- events ---------- */
 typedef struct { int what; uint32_t msg, when; int v, h, mods; } MEvt;
-static MEvt evq[256]; static int evq_h = 0, evq_n = 0;
+static MEvt evq[256]; static int evq_h = 0, evq_n = 0; static int qt_btn_gate;      /* a movie started while the mouse button was still down: ignore that press (it only selected the menu item) */
 static uint32_t cur_mods(void) { return plat_mods | (plat_btn ? 0 : 0x80); }
 static void ev_post(int what, uint32_t msg, int mods) {
     if (evq_n == 256) { evq_h = (evq_h + 1) & 255; evq_n--; }
