@@ -89,8 +89,8 @@ diagnose() { # explain what is missing from a game folder
     say "  I can try to repair that (it does not change your original archive)."; FIXABLE=1
   fi
 }
-hfsx_tool() { [ -x "$HERE/port/build/hfsx" ] || { mkdir -p "$HERE/port/build"; "${CC:-$(command -v gcc || command -v cc || command -v clang)}" -O2 -w -o "$HERE/port/build/hfsx" "$HERE/port/hfsx.c"; }; echo "$HERE/port/build/hfsx"; }
-macbin_tool() { [ -x "$HERE/port/build/macbin" ] || "${CC:-$(command -v gcc || command -v cc || command -v clang)}" -O2 -w -o "$HERE/port/build/macbin" "$HERE/port/macbin.c"; echo "$HERE/port/build/macbin"; }
+hfsx_tool() { { [ -x "$HERE/port/build/hfsx" ] && [ ! "$HERE/port/hfsx.c" -nt "$HERE/port/build/hfsx" ]; } || { mkdir -p "$HERE/port/build"; "${CC:-$(command -v gcc || command -v cc || command -v clang)}" -O2 -w -o "$HERE/port/build/hfsx" "$HERE/port/hfsx.c"; }; echo "$HERE/port/build/hfsx"; }
+macbin_tool() { { [ -x "$HERE/port/build/macbin" ] && [ ! "$HERE/port/macbin.c" -nt "$HERE/port/build/macbin" ]; } || "${CC:-$(command -v gcc || command -v cc || command -v clang)}" -O2 -w -o "$HERE/port/build/macbin" "$HERE/port/macbin.c"; echo "$HERE/port/build/macbin"; }
 convert_forks() { # join Mac resource forks (._name AppleDouble, name.rsrc, or __MACOSX/...) into MacBinary name.bin files
   ROOT="$1"; MB=$(macbin_tool); n=0
   find "$ROOT" -type f ! -name '._*' ! -name '*.rsrc' ! -name '*.bin' 2>/dev/null | while read -r f; do
