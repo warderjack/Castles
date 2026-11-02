@@ -109,15 +109,34 @@ convert_forks() { # join Mac resource forks (._name AppleDouble, name.rsrc, or _
   find "$ROOT" -name '._*' -type f -delete 2>/dev/null; find "$ROOT" -name '*.rsrc' -type f -delete 2>/dev/null
   rm -rf "$ROOT/__MACOSX" 2>/dev/null; rm -f "$ROOT/.converted"
 }
+cd_extract() { # cd_extract IMAGE -> game files from a Mac CD image into $OUT/_cd
+  HX=$(hfsx_tool); say "Reading the CD image $(basename "$1") (this can take a minute) ..."
+  HFSX_LIST=1 "$HX" "$1" "$OUT/_cd" > "$OUT/_cdlist.txt" 2> "$OUT/hfsx.log" || { say "Could not read the CD image:"; tail -n 4 "$OUT/hfsx.log" | sed 's/^/    /'; return; }
+  P=$(awk '{ l = tolower($0); i = index(l, "castles data/"); if (i) { print substr($0, 1, i - 1); exit } }' "$OUT/_cdlist.txt")
+  if [ -z "$P" ] && ! grep -qi '^castles data/' "$OUT/_cdlist.txt"; then say "The CD has no \"Castles Data\" folder. Files on it start like this:"; head -n 15 "$OUT/_cdlist.txt" | sed 's/^/    /'; return; fi
+  say "  game found on the disc in: \"${P:-(top level)}\"; copying it out ..."
+  HFSX_FILTER="${P}Castle" "$HX" "$1" "$OUT/_cd" > /dev/null 2>> "$OUT/hfsx.log" || { say "Copying from the CD failed:"; tail -n 4 "$OUT/hfsx.log" | sed 's/^/    /'; return; }
+}
+cd_image_of() { # prints the CD image file for a .cue/.iso or a big .bin, nothing otherwise
+  case "$1" in
+    *.cue|*.CUE) f=$(sed -n 's/^[[:space:]]*FILE[[:space:]]*"\(.*\)".*/\1/p' "$1" | head -1); [ -n "$f" ] && [ -f "$(dirname "$1")/$f" ] && echo "$(dirname "$1")/$f";;
+    *.iso|*.ISO) echo "$1";;
+    *.bin|*.BIN) [ "$(wc -c < "$1" 2>/dev/null || echo 0)" -gt 50000000 ] && echo "$1";;
+  esac
+}
 unpack_archive() { # unpack_archive FILE -> sets GAME to the unpacked game folder (empty on failure)
-  A="$1"; GAME=""; ARCHDIR=$(dirname "$A"); ARCHNAME="$A"
-  if ! command -v unar >/dev/null 2>&1; then
+  A="$1"; GAME=""; ARCHDIR=$(dirname "$A"); ARCHNAME="$A"; CDIMG=$(cd_image_of "$A")
+  if [ -z "$CDIMG" ] && ! command -v unar >/dev/null 2>&1; then
     UC=$(pm_cmd); SUDO=""; [ "$(id -u)" != 0 ] && SUDO="sudo"
     if [ -n "$UC" ] && [ "$DEPS" = 1 ]; then say "To unpack Mac archives I need the tool 'unar':  $SUDO $UC"; ask "Install it now?" && $SUDO sh -c "$UC"; fi
   fi
-  command -v unar >/dev/null 2>&1 || { say "Can't unpack $A without the 'unar' tool. Install it (package \"unar\" or \"unarchiver\") and run ./install.sh again."; return; }
-  OUT="$HOME/Castles-game/$(basename "$A" | sed 's/\.[^.]*$//')"; rm -rf "$OUT"; mkdir -p "$OUT"; say "Unpacking $A into $OUT ..."
-  unar -q -f -o "$OUT" "$A" >/dev/null 2>&1 || { say "Could not unpack $A. If it is a disk image (.img/.dmg/.iso) copy the game files out of it first (e.g. mount it with a Mac-disk tool), or extract it with another program."; return; }
+  [ -n "$CDIMG" ] || command -v unar >/dev/null 2>&1 || { say "Can't unpack $A without the 'unar' tool. Install it (package \"unar\" or \"unarchiver\") and run ./install.sh again."; return; }
+  OUT="$HOME/Castles-game/$(basename "$A" | sed 's/\.[^.]*$//')"; rm -rf "$OUT"; mkdir -p "$OUT"
+  if [ -n "$CDIMG" ]; then cd_extract "$CDIMG"
+  else
+    say "Unpacking $A into $OUT ..."
+    unar -q -f -o "$OUT" "$A" >/dev/null 2>&1 || { say "Could not unpack $A. If it is a disk image (.dmg) copy the game files out of it first, or extract it with another program."; return; }
+  fi
   conv=$(find "$OUT" -type d -name 'Castles Data' 2>/dev/null | head -1)
   if [ -z "$conv" ] && find "$OUT" -type f -iname '*.image' 2>/dev/null | grep -q .; then
     # the floppy release: Disk Copy images of Mac disks, each holding one piece of a StuffIt installer. Read the disks, drop the
@@ -137,6 +156,12 @@ unpack_archive() { # unpack_archive FILE -> sets GAME to the unpacked game folde
       say "  First bytes of the joined file:"; head -c 64 "$J" | od -An -c | head -4 | sed 's/^/    /'
     fi
     conv=$(find "$OUT/_inner" -type d -name 'Castles Data' 2>/dev/null | head -1)
+  fi
+  if [ -z "$conv" ]; then
+    # a CD image (.cue/.bin, .iso): read the Mac disc directly and take out only the game's folder
+    IMG=$(find "$OUT" -type f \( -iname '*.iso' -o -iname '*.bin' -o -iname '*.img' \) -size +50000k 2>/dev/null | head -1)
+    [ -n "$IMG" ] && cd_extract "$IMG"
+    conv=$(find "$OUT/_cd" -type d -name 'Castles Data' 2>/dev/null | head -1)
   fi
   [ -n "$conv" ] || { say "Unpacked, but no \"Castles Data\" folder was found inside. (Send me the output of: find ~/Castles-game -maxdepth 3)"; return; }
   conv=$(dirname "$conv"); convert_forks "$conv"
@@ -165,7 +190,7 @@ add_song() { # the intro music lives in "Castles Data/IntroSong"; some archives 
   rm -rf "$HOME/Castles-game/_song" 2>/dev/null
 }
 FIXABLE=0
-case "$GAME" in *.sit|*.sitx|*.hqx|*.cpt|*.sea|*.zip|*.7z|*.rar|*.tar|*.tgz|*.gz|*.bz2|*.xz|*.SIT|*.ZIP) [ -f "$GAME" ] && unpack_archive "$GAME";; esac
+case "$GAME" in *.sit|*.sitx|*.hqx|*.cpt|*.sea|*.zip|*.7z|*.rar|*.tar|*.tgz|*.gz|*.bz2|*.xz|*.SIT|*.ZIP|*.cue|*.CUE|*.iso|*.ISO|*.bin|*.BIN) [ -f "$GAME" ] && unpack_archive "$GAME";; esac
 if [ -z "$GAME" ] && [ -r "$CFG/game" ]; then GAME=$(cat "$CFG/game"); valid "$GAME" || GAME=""; fi
 if [ -z "$GAME" ]; then
   say "Looking for your copy of the game..."
@@ -196,7 +221,7 @@ if [ -n "$GAME" ] && [ ! -e "$GAME" ]; then
   say "Error: \"$GAME\" does not exist. Check the path (use the real location of your game folder or archive, in quotes)."; GAME=""
 fi
 if [ -n "$GAME" ] && [ -f "$GAME" ]; then
-  say "Error: \"$GAME\" is a file but not a type of archive I can unpack (.sit, .hqx, .cpt, .sea, .zip, .7z, .rar)."; GAME=""
+  say "Error: \"$GAME\" is a file but not a type of archive I can unpack (.sit, .hqx, .cpt, .sea, .zip, .7z, .rar, or a CD image .cue/.iso)."; GAME=""
 fi
 if [ -n "$GAME" ] && ! valid "$GAME"; then
   say "The folder $GAME is not a complete game folder:"; diagnose "$GAME"

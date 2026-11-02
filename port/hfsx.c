@@ -1,5 +1,6 @@
 /* hfsx: minimal read-only extractor for classic Mac HFS floppy images (raw or Disk Copy 4.2).
- * usage: hfsx <image> <outdir>
+ * usage: hfsx <image> <outdir>   (image: Disk Copy 4.2, raw HFS floppy, .iso or raw .bin CD with a partition map)
+ * env: HFSX_LIST=1 only lists files (full path, sizes); HFSX_FILTER='prefix|prefix' only handles files whose path starts with one of the prefixes.
  * Writes every file as <outdir>/<path>/<name> (data fork) and <name>.rsrc (resource fork, if any). Used by install.sh
  * to open the original floppy-disk images of the game's installer. */
 #include <stdio.h>
@@ -8,6 +9,7 @@
 #include <stdint.h>
 #include <sys/stat.h>
 #include <errno.h>
+#include <strings.h>
 static uint8_t *D; static long DN; static uint32_t ABS, ABST; /* allocation block size, first allocation block (in 512 byte sectors) */
 static uint16_t be16(const uint8_t *p) { return p[0] << 8 | p[1]; }
 static uint32_t be32(const uint8_t *p) { return (uint32_t)p[0] << 24 | p[1] << 16 | p[2] << 8 | p[3]; }
@@ -57,17 +59,50 @@ static void path_of(uint32_t par, char *out) { /* build relative dir path for pa
 }
 static void mk(const char *p) { char t[2048]; snprintf(t, sizeof t, "%s", p); for (char *s = t + 1; *s; s++) if (*s == '/') { *s = 0; mkdir(t, 0777); *s = '/'; } mkdir(t, 0777); }
 static void file_cb(const uint8_t *key, const uint8_t *rec) {
-    if (rec[0] != 2) return; char nm[64], dir[2048], path[3000]; clean(key + 7, key[6], nm); path_of(be32(key + 2), dir); mk(dir);
+    if (rec[0] != 2) return; char nm[64], dir[2048], path[3000]; clean(key + 7, key[6], nm); path_of(be32(key + 2), dir);
     uint32_t fnum = be32(rec + 20), dsz = be32(rec + 26), rsz = be32(rec + 36), got;
+    { const char *rel = dir + strlen(OUT); if (*rel == '/') rel++; const char *fl = getenv("HFSX_FILTER"); char full[3100]; snprintf(full, sizeof full, "%s%s%s", rel, *rel ? "/" : "", nm);
+      if (fl && *fl) { char tmp[2048]; snprintf(tmp, sizeof tmp, "%s", fl); int hit = 0; for (char *t = strtok(tmp, "|"); t; t = strtok(NULL, "|")) if (!strncasecmp(full, t, strlen(t))) hit = 1; if (!hit) return; }
+      if (getenv("HFSX_LIST")) { printf("%s data=%u rsrc=%u\n", full, dsz, rsz); nfiles++; return; } }
+    mk(dir);
     uint8_t *d = read_fork(fnum, 0, rec + 74, dsz, &got); snprintf(path, sizeof path, "%s/%s", dir, nm); FILE *f = fopen(path, "wb"); if (f) { fwrite(d, 1, got, f); fclose(f); } free(d);
     if (rsz) { uint8_t *r = read_fork(fnum, 0xFF, rec + 86, rsz, &got); strcat(path, ".rsrc"); f = fopen(path, "wb"); if (f) { fwrite(r, 1, got, f); fclose(f); } free(r); }
     nfiles++; printf("%s data=%u rsrc=%u\n", nm, dsz, rsz);
 }
 int main(int argc, char **argv) {
     if (argc < 3) { fprintf(stderr, "usage: hfsx <image> <outdir>\n"); return 2; }
-    FILE *f = fopen(argv[1], "rb"); if (!f) { perror(argv[1]); return 1; } fseek(f, 0, SEEK_END); long n = ftell(f); fseek(f, 0, SEEK_SET); uint8_t *all = malloc(n); if (fread(all, 1, n, f) != (size_t)n) return 1; fclose(f);
-    long off = 0; if (n > 84 && all[0] <= 63 && be16(all + 82) == 0x0100) off = 84;    /* Disk Copy 4.2 header */
-    D = all + off; DN = n - off; if (DN < 2048 || be16(D + 1024) != 0x4244) { fprintf(stderr, "%s: not an HFS image\n", argv[1]); return 1; }
+    FILE *f = fopen(argv[1], "rb"); if (!f) { perror(argv[1]); return 1; } fseek(f, 0, SEEK_END); long n = ftell(f); fseek(f, 0, SEEK_SET);
+    uint8_t head[4096]; size_t hn = fread(head, 1, sizeof head, f); if (hn < 2048) { fprintf(stderr, "%s: too small\n", argv[1]); return 1; }
+    /* sector layout: raw CD (12-byte sync, 2352-byte sectors, MODE1 data at +16 / MODE2 at +24) or plain 2048/512-byte images */
+    static const uint8_t sync[12] = {0,255,255,255,255,255,255,255,255,255,255,0};
+    long ss = 2048, dofs = 0; if (hn >= 2352 && !memcmp(head, sync, 12)) { ss = 2352; dofs = head[15] == 2 ? 24 : 16; }
+    long nsec = n / ss; long loff = 0;   /* logical bytes are read through rd(): the data track only (stops at the first non-sync sector) */
+    if (ss == 2352) { uint8_t sh[16]; long k; for (k = 0; k < nsec; k++) { fseek(f, k * ss, SEEK_SET); if (fread(sh, 1, 16, f) != 16 || memcmp(sh, sync, 12)) break; } nsec = k; }
+    long dn = nsec * 2048; if (ss == 2048 && (n % 2048)) dn = n;   /* odd sizes (floppy images): keep every byte */
+    if (ss == 2048 && (hn > 84 && head[0] <= 63 && be16(head + 82) == 0x0100)) { ss = 1; dn = n; }   /* Disk Copy 4.2: handled below as a flat file */
+    uint8_t *all = NULL; (void)loff;
+    if (ss == 1) { all = malloc(n); fseek(f, 0, SEEK_SET); if (fread(all, 1, n, f) != (size_t)n) return 1; D = all + 84; DN = n - 84; }
+    else {
+        /* read the first sectors to find the partition map (Apple Partition Map: 'ER' block 0, 'PM' entries from block 1; blocks are 512 bytes) */
+        #define RDLOG(buf, lsec, cnt) do { for (long q_ = 0; q_ < (cnt); q_++) { fseek(f, (long)((lsec) + q_) * ss + dofs, SEEK_SET); if (fread((buf) + q_ * 2048, 1, 2048, f) != 2048) memset((buf) + q_ * 2048, 0, 2048); } } while (0)
+        uint8_t *hd = malloc(2048 * 64); RDLOG(hd, 0, 64 < nsec ? 64 : nsec);
+        long pstart = 0, plen = dn / 512; int found = 0; const uint8_t *pm = hd + 512;
+        if (hd[0] == 'E' && hd[1] == 'R' && pm[0] == 'P' && pm[1] == 'M') {
+            long cnt = be32(pm + 4); if (cnt > 60) cnt = 60; long best = 0;
+            for (long i = 0; i < cnt; i++) { const uint8_t *e = hd + 512 * (1 + i); if (e[0] != 'P' || e[1] != 'M') break;
+                fprintf(stderr, "partition %ld: %.32s  type %.32s  start %u  blocks %u\n", i + 1, e + 16, e + 48, be32(e + 8), be32(e + 12));
+                if (!strncmp((const char *)e + 48, "Apple_HFS", 9) && be32(e + 12) > best) { best = be32(e + 12); pstart = be32(e + 8); plen = best; found = 1; } }
+            if (!found) { fprintf(stderr, "%s: partition map has no Apple_HFS partition\n", argv[1]); return 1; }
+        }
+        DN = plen * 512; if (pstart * 512 + DN > dn) DN = dn - pstart * 512;
+        D = malloc(DN); long first = (pstart * 512) / 2048, skip = (pstart * 512) % 2048; long nsc = (skip + DN + 2047) / 2048; uint8_t *tmp = malloc(2048 * 256);
+        for (long done = 0; done < nsc; done += 256) { long c = nsc - done < 256 ? nsc - done : 256; RDLOG(tmp, first + done, c);
+            long from = done == 0 ? skip : 0, dst = done * 2048 - skip + from; long len = c * 2048 - from; if (dst + len > DN) len = DN - dst; if (len > 0) memcpy(D + dst, tmp + from, len); }
+        free(tmp); free(hd);
+    }
+    fclose(f);
+    if (DN < 2048 || be16(D + 1024) != 0x4244) { fprintf(stderr, "%s: not a classic HFS volume%s\n", argv[1], (DN >= 2048 && be16(D + 1024) == 0x482B) ? " (it is HFS+, which hfsx cannot read)" : ""); return 1; }
+    if (be16(D + 1024 + 124) == 0x482B) { fprintf(stderr, "%s: HFS+ volume wrapped in HFS (hfsx cannot read HFS+)\n", argv[1]); return 1; }
     const uint8_t *m = D + 1024; ABS = be32(m + 20); ABST = be16(m + 28); OUT = argv[2];
     Ext ce[3], oe[3]; exts(m + 150, ce); exts(m + 134, oe); uint32_t got;
     cat.b = read_ext(ce, 3, be32(m + 146), &got); cat.n = got; ovf.b = read_ext(oe, 3, be32(m + 130), &got); ovf.n = got;

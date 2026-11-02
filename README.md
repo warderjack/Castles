@@ -31,7 +31,7 @@ Your game folder is the one that contains `Castles Data`, `Castles Movies` and t
 Point the installer at it with `./install.sh --game "/path/to/it"`, or just run `./install.sh` and pick from the
 list of folders and archives it finds. Archives are unpacked into `~/Castles-game/<archive name>/Castles` with `unar`
 (the installer offers to install it), and the Mac resource forks are joined into the `.bin` files the game expects.
-Three kinds of download are handled:
+Four kinds of download are handled:
 
 1. **A complete archive or folder** (.sit, .hqx, .cpt, .zip, .7z ...) holding the game, `Castles Data`, `Castles Movies`
    and `Castle Plans`. This is the simplest case and needs nothing special.
@@ -42,7 +42,10 @@ Three kinds of download are handled:
    Put all the disk images in one folder and point `--game` at that folder. The installer reads the HFS disks itself,
    joins the pieces of the StuffIt installer stored on them, and unpacks the result.
 
-Other disk images (`.dmg`, `.iso`, CD images) are not unpacked automatically; copy the files out of them first.
+4. **A CD image** (`.cue`/`.bin` or `.iso`, also when it is inside a zip): the installer reads the Mac disc itself and copies out only the game's folder.
+   (The CD release is a different release from the floppy one; support for it is experimental.)
+
+`.dmg` disk images are not unpacked automatically; copy the files out of them first.
 If the game starts with a "no game folder set" message, run `castles "/path/to/game folder"` once; it remembers the folder.
 
 Manual build, if you prefer (needs gcc or clang, and SDL2 development files):
