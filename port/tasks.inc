@@ -100,7 +100,15 @@ static void filep_poll(void) {
     done = now_ms() >= fp.t_end;
     if (done) { uint32_t comp = fp.completion, chan = fp.chan; filep_stop(); if (comp) { call_args[0] = chan; call_nargs = 1; call68k(comp, 0, 0); } }
 }
+static void snd_tick_body(void);
+static int snd_in_tick;
 static void snd_tick(void) {
+    /* The mixer keeps its voice-loop counter in driver memory ($2952(a4)), so it must never run nested inside itself: a poll fired from one of its own loop back-edges
+       would reset the counter and the outer pass would wrap the 16-bit counter and clear the heap. */
+    if (snd_in_tick) { if (getenv("SNDLOG")) fprintf(stderr, "  [snd] nested snd_tick skipped\n"); return; }
+    snd_in_tick = 1; snd_tick_body(); snd_in_tick = 0;
+}
+static void snd_tick_body(void) {
     snd_fx_hook(); snd_voice_dump();
     filep_poll();
     /* keep ~300 ms of audio queued ahead in SDL; the buffer is free as soon as it has been copied, so refill immediately */
