@@ -109,7 +109,7 @@ convert_forks() { # join Mac resource forks (._name AppleDouble, name.rsrc, or _
   rm -rf "$ROOT/__MACOSX" 2>/dev/null; rm -f "$ROOT/.converted"
 }
 unpack_archive() { # unpack_archive FILE -> sets GAME to the unpacked game folder (empty on failure)
-  A="$1"; GAME=""
+  A="$1"; GAME=""; ARCHDIR=$(dirname "$A"); ARCHNAME="$A"
   if ! command -v unar >/dev/null 2>&1; then
     UC=$(pm_cmd); SUDO=""; [ "$(id -u)" != 0 ] && SUDO="sudo"
     if [ -n "$UC" ] && [ "$DEPS" = 1 ]; then say "To unpack Mac archives I need the tool 'unar':  $SUDO $UC"; ask "Install it now?" && $SUDO sh -c "$UC"; fi
@@ -135,6 +135,23 @@ unpack_archive() { # unpack_archive FILE -> sets GAME to the unpacked game folde
   [ -n "$conv" ] || { say "Unpacked, but no \"Castles Data\" folder was found inside. (Send me the output of: find ~/Castles-game -maxdepth 3)"; return; }
   conv=$(dirname "$conv"); convert_forks "$conv"
   if valid "$conv"; then GAME="$conv"; say "Game folder ready: $GAME"; else FIXABLE=0; diagnose "$conv"; GAME="$conv"; fi
+}
+add_song() { # the intro music lives in "Castles Data/IntroSong"; some archives lack it, so borrow it from another copy
+  [ -n "$GAME" ] && [ -d "$GAME/Castles Data" ] || return 0
+  [ -f "$GAME/Castles Data/IntroSong" ] && return 0
+  WHAT="${ARCHNAME:-$GAME}"; say "Note: \"$WHAT\" does not contain the intro music (Castles Data/IntroSong)."
+  S=$(find "$HOME" -maxdepth 8 -type f -name IntroSong -path '*Castles Data*' 2>/dev/null | grep -v "^$GAME/" | head -1)
+  if [ -z "$S" ] && [ -n "$ARCHDIR" ] && command -v unar >/dev/null 2>&1; then
+    T="$HOME/Castles-game/_song"; rm -rf "$T"
+    find "$ARCHDIR" -maxdepth 1 -type f \( -iname '*castle*.sit' -o -iname '*castle*.sitx' -o -iname '*castle*.zip' -o -iname '*castle*.hqx' \) 2>/dev/null | while read -r a; do
+      [ -n "$(find "$T" -name IntroSong 2>/dev/null | head -1)" ] && break
+      unar -q -f -o "$T/$(basename "$a")" "$a" >/dev/null 2>&1 || true
+    done
+    S=$(find "$T" -type f -name IntroSong 2>/dev/null | head -1)
+  fi
+  if [ -n "$S" ]; then cp "$S" "$GAME/Castles Data/IntroSong" && say "Added the intro music (IntroSong) from $S"
+  else say "Note: the intro music file (IntroSong) was not found; the game will run without the opening song."; fi
+  rm -rf "$HOME/Castles-game/_song" 2>/dev/null
 }
 FIXABLE=0
 case "$GAME" in *.sit|*.sitx|*.hqx|*.cpt|*.sea|*.zip|*.7z|*.rar|*.tar|*.tgz|*.gz|*.bz2|*.xz|*.SIT|*.ZIP) [ -f "$GAME" ] && unpack_archive "$GAME";; esac
@@ -175,6 +192,7 @@ if [ -n "$GAME" ] && ! valid "$GAME"; then
   if [ "$FIXABLE" = 1 ] && ask "Try to repair it?"; then convert_forks "$GAME"; fi
   if valid "$GAME"; then say "Repaired: $GAME"; else say "I'll remember it anyway; fix the items above and start the game again."; fi
 fi
+valid "$GAME" && add_song
 mkdir -p "$CFG" "$BIN" "$APPS"
 [ -n "$GAME" ] && [ -d "$GAME" ] && printf '%s\n' "$GAME" > "$CFG/game"
 
