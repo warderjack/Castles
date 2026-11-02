@@ -182,6 +182,6 @@ static void qt_selftest(void) {
     char pa[1200]; snprintf(pa, sizeof pa, "%s/Castles Movies/Movie%02d", game_root, atoi(getenv("QTPLAY"))); Movie *m = &movies[7]; memset(m, 0, sizeof *m);
     int e = movie_load(m, pa); fprintf(stderr, "[qtplay] load %s -> %d (%dx%d)\n", pa, e, m->w, m->h); if (e) return;
     m->used = 1; m->port = 0; m->box = (Rc){120, 160, 120 + m->h * 2, 160 + m->w * 2}; m->playing = 1; m->start_ms = now_ms(); m->cur = -1;
-    int shot = 0; while (m->playing) { movie_task(m); if (!shot && m->cur > m->ns / 2) { shot = 1; plat_present(); if (getenv("QTSHOT")) write_ppm(getenv("QTSHOT")); } double el = now_ms() - m->start_ms; if ((uint32_t)(el * m->mscale / 1000.0) >= m->mdur) m->playing = 0; usleep(2000); }
-    fprintf(stderr, "[qtplay] done frames=%d cur=%d\n", m->ns, m->cur);
+    int shot = 0; int draws = 0, lastc = -1; double t0 = now_ms(); while (m->playing) { movie_task(m); if (m->cur != lastc) { draws++; lastc = m->cur; } if (!shot && m->cur > m->ns / 2) { shot = 1; plat_present(); if (getenv("QTSHOT")) write_ppm(getenv("QTSHOT")); } double el = now_ms() - m->start_ms; if ((uint32_t)(el * m->mscale / 1000.0) >= m->mdur) m->playing = 0; usleep(2000); }
+    fprintf(stderr, "[qtplay] done frames=%d cur=%d presented=%d played in %.2fs (movie length %.2fs)\n", m->ns, m->cur, draws, (now_ms() - t0) / 1000.0, (double)m->mdur / m->mscale);
 }

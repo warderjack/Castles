@@ -475,7 +475,7 @@ int main(int argc, char **argv) {
     if (getenv("LIFTCHECK")) { lift_check = 1; if (atoi(getenv("LIFTCHECK")) > 1) lift_chk_max = atoi(getenv("LIFTCHECK")); }
     if (getenv("NOLIFT")) lift_on = 0;
     load_fork(argv[1]); if (argc > 2) strncpy(game_root, argv[2], sizeof game_root - 1);
-    if (getenv("QTLOAD")) { fs_init(); for (int i = 1; i < 40; i++) { char pa[1200]; snprintf(pa, sizeof pa, "%s/Castles Movies/Movie%02d", game_root, i); Movie *m = calloc(1, sizeof *m); int e = movie_load(m, pa); fprintf(stderr, "[qtload] %s -> %d (%dx%d frames=%d)\n", pa, e, m->w, m->h, m->ns); } return 0; }
+    if (getenv("QTLOAD")) { fs_init(); for (int i = 1; i < 40; i++) { char pa[1200]; snprintf(pa, sizeof pa, "%s/Castles Movies/Movie%02d", game_root, i); Movie *m = calloc(1, sizeof *m); int e = movie_load(m, pa); fprintf(stderr, "[qtload] %s -> %d (%dx%d frames=%d)\n", pa, e, m->w, m->h, m->ns); if (!e && m->ns > 1) { uint32_t mn = 0xFFFFFFFF, mx = 0; for (int k = 1; k < m->ns; k++) { uint32_t d = m->sm[k].t - m->sm[k-1].t; if (d < mn) mn = d; if (d > mx) mx = d; } fprintf(stderr, "   scale=%u dur=%.2fs avg=%.1ffps frame interval min=%.0fms max=%.0fms\n", m->mscale, (double)m->mdur / m->mscale, m->ns * (double)m->mscale / m->mdur, mn * 1000.0 / m->mscale, mx * 1000.0 / m->mscale); } } return 0; }
     for (uint32_t k = 0; k < 0x1000; k++) { wr16(STUB_BASE + k * 4, 0xA000 | (k >= 0x400 ? 0x800 | (k - 0x400) : k)); wr16(STUB_BASE + k * 4 + 2, 0x4E75); }
 
     wr16(SENTINEL, 0x4E71); wr16(SENTINEL + 2, 0x4E71); wr16(GCONT_PC, 0x4E71); wr16(GCONT_PC + 2, 0x4E71); wr16(YIELD_PC, 0x4E71); wr16(YIELD_PC + 2, 0x4E71);
