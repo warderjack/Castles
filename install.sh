@@ -116,8 +116,13 @@ unpack_archive() { # unpack_archive FILE -> sets GAME to the unpacked game folde
     say "This is the floppy-disk set (disk images); joining the disks and unpacking the installer inside..."
     DD=$(dirname "$(find "$OUT" -type f -iname '*disk*.image' | head -1)"); J="$OUT/_joined.sit"; : > "$J"
     ls "$DD" | grep -i 'disk.*\.image$' | sort -V | while read -r f; do tail -c +101 "$DD/$f" >> "$J"; done
-    unar -q -f -o "$OUT/_inner" "$J" >/dev/null 2>&1 || say "Could not unpack the joined disks."
-    rm -f "$J"
+    if unar -q -f -o "$OUT/_inner" "$J" > "$OUT/unar.log" 2>&1; then rm -f "$J"
+    else
+      say "Could not unpack the joined disks. unar said:"; tail -n 5 "$OUT/unar.log" | sed 's/^/    /'
+      say "  Disk image sizes (bytes):"; ls -l "$DD" | grep -i '\.image$' | awk '{print "    " $5 "  " $9 " " $10 " " $11}'
+      command -v lsar >/dev/null 2>&1 && { say "  lsar says:"; lsar "$J" 2>&1 | head -5 | sed 's/^/    /'; }
+      say "  First bytes of the joined file:"; head -c 64 "$J" | od -An -c | head -4 | sed 's/^/    /'
+    fi
     conv=$(find "$OUT/_inner" -type d -name 'Castles Data' 2>/dev/null | head -1)
   fi
   [ -n "$conv" ] || { say "Unpacked, but no \"Castles Data\" folder was found inside. (Send me the output of: find ~/Castles-game -maxdepth 3)"; return; }
