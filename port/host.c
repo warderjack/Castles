@@ -57,6 +57,13 @@ static void die(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 #include <stdarg.h>
 #include <unistd.h>
 #include <time.h>
+static int cd_mode;      /* the CD release is running (found by its 'CS&C' resource) */
+static double idle_last_us;
+static double mono_us(void) { struct timespec n; clock_gettime(CLOCK_MONOTONIC, &n); return n.tv_sec * 1e6 + n.tv_nsec / 1e3; }
+/* An event poll found nothing.  Floppy host: always yield.  CD host: yield only when polls come back to back (a real idle loop);
+   a game that polls once in a while between bursts of work must not be slowed down. */
+static int idle_should_sleep(void) { if (!cd_mode) return 1; double t = mono_us(), dt = t - idle_last_us; idle_last_us = t; return dt < 600; }
+static void idle_slept(void) { if (cd_mode) idle_last_us = mono_us(); }
 static void die(const char *fmt, ...) {
     va_list ap; va_start(ap, fmt); fprintf(stderr, "HALT: "); vfprintf(stderr, fmt, ap); fprintf(stderr, "\n"); va_end(ap);
     halted = 1; m68k_end_timeslice();
@@ -459,7 +466,7 @@ static int cd_hle_mask(unsigned pc) {
 }
 static int hook_fast = -1;      /* interpreter only (NOLIFT) and no debug env: ordinary instructions need none of the checks below */
 void castles_instr_hook(unsigned int pc) {
-    if (hook_fast < 0) { hook_fast = getenv("NOLIFT") && !det && !getenv("PCHIST") && !getenv("PCLOG") && !getenv("PCWATCH") && !getenv("DWATCH") && !getenv("RINGW") && !getenv("NOINTERP") && !getenv("TRACE_FROM") && !lift_chk_active; }
+    if (hook_fast < 0) { hook_fast = (getenv("NOLIFT") || !lift_nents) && !det && !getenv("PCHIST") && !getenv("PCLOG") && !getenv("PCWATCH") && !getenv("DWATCH") && !getenv("RINGW") && !getenv("NOINTERP") && !getenv("TRACE_FROM") && !lift_chk_active; }
     { static int nohle = -1; if (nohle < 0) nohle = getenv("NOHLE") != NULL; if (!nohle && rd16(pc) == 0x3003 && cd_hle_mask(pc)) pc = R(M68K_REG_PC); }
     if (hook_fast == 1 && pc != SENTINEL && pc != YIELD_PC + 2 && pc != GCONT_PC && (rd16(pc) & 0xF000) != 0xA000 && !halted) { pcring[pcri++ & 63] = pc; return; }
     for (;;) {
@@ -546,17 +553,17 @@ int main(int argc, char **argv) {
     push32(STUB_BASE + trap_key(0xA9F4, 0) * 4);     /* return-to-ExitToShell */
     W(M68K_REG_PC, a5 + jtoff + 2);
 
+    cd_mode = find_res(0x43532643 /* 'CS&C': marks the CD release */, 0) != NULL;
     plat_init(); wr16(0xBAA, 20);
     if (find_res(0x43532643 /* 'CS&C': marks the CD release */, 0)) { sane_ext10 = 1;      /* CD release only: GrayRgn (low-mem $9EE) = the desktop, i.e. the screen below the menu bar; the floppy build never reads it */
         uint32_t gh = new_handle(10); rgn_set_rect(gh, (Rc){20, 0, 480, 640}); wr32(0x9EE, gh); }
-    double idle_avg = 1, idle_thr = getenv("NOLIFT") ? (getenv("IDLETHR") ? atof(getenv("IDLETHR")) : 0.5) : -1;
     int perf_on = getenv("CASTLES_PERF") != NULL; unsigned long perf_sl = 0, perf_idle = 0, perf_np = 0; double perf_pres = 0; uint32_t perf_t = 0; double perf_w = 0; unsigned long perf_i = 0;
     unsigned long guard = 0, maxslices = getenv("MAXSLICES") ? strtoul(getenv("MAXSLICES"), NULL, 10) : 0; uint32_t last_present = 0;
     while (!halted) {
         m68k_execute(10000); if (lift_chk_active && ++chk_slices > 300) { lift_chk_active = 0; lift_on = 1; chk_skip++; chk_slices = 0; } if (!lift_chk_active && (!det || det_yield)) { det_yield = 0; chk_slices = 0; wr32(0x16A, ticks_now()); wr32(0x20C, (uint32_t)((det ? 3900000000u - 2082844800u : time(NULL)) + 2082844800u)); run_tasks(); ev_pump(); }
         if (quit_requested) { rm_flush_all(); fprintf(stderr, "quit requested\n"); break; }
         uint32_t t = ticks_now(); if (t - last_present >= 2) { struct timespec p0, p1; if (perf_on) clock_gettime(CLOCK_MONOTONIC, &p0); plat_present(); gfx_dirty = 0; last_present = t; if (perf_on) { clock_gettime(CLOCK_MONOTONIC, &p1); perf_pres += (p1.tv_sec - p0.tv_sec) * 1e3 + (p1.tv_nsec - p0.tv_nsec) / 1e6; perf_np++; } }
-        perf_sl++; idle_avg += ((idle_hint ? 1.0 : 0.0) - idle_avg) / 64; if (idle_hint) { idle_hint = 0; if (idle_avg > idle_thr) { perf_idle++; usleep(1500); } }   /* CD host: only sleep when most recent slices were idle polls; mixed work-and-poll phases run at full speed */
+        perf_sl++; if (idle_hint) { idle_hint = 0; if (idle_should_sleep()) { perf_idle++; usleep(1500); idle_slept(); } }   /* CD host: only sleep when most recent slices were idle polls; mixed work-and-poll phases run at full speed */
         if (perf_on && t - perf_t >= 60) { { struct timespec w; clock_gettime(CLOCK_MONOTONIC, &w); double wm = w.tv_sec * 1e3 + w.tv_nsec / 1e6; fprintf(stderr, "[perf] tick=%u wall_ms=%.0f insns=%lu slices=%lu idle=%lu presents=%lu present_ms=%.0f\n", t, wm - perf_w, (unsigned long)interp_insns - perf_i, perf_sl, perf_idle, perf_np, perf_pres); perf_w = wm; perf_i = interp_insns; } perf_t = t; perf_sl = perf_idle = perf_np = 0; perf_pres = 0; }
         if (maxslices && ++guard >= maxslices) break;
     }

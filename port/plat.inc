@@ -51,7 +51,7 @@ static void plat_init(void) {
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_TIMER) != 0) { fprintf(stderr, "SDL_Init failed: %s -- running headless\n", SDL_GetError()); headless = 1; return; }
     const char *sc = getenv("CASTLES_SCALE"); if (sc) plat_scale = atoi(sc); if (plat_scale < 1) plat_scale = 1;
     sdl_win = SDL_CreateWindow("Castles: Siege & Conquest", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, SCR_W * plat_scale, SCR_H * plat_scale, SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
-    sdl_ren = SDL_CreateRenderer(sdl_win, -1, SDL_RENDERER_ACCELERATED | (getenv("NOLIFT") ? 0 : SDL_RENDERER_PRESENTVSYNC))   /* CD (interpreter) host: never block the emulation on the display refresh */;
+    sdl_ren = SDL_CreateRenderer(sdl_win, -1, SDL_RENDERER_ACCELERATED | (cd_mode ? 0 : SDL_RENDERER_PRESENTVSYNC))   /* CD (interpreter) host: never block the emulation on the display refresh */;
     if (!sdl_ren) sdl_ren = SDL_CreateRenderer(sdl_win, -1, SDL_RENDERER_SOFTWARE);
     SDL_RenderSetLogicalSize(sdl_ren, SCR_W, SCR_H);
     sdl_tex = SDL_CreateTexture(sdl_ren, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, SCR_W, SCR_H);
@@ -65,7 +65,7 @@ static void fb_to_argb(void) {
     const uint8_t *fb = ram + FB_BASE; for (int i = 0; i < SCR_W * SCR_H; i++) plat_argb[i] = pal[fb[i]];
 }
 static void plat_present(void) {
-    if (getenv("NOLIFT")) { static struct timespec lp; struct timespec n; clock_gettime(CLOCK_MONOTONIC, &n); if ((n.tv_sec - lp.tv_sec) * 1000 + (n.tv_nsec - lp.tv_nsec) / 1000000 < 30) return; lp = n; }   /* CD host: several callers present; once per ~30 ms is plenty */
+    if (cd_mode) { static struct timespec lp; struct timespec n; clock_gettime(CLOCK_MONOTONIC, &n); if ((n.tv_sec - lp.tv_sec) * 1000 + (n.tv_nsec - lp.tv_nsec) / 1000000 < 30) return; lp = n; }   /* CD host: several callers present; once per ~30 ms is plenty */
     fb_to_argb();
 #ifdef HAVE_SDL
     if (!headless && sdl_tex) { SDL_UpdateTexture(sdl_tex, NULL, plat_argb, SCR_W * 4); SDL_RenderClear(sdl_ren); SDL_RenderCopy(sdl_ren, sdl_tex, NULL, NULL); SDL_RenderPresent(sdl_ren); }

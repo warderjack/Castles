@@ -33,15 +33,8 @@ mv "$(dirname "$SRC")" "$OUT/Castles"; rm -rf "$OUT/_x" "$OUT/_l" "$OUT/_z"
 G="$OUT/Castles"; [ -f "$G/Castles CD.rsrc" ] || { say "The program file \"Castles CD\" was not found."; exit 1; }
 say "Building the CD host ..."
 "$HERE/cd/build_host.sh"
+say "Translating the game code to C for speed (optional, about a minute) ..."
+"$HERE/cd/lift_build.sh" "$G/Castles CD.rsrc" || say "(skipped: the game still runs, just a little slower)"
 BIN="${XDG_BIN_HOME:-$HOME/.local/bin}"; mkdir -p "$BIN"
-cat > "$BIN/castles-cd" <<EOF
-#!/bin/sh
-# Castles CD-ROM release (experimental interpreter host)
-# the program creates its preferences file on the very first start and then quits; start it again once so you land in the game
-NEW=0; [ -f "$G/Castles CD Prefs.bin" ] || NEW=1
-NOLIFT=1 "$HERE/cd/build/host_cd" "$G/Castles CD.rsrc" "$G" >/dev/null 2>&1
-[ "\$NEW" = 1 ] && [ -f "$G/Castles CD Prefs.bin" ] && NOLIFT=1 exec "$HERE/cd/build/host_cd" "$G/Castles CD.rsrc" "$G" >/dev/null 2>&1
-exit 0
-EOF
-chmod +x "$BIN/castles-cd"
+"$HERE/cd/install_launcher.sh" "$G" >/dev/null
 say "Done. Start it with:  $BIN/castles-cd"

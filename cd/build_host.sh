@@ -12,6 +12,7 @@ fi
 SDLC=""; SDLL=""
 if command -v sdl2-config >/dev/null 2>&1; then SDLC="-DHAVE_SDL $(sdl2-config --cflags)"; SDLL="$(sdl2-config --libs)"
 elif [ -x ../tools/sdl2-install/bin/sdl2-config ]; then Q=$(cd ../tools/sdl2-install && pwd); SDLC="-DHAVE_SDL -I$Q/include/SDL2 -D_REENTRANT"; SDLL="-L$Q/lib -Wl,-rpath,$Q/lib -lSDL2"; fi
+LIFTOBJ="build/lift_*.o"; [ -f "$HERE/build/lift_cd1.o" ] && [ -f "$HERE/build/lift_cd_tab.o" ] && { LIFTOBJ="$HERE/build/lift_cd1.o $HERE/build/lift_cd_tab.o"; echo "using the translated CD code"; }
 gcc ${CDDEBUG:--O2} -w $SDLC -DMUSASHI_CNF='"castles_conf.h"' -I. -Imusashi-upstream -Ibuild -o "$HERE/build/host_cd" \
-    host.c build/lift_*.o musashi-upstream/m68kcpu.c build/m68kops.c musashi-upstream/softfloat/softfloat.c $SDLL -lm
+    host.c $LIFTOBJ musashi-upstream/m68kcpu.c build/m68kops.c musashi-upstream/softfloat/softfloat.c $SDLL -lm
 echo "built cd/build/host_cd"
