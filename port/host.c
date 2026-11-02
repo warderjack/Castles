@@ -422,7 +422,10 @@ static void det_report(void) {
     if (det_stop && ntraps >= det_stop) { quit_requested = 1; }
     if (det_every && det_slices % det_every == 0) { uint64_t hsh = 1469598103934665603ull; for (uint32_t i = 0; i < 0xC00000; i += 8) hsh = (hsh ^ *(uint64_t *)(ram + i)) * 1099511628211ull; fprintf(stderr, "[det] slice=%lu traps=%lu ram=%016llx\n", det_slices, ntraps, (unsigned long long)hsh); }
 }
+static int hook_fast = -1;      /* interpreter only (NOLIFT) and no debug env: ordinary instructions need none of the checks below */
 void castles_instr_hook(unsigned int pc) {
+    if (hook_fast < 0) { hook_fast = getenv("NOLIFT") && !det && !getenv("PCHIST") && !getenv("PCLOG") && !getenv("PCWATCH") && !getenv("DWATCH") && !getenv("RINGW") && !getenv("NOINTERP") && !getenv("TRACE_FROM") && !lift_chk_active; }
+    if (hook_fast == 1 && pc != SENTINEL && pc != YIELD_PC + 2 && pc != GCONT_PC && (rd16(pc) & 0xF000) != 0xA000 && !halted) { pcring[pcri++ & 63] = pc; return; }
     for (;;) {
         
         if (pc == SENTINEL) { call_done = 1; m68k_end_timeslice(); return; }
@@ -438,7 +441,7 @@ void castles_instr_hook(unsigned int pc) {
         { static int pw; static unsigned wl, wh; if (!pw) { pw = 1; const char *e = getenv("PCWATCH"); if (e) sscanf(e, "%x:%x", &wl, &wh); } if (wh && pc >= wl && pc < wh) fprintf(stderr, "[pcw] stk=%x,%x,%x,%x %06x D=%x,%x,%x,%x,%x,%x,%x,%x A=%x,%x,%x,%x,%x,%x,%x,%x sr=%x\n", rd32(SP), rd32(SP + 4), rd32(SP + 8), rd32(SP + 12), pc, R(M68K_REG_D0), R(M68K_REG_D1), R(M68K_REG_D2), R(M68K_REG_D3), R(M68K_REG_D4), R(M68K_REG_D5), R(M68K_REG_D6), R(M68K_REG_D7), R(M68K_REG_A0), R(M68K_REG_A1), R(M68K_REG_A2), R(M68K_REG_A3), R(M68K_REG_A4), R(M68K_REG_A5), R(M68K_REG_A6), SP, R(M68K_REG_SR) & 0x1f); }
         if (((pc >= lift_lo && pc < lift_hi) || lift_special(pc)) && lift_try(pc)) { pc = R(M68K_REG_PC); continue; }
         { static int ni = -1; if (ni < 0) ni = getenv("NOINTERP") != NULL; if (ni && (rd16(pc) & 0xF000) != 0xA000 && pc != YIELD_PC && pc != YIELD_PC + 2 && pc != GCONT_PC && pc != SENTINEL) { fprintf(stderr, "[nointerp] unlifted pc=%06x op=%04x sp=%06x\n", pc, rd16(pc), SP); if (getenv("NOINTERP")[0] == '2') quit_requested = 1; else { static int nn; if (nn++ > 40) quit_requested = 1; } } }
-        interp_insns++; if (getenv("PCHIST")) { if (!pchist) pchist = calloc(RAM_SIZE / 2, 4); if (pc < RAM_SIZE) pchist[pc >> 1]++; }
+        interp_insns++; static int pch_on = -1; if (pch_on < 0) pch_on = getenv("PCHIST") != NULL; if (pch_on) { if (!pchist) pchist = calloc(RAM_SIZE / 2, 4); if (pc < RAM_SIZE) pchist[pc >> 1]++; }
         uint32_t op = rd16(pc); if (pc > 0x1000) pcring[pcri++ & 63] = pc;
         { static FILE *plf; static int pli; if (!pli) { pli = 1; const char *e = getenv("PCLOG"); if (e) plf = fopen(e, "wb"); } if (plf && pc > 0x1000 && !(pc >= STUB_BASE && pc < STUB_END)) { uint32_t rec[4] = { pc, R(M68K_REG_D0), R(M68K_REG_A6), R(M68K_REG_A7) }; fwrite(rec, 4, 4, plf); } }   /* debug: binary log of (pc, d0) per interpreted instruction */
         if ((op & 0xF000) != 0xA000 || halted) return;
