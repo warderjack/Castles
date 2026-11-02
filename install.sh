@@ -53,7 +53,7 @@ if ! have_cc || ! have_sdl; then
   SUDO=""; [ "$(id -u)" != 0 ] && SUDO="sudo"
   if [ "$DEPS" = 0 ]; then say "Run:  $SUDO $CMD"; exit 1; fi
   say "This needs:  $SUDO $CMD"
-  if ask "Run it now?"; then $SUDO sh -c "$CMD"; else say "Install those packages, then run ./install.sh again."; exit 1; fi
+  if ask "Run it now?"; then $SUDO sh -c "$CMD" || { say "That failed. If your package list is out of date, update it first (e.g. apt update, or pacman -Syu on Arch) and run ./install.sh again."; exit 1; }; else say "Install those packages, then run ./install.sh again."; exit 1; fi
   have_cc && have_sdl || { say "Packages still missing after install; see messages above."; exit 1; }
 fi
 
