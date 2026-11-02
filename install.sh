@@ -89,7 +89,8 @@ diagnose() { # explain what is missing from a game folder
     say "  I can try to repair that (it does not change your original archive)."; FIXABLE=1
   fi
 }
-macbin_tool() { [ -x "$HERE/port/build/macbin" ] || "${CC:-$(command -v gcc || command -v cc || command -v clang)}" -O2 -o "$HERE/port/build/macbin" "$HERE/port/macbin.c"; echo "$HERE/port/build/macbin"; }
+hfsx_tool() { [ -x "$HERE/port/build/hfsx" ] || { mkdir -p "$HERE/port/build"; "${CC:-$(command -v gcc || command -v cc || command -v clang)}" -O2 -w -o "$HERE/port/build/hfsx" "$HERE/port/hfsx.c"; }; echo "$HERE/port/build/hfsx"; }
+macbin_tool() { [ -x "$HERE/port/build/macbin" ] || "${CC:-$(command -v gcc || command -v cc || command -v clang)}" -O2 -w -o "$HERE/port/build/macbin" "$HERE/port/macbin.c"; echo "$HERE/port/build/macbin"; }
 convert_forks() { # join Mac resource forks (._name AppleDouble, name.rsrc, or __MACOSX/...) into MacBinary name.bin files
   ROOT="$1"; MB=$(macbin_tool); n=0
   find "$ROOT" -type f ! -name '._*' ! -name '*.rsrc' ! -name '*.bin' 2>/dev/null | while read -r f; do
@@ -118,16 +119,21 @@ unpack_archive() { # unpack_archive FILE -> sets GAME to the unpacked game folde
   OUT="$HOME/Castles-game/$(basename "$A" | sed 's/\.[^.]*$//')"; rm -rf "$OUT"; mkdir -p "$OUT"; say "Unpacking $A into $OUT ..."
   unar -q -f -o "$OUT" "$A" >/dev/null 2>&1 || { say "Could not unpack $A. If it is a disk image (.img/.dmg/.iso) copy the game files out of it first (e.g. mount it with a Mac-disk tool), or extract it with another program."; return; }
   conv=$(find "$OUT" -type d -name 'Castles Data' 2>/dev/null | head -1)
-  if [ -z "$conv" ] && find "$OUT" -type f -iname '*disk*.image' 2>/dev/null | grep -q .; then
-    # the floppy release is a StuffIt installer split over disk images: drop the 100-byte header of each, join, unpack again
-    say "This is the floppy-disk set (disk images); joining the disks and unpacking the installer inside..."
-    DD=$(dirname "$(find "$OUT" -type f -iname '*disk*.image' | head -1)"); J="$OUT/_joined.sit"; : > "$J"
-    ls "$DD" | grep -i 'disk.*\.image$' | sort -V | while read -r f; do tail -c +101 "$DD/$f" >> "$J"; done
-    if unar -q -f -o "$OUT/_inner" "$J" > "$OUT/unar.log" 2>&1; then rm -f "$J"
+  if [ -z "$conv" ] && find "$OUT" -type f -iname '*.image' 2>/dev/null | grep -q .; then
+    # the floppy release: Disk Copy images of Mac disks, each holding one piece of a StuffIt installer. Read the disks, drop the
+    # 100-byte header of each piece, join the pieces and unpack the result.
+    say "This is the floppy-disk set (disk images); reading the disks and joining the installer pieces..."
+    HX=$(hfsx_tool); DD=$(dirname "$(find "$OUT" -type f -iname '*.image' | head -1)"); J="$OUT/_joined.sit"; : > "$J"; NP=0
+    for f in $(ls "$DD" | grep -i '\.image$' | sed 's/ /@@/g' | sort -V); do
+      f=$(printf '%s' "$f" | sed 's/@@/ /g'); T="$OUT/_disks/$(printf '%s' "$f" | tr -c 'A-Za-z0-9\n' _)"
+      "$HX" "$DD/$f" "$T" >/dev/null 2>&1 || { say "  could not read $f"; continue; }
+      big=$(ls -S "$T" | grep -v '\.rsrc$' | head -1); [ -n "$big" ] || continue
+      tail -c +101 "$T/$big" >> "$J"; NP=$((NP+1))
+    done
+    say "  joined $NP disk(s); unpacking the installer inside..."
+    if unar -q -f -o "$OUT/_inner" "$J" > "$OUT/unar.log" 2>&1; then rm -rf "$J" "$OUT/_disks"
     else
       say "Could not unpack the joined disks. unar said:"; tail -n 5 "$OUT/unar.log" | sed 's/^/    /'
-      say "  Disk image sizes (bytes):"; ls -l "$DD" | grep -i '\.image$' | awk '{print "    " $5 "  " $9 " " $10 " " $11}'
-      command -v lsar >/dev/null 2>&1 && { say "  lsar says:"; lsar "$J" 2>&1 | head -5 | sed 's/^/    /'; }
       say "  First bytes of the joined file:"; head -c 64 "$J" | od -An -c | head -4 | sed 's/^/    /'
     fi
     conv=$(find "$OUT/_inner" -type d -name 'Castles Data' 2>/dev/null | head -1)
