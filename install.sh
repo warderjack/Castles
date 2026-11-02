@@ -111,7 +111,16 @@ unpack_archive() { # unpack_archive FILE -> sets GAME to the unpacked game folde
   OUT="$HOME/Castles-game"; mkdir -p "$OUT"; say "Unpacking $A into $OUT ..."
   unar -q -f -o "$OUT" "$A" >/dev/null 2>&1 || { say "Could not unpack $A. If it is a disk image (.img/.dmg/.iso) copy the game files out of it first (e.g. mount it with a Mac-disk tool), or extract it with another program."; return; }
   conv=$(find "$OUT" -type d -name 'Castles Data' 2>/dev/null | head -1)
-  [ -n "$conv" ] || { say "Unpacked, but no \"Castles Data\" folder was found inside."; return; }
+  if [ -z "$conv" ] && find "$OUT" -type f -iname '*disk*.image' 2>/dev/null | grep -q .; then
+    # the floppy release is a StuffIt installer split over disk images: drop the 100-byte header of each, join, unpack again
+    say "This is the floppy-disk set (disk images); joining the disks and unpacking the installer inside..."
+    DD=$(dirname "$(find "$OUT" -type f -iname '*disk*.image' | head -1)"); J="$OUT/_joined.sit"; : > "$J"
+    ls "$DD" | grep -i 'disk.*\.image$' | sort -V | while read -r f; do tail -c +101 "$DD/$f" >> "$J"; done
+    unar -q -f -o "$OUT/_inner" "$J" >/dev/null 2>&1 || say "Could not unpack the joined disks."
+    rm -f "$J"
+    conv=$(find "$OUT/_inner" -type d -name 'Castles Data' 2>/dev/null | head -1)
+  fi
+  [ -n "$conv" ] || { say "Unpacked, but no \"Castles Data\" folder was found inside. (Send me the output of: find ~/Castles-game -maxdepth 3)"; return; }
   conv=$(dirname "$conv"); convert_forks "$conv"
   if valid "$conv"; then GAME="$conv"; say "Game folder ready: $GAME"; else FIXABLE=0; diagnose "$conv"; GAME="$conv"; fi
 }
