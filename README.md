@@ -15,9 +15,9 @@ You must supply your own copy of the game (the folder containing
 
 `install.sh` checks for a C compiler and the SDL2 development package (and offers to install them with your
 distribution's package manager: apt, dnf, pacman, zypper, apk, xbps or emerge), builds the game (about a minute),
-looks for your game folder, and adds a `castles` command plus an entry in your application menu.
-Then start it with `castles` or from the Games menu. Useful options: `--game DIR` (give the game folder),
-`--yes` (no questions), `--no-deps` (never install packages), `--uninstall`.
+looks for your game folder, and adds a `castles` command, an entry in your application menu (Games) and a double-clickable icon on your Desktop.
+Then start it by double-clicking the icon (if your desktop shows a warning, right-click it and choose Allow Launching). Useful options: `--game DIR` (give the game folder),
+`--yes` (no questions), `--no-deps` (never install packages), `--no-shortcut` (no Desktop icon), `--uninstall`.
 
 Your game folder is the one that contains `Castles Data`, `Castles Movies` and the game's `.bin` file.
 If your copy is an archive (.sit, .hqx, .zip, .dmg ...), extract it first, e.g. with `unar` (package "unar"

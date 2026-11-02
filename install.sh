@@ -4,16 +4,17 @@
 #   ./install.sh --game DIR        use this game folder (the one containing "Castles Data", "Castles Movies", ...)
 #   ./install.sh --yes             do not ask questions (installs missing packages with sudo)
 #   ./install.sh --no-deps         never try to install packages
+#   ./install.sh --no-shortcut     do not put an icon on the Desktop
 #   ./install.sh --uninstall       remove the launcher and menu entry (keeps your game files)
 # Afterwards start the game with the command `castles` or from your application menu (Games).
 set -e
 HERE=$(cd "$(dirname "$0")" && pwd)
-YES=0; DEPS=1; GAME=""; UNINSTALL=0
+YES=0; DEPS=1; GAME=""; UNINSTALL=0; NOSHORT=0; SHORT=0
 while [ $# -gt 0 ]; do
   case "$1" in
-    --yes|-y) YES=1;; --no-deps) DEPS=0;; --uninstall) UNINSTALL=1;;
+    --yes|-y) YES=1;; --no-shortcut) NOSHORT=1;; --no-deps) DEPS=0;; --uninstall) UNINSTALL=1;;
     --game) shift; GAME="$1";; --game=*) GAME="${1#--game=}";;
-    -h|--help) sed -n '2,8p' "$0" | sed 's/^# \{0,1\}//'; exit 0;;
+    -h|--help) sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//'; exit 0;;
     *) echo "unknown option: $1 (try --help)"; exit 2;;
   esac; shift
 done
@@ -25,7 +26,8 @@ ask() { # ask "question" -> 0 for yes (default yes)
 }
 
 if [ "$UNINSTALL" = 1 ]; then
-  rm -f "$BIN/castles" "$APPS/castles.desktop"; say "Removed launcher and menu entry. (Settings kept in $CFG; game files untouched.)"; exit 0
+  DESK=""; command -v xdg-user-dir >/dev/null 2>&1 && DESK=$(xdg-user-dir DESKTOP 2>/dev/null); [ -z "$DESK" ] && DESK="$HOME/Desktop"
+  rm -f "$BIN/castles" "$APPS/castles.desktop" "$DESK/castles.desktop" "${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor/256x256/apps/castles.png"; say "Removed launcher and menu entry. (Settings kept in $CFG; game files untouched.)"; exit 0
 fi
 
 # ---- 1. build tools ----------------------------------------------------------------------
@@ -65,11 +67,16 @@ valid() { [ -d "$1/Castles Data" ] || [ -d "$1/Castles Movies" ] || ls "$1"/*.bi
 if [ -z "$GAME" ] && [ -r "$CFG/game" ]; then GAME=$(cat "$CFG/game"); valid "$GAME" || GAME=""; fi
 if [ -z "$GAME" ]; then
   say "Looking for your copy of the game..."
-  FOUND=$(find "$HOME" -maxdepth 6 -type d -name 'Castles Data' 2>/dev/null | head -5 | while read -r d; do dirname "$d"; done)
+  FOUND=$(find "$HOME" -maxdepth 6 -type d -name 'Castles Data' 2>/dev/null | head -9 | while read -r d; do dirname "$d"; done)
   N=$(printf '%s\n' "$FOUND" | grep -c . || true)
-  if [ "$N" = 1 ]; then GAME="$FOUND"; say "Found: $GAME"; ask "Use this folder?" || GAME=""; fi
+  if [ "$N" = 1 ]; then GAME="$FOUND"; say "Found: $GAME"; ask "Use this folder?" || GAME=""
+  elif [ "$N" -gt 1 ] && [ "$YES" = 0 ]; then
+    say "Found several game folders:"; i=1; printf '%s\n' "$FOUND" | while read -r d; do say "  $i) $d"; i=$((i+1)); done
+    printf 'Pick a number, or press Enter to type a path yourself: '; read -r pick || pick=""
+    case "$pick" in ''|*[!0-9]*) ;; *) GAME=$(printf '%s\n' "$FOUND" | sed -n "${pick}p");; esac
+  elif [ "$N" -gt 1 ]; then GAME=$(printf '%s\n' "$FOUND" | head -1)
+  fi
   if [ -z "$GAME" ] && [ "$YES" = 0 ]; then
-    [ "$N" -gt 1 ] && { say "Found several:"; printf '%s\n' "$FOUND"; }
     printf 'Type the full path of your game folder (it contains "Castles Data" and "Castles Movies"; leave empty to skip): '
     read -r GAME || GAME=""
     GAME=$(printf '%s' "$GAME" | sed "s/^'//; s/'\$//; s/^\"//; s/\"\$//; s|^~|$HOME|")
@@ -94,19 +101,34 @@ fi
 exec "$EXE" "\$GAME" "\$@"
 EOF
 chmod +x "$BIN/castles"
+ICON=applications-games
+if [ -f "$HERE/packaging/castles.png" ]; then
+  IDIR="${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor/256x256/apps"; mkdir -p "$IDIR"
+  cp "$HERE/packaging/castles.png" "$IDIR/castles.png" && ICON=castles
+fi
 cat > "$APPS/castles.desktop" <<EOF
 [Desktop Entry]
 Type=Application
 Name=Castles: Siege & Conquest
 Comment=Classic Mac strategy game (native port)
-Exec=$BIN/castles
-Icon=applications-games
+Exec="$BIN/castles"
+Icon=$ICON
 Terminal=false
 Categories=Game;StrategyGame;
 EOF
+# double-clickable icon on the desktop (if there is a Desktop folder)
+DESK=""; command -v xdg-user-dir >/dev/null 2>&1 && DESK=$(xdg-user-dir DESKTOP 2>/dev/null); [ -z "$DESK" ] && DESK="$HOME/Desktop"
+if [ "$NOSHORT" = 0 ] && [ -d "$DESK" ]; then
+  cp "$APPS/castles.desktop" "$DESK/castles.desktop" && chmod +x "$DESK/castles.desktop"
+  command -v gio >/dev/null 2>&1 && gio set "$DESK/castles.desktop" metadata::trusted true 2>/dev/null || true
+  SHORT=1
+fi
+command -v gtk-update-icon-cache >/dev/null 2>&1 && gtk-update-icon-cache -q -t "${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor" 2>/dev/null || true
 command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$APPS" 2>/dev/null || true
 
 say ""
 say "Done."
-case ":$PATH:" in *":$BIN:"*) ;; *) say "Note: $BIN is not on your PATH; use $BIN/castles or log out and back in.";; esac
-if [ -n "$GAME" ]; then say "Start the game with:  castles      (or from your application menu)"; else say "Set your game folder once with:  castles \"/path/to/game folder\""; fi
+[ "$SHORT" = 1 ] && say "A \"Castles\" icon was added to your Desktop (if it shows a warning, right-click it and choose Allow Launching)."
+say "You can also find it in your application menu under Games."
+if [ -n "$GAME" ]; then say "To start it from a terminal right now:  $BIN/castles"; else say "Set your game folder once with:  $BIN/castles \"/path/to/game folder\""; fi
+case ":$PATH:" in *":$BIN:"*) ;; *) say "(After you next log in, the short command  castles  will work too.)";; esac
