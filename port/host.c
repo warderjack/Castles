@@ -550,14 +550,14 @@ int main(int argc, char **argv) {
     if (find_res(0x43532643 /* 'CS&C': marks the CD release */, 0)) { sane_ext10 = 1;      /* CD release only: GrayRgn (low-mem $9EE) = the desktop, i.e. the screen below the menu bar; the floppy build never reads it */
         uint32_t gh = new_handle(10); rgn_set_rect(gh, (Rc){20, 0, 480, 640}); wr32(0x9EE, gh); }
     double idle_avg = 1, idle_thr = getenv("NOLIFT") ? (getenv("IDLETHR") ? atof(getenv("IDLETHR")) : 0.5) : -1;
-    int perf_on = getenv("CASTLES_PERF") != NULL; unsigned long perf_sl = 0, perf_idle = 0, perf_np = 0; double perf_pres = 0; uint32_t perf_t = 0;
+    int perf_on = getenv("CASTLES_PERF") != NULL; unsigned long perf_sl = 0, perf_idle = 0, perf_np = 0; double perf_pres = 0; uint32_t perf_t = 0; double perf_w = 0; unsigned long perf_i = 0;
     unsigned long guard = 0, maxslices = getenv("MAXSLICES") ? strtoul(getenv("MAXSLICES"), NULL, 10) : 0; uint32_t last_present = 0;
     while (!halted) {
         m68k_execute(10000); if (lift_chk_active && ++chk_slices > 300) { lift_chk_active = 0; lift_on = 1; chk_skip++; chk_slices = 0; } if (!lift_chk_active && (!det || det_yield)) { det_yield = 0; chk_slices = 0; wr32(0x16A, ticks_now()); wr32(0x20C, (uint32_t)((det ? 3900000000u - 2082844800u : time(NULL)) + 2082844800u)); run_tasks(); ev_pump(); }
         if (quit_requested) { rm_flush_all(); fprintf(stderr, "quit requested\n"); break; }
         uint32_t t = ticks_now(); if (t - last_present >= 2) { struct timespec p0, p1; if (perf_on) clock_gettime(CLOCK_MONOTONIC, &p0); plat_present(); gfx_dirty = 0; last_present = t; if (perf_on) { clock_gettime(CLOCK_MONOTONIC, &p1); perf_pres += (p1.tv_sec - p0.tv_sec) * 1e3 + (p1.tv_nsec - p0.tv_nsec) / 1e6; perf_np++; } }
         perf_sl++; idle_avg += ((idle_hint ? 1.0 : 0.0) - idle_avg) / 64; if (idle_hint) { idle_hint = 0; if (idle_avg > idle_thr) { perf_idle++; usleep(1500); } }   /* CD host: only sleep when most recent slices were idle polls; mixed work-and-poll phases run at full speed */
-        if (perf_on && t - perf_t >= 60) { fprintf(stderr, "[perf] tick=%u slices=%lu idle=%lu presents=%lu present_ms=%.0f\n", t, perf_sl, perf_idle, perf_np, perf_pres); perf_t = t; perf_sl = perf_idle = perf_np = 0; perf_pres = 0; }
+        if (perf_on && t - perf_t >= 60) { { struct timespec w; clock_gettime(CLOCK_MONOTONIC, &w); double wm = w.tv_sec * 1e3 + w.tv_nsec / 1e6; fprintf(stderr, "[perf] tick=%u wall_ms=%.0f insns=%lu slices=%lu idle=%lu presents=%lu present_ms=%.0f\n", t, wm - perf_w, (unsigned long)interp_insns - perf_i, perf_sl, perf_idle, perf_np, perf_pres); perf_w = wm; perf_i = interp_insns; } perf_t = t; perf_sl = perf_idle = perf_np = 0; perf_pres = 0; }
         if (maxslices && ++guard >= maxslices) break;
     }
     if (getenv("CASTLES_SHOT")) { write_ppm(getenv("CASTLES_SHOT")); fprintf(stderr, "screenshot -> %s\n", getenv("CASTLES_SHOT")); }
