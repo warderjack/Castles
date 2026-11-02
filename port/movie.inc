@@ -36,12 +36,12 @@ static void movie_load_audio(Movie *m, const uint8_t *moov, long moovlen) {
 }
 #ifdef HAVE_SDL
 static SDL_AudioDeviceID mov_dev; static int mov_rate, mov_fmt;
-static void movie_audio_stop(void) { if (mov_dev) SDL_ClearQueuedAudio(mov_dev); }
+static void movie_audio_stop(void) { if (mov_dev) { SDL_ClearQueuedAudio(mov_dev); SDL_PauseAudioDevice(mov_dev, 1); } }
 static void movie_audio_start(Movie *m) {
     if (headless || !m->aud) return;
     if (mov_dev && (mov_rate != m->arate || mov_fmt != m->afmt * 4 + m->achan)) { SDL_CloseAudioDevice(mov_dev); mov_dev = 0; }
     if (!mov_dev) { SDL_AudioSpec w = {0}, g; w.freq = m->arate; w.format = m->afmt == 1 ? AUDIO_S16MSB : m->afmt == 2 ? AUDIO_S8 : AUDIO_U8; w.channels = m->achan; w.samples = 1024; mov_dev = SDL_OpenAudioDevice(NULL, 0, &w, &g, 0); mov_rate = m->arate; mov_fmt = m->afmt * 4 + m->achan; if (mov_dev) SDL_PauseAudioDevice(mov_dev, 0); }
-    if (mov_dev) { SDL_ClearQueuedAudio(mov_dev); SDL_QueueAudio(mov_dev, m->aud, (Uint32)m->audlen); }
+    if (mov_dev) { SDL_ClearQueuedAudio(mov_dev); SDL_QueueAudio(mov_dev, m->aud, (Uint32)m->audlen); SDL_PauseAudioDevice(mov_dev, 0); }
 }
 #else
 static void movie_audio_stop(void) {} static void movie_audio_start(Movie *m) { (void)m; }
@@ -162,7 +162,7 @@ static void movie_draw(Movie *m) {
 static Movie *movie_of(uint32_t rec) { for (int i = 0; i < 8; i++) if (movies[i].used && movies[i].rec == rec) return &movies[i]; return NULL; }
 static int movie_frame_at(Movie *m, uint32_t tmedia) { int lo = 0; for (int i = 0; i < m->ns; i++) { if (m->sm[i].t <= tmedia) lo = i; else break; } return lo; }
 static void movie_task(Movie *m) {
-    if (!m->playing) return; double el = now_ms() - m->start_ms; uint32_t tm = (uint32_t)(el * m->mscale / 1000.0);
+    if (!m->playing) return; double el = now_ms() - m->start_ms; uint32_t tm = (uint32_t)(el * m->mscale / 1000.0); if (tm >= m->mdur + m->mscale / 2) { m->playing = 0; movie_audio_stop(); }
     int want = movie_frame_at(m, tm); if (tm >= m->mdur) want = m->ns - 1;
     if (want > m->cur) { for (int i = m->cur + 1; i <= want; i++) { MSample *s = &m->sm[i]; if (s->off + s->size <= (uint32_t)m->datalen) if (m->codec == 1) rle_decode(m, m->data + s->off, s->size); else cv_decode(m, m->data + s->off, s->size); } m->cur = want; movie_draw(m); }
 }
@@ -170,12 +170,12 @@ static int qt_dispatch(uint16_t w, uint16_t n, uint32_t ret) {
     if (n != 0xAAAA) return 0; uint32_t sp = SP; int sel = D(0) & 0xFFFF; if (getenv("QTDBG")) fprintf(stderr, "  [qt] call sel=%04x sp=%x ret=%06x\n", sel, sp, ret);
     switch (sel) {
     case 0x0001: wr16(sp, 0); return 1;                                  /* EnterMovies */
-    case 0x0002: return 1;                                               /* ExitMovies */
+    case 0x0002: movie_audio_stop(); return 1;                                               /* ExitMovies */
     case 0x0005: { uint32_t mv = rd32(sp + 4); setsp(sp + 8); Movie *m = movie_of(mv); if (m) movie_task(m); return 1; }      /* MoviesTask */
     case 0x000B: { uint32_t mv = rd32(sp); setsp(sp + 4); Movie *m = movie_of(mv); ev_pump(); qt_btn_gate = plat_btn; { int k = 0; for (int i = 0; i < evq_n; i++) { MEvt e = evq[(evq_h + i) & 255]; if (e.what == 1 || e.what == 2) continue; evq[(evq_h + k++) & 255] = e; } evq_n = k; } if (m) { m->playing = 1; m->start_ms = now_ms(); m->cur = -1; movie_audio_start(m); movie_task(m); } return 1; }      /* StartMovie */
     case 0x000C: { uint32_t mv = rd32(sp); setsp(sp + 4); Movie *m = movie_of(mv); if (getenv("QTDBG") && m) fprintf(stderr, "  [qt] StopMovie: playing=%d elapsed=%.0fms of %.0fms frame=%d/%d btn=%d gate=%d\n", m->playing, now_ms() - m->start_ms, m->mdur * 1000.0 / (m->mscale ? m->mscale : 1), m->cur, m->ns, plat_btn, qt_btn_gate); if (m) { m->playing = 0; movie_audio_stop(); } return 1; }      /* StopMovie */
     case 0x0016: { uint32_t mv = rd32(sp + 8), port = rd32(sp + 4); setsp(sp + 12); Movie *m = movie_of(mv); if (m) m->port = port; return 1; }      /* SetMovieGWorld */
-    case 0x00D5: { int rn = rd16(sp); setsp(sp + 2); wr16(sp + 2, 0); if (rn >= 0x300 && rn < 0x308) mfiles[rn - 0x300].used = 0; return 1; }      /* CloseMovieFile */
+    case 0x00D5: { int rn = rd16(sp); setsp(sp + 2); wr16(sp + 2, 0); if (rn >= 0x300 && rn < 0x308) mfiles[rn - 0x300].used = 0; movie_audio_stop(); return 1; }      /* CloseMovieFile */
     case 0x00DD: { uint32_t mv = rd32(sp); setsp(sp + 4); Movie *m = movie_of(mv); int done = 1; if (m) { double el = now_ms() - m->start_ms; done = !m->playing || (uint32_t)(el * m->mscale / 1000.0) >= m->mdur; if (done) m->playing = 0; } wr_bool(sp + 4, done); return 1; }      /* IsMovieDone */
     case 0x00F0: {      /* NewMovieFromFile(&movie, refnum, &resid, resname, flags, &changed) */
         uint32_t changed = rd32(sp), mvp = rd32(sp + 16); int rn = rd16(sp + 14); setsp(sp + 20); int err = -43;
