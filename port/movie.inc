@@ -4,7 +4,7 @@ typedef struct { uint8_t y[4]; int8_t u, v; uint8_t rgb[4][3]; } CvCode;
 typedef struct {
     int used; uint32_t rec; char datapath[1100]; uint8_t *data; long datalen;
     uint32_t mscale, mdur, ts, dur; int ns; MSample *sm; int w, h; uint32_t port; Rc box; int playing; double start_ms; int cur; uint8_t *fb; CvCode v1[256], v4[256]; CvCode cs1[16][256], cs4[16][256]; uint32_t last_draw_cur;
-    uint8_t *aud; long audlen; int arate;      /* sound track: unsigned 8-bit mono 'raw ' PCM */
+    uint8_t *aud; long audlen; int arate, afmt, achan; int codec, depth; uint8_t pal[256][3];      /* sound track: unsigned 8-bit mono 'raw ' PCM */
 } Movie;
 static Movie movies[8];
 typedef struct { int used; char path[1100]; } MFile;
@@ -23,23 +23,24 @@ static void movie_load_audio(Movie *m, const uint8_t *moov, long moovlen) {
             const uint8_t *md = atom_find(tk, tl, "mdia", &a), *mi = md ? atom_find(md, a, "minf", &b) : NULL;
             if (mi && atom_find(mi, b, "smhd", &l)) { const uint8_t *sb = atom_find(mi, b, "stbl", &c); if (!sb) break;
                 const uint8_t *mdh = atom_find(md, a, "mdhd", &l), *sd = atom_find(sb, c, "stsd", &l), *sc = atom_find(sb, c, "stsc", &d), *sz = atom_find(sb, c, "stsz", &d), *co = atom_find(sb, c, "stco", &d);
-                if (!mdh || !sd || !sc || !sz || !co) break; if (memcmp(sd + 12, "raw ", 4)) { fprintf(stderr, "  [qt] unsupported audio format %.4s\n", sd + 12); break; }
+                if (!mdh || !sd || !sc || !sz || !co) break; int two = !memcmp(sd + 12, "twos", 4); if (memcmp(sd + 12, "raw ", 4) && !two) { fprintf(stderr, "  [qt] unsupported audio format %.4s\n", sd + 12); break; }
+                m->achan = be16(sd + 8 + 24); if (m->achan < 1 || m->achan > 2) m->achan = 1; int bits = two ? be16(sd + 8 + 26) : 8; if (bits != 16) bits = 8; m->afmt = bits == 16 ? 1 : 0; int bps = m->achan * bits / 8;
                 m->arate = be32(mdh + 12); if (m->arate < 4000 || m->arate > 48000) m->arate = 22254;
                 uint32_t nsz = be32(sz + 8), cs = be32(sz + 4), nsc = be32(sc + 4), nco = be32(co + 4); uint32_t ss = cs ? cs : 1; (void)ss;
                 long cap = 0; uint8_t *out = NULL; uint32_t si = 0;
                 for (uint32_t ch = 1; ch <= nco && si < nsz; ch++) { uint32_t spc = 1; for (uint32_t k = 0; k < nsc; k++) if (be32(sc + 8 + k * 12) <= ch) spc = be32(sc + 8 + k * 12 + 4);
-                    uint32_t off = be32(co + 8 + 4 * (ch - 1)); uint32_t n = spc; if (si + n > nsz) n = nsz - si; si += n;
+                    uint32_t off = be32(co + 8 + 4 * (ch - 1)); uint32_t n = spc; if (si + n > nsz) n = nsz - si; si += n; n *= bps;
                     if (off + n > (uint32_t)m->datalen) break; out = realloc(out, cap + n); memcpy(out + cap, m->data + off, n); cap += n; }
                 m->aud = out; m->audlen = cap; if (getenv("QTDBG")) fprintf(stderr, "  [qt] sound track: %ld bytes at %d Hz\n", cap, m->arate); break; } }
         to += tsz; }
 }
 #ifdef HAVE_SDL
-static SDL_AudioDeviceID mov_dev; static int mov_rate;
+static SDL_AudioDeviceID mov_dev; static int mov_rate, mov_fmt;
 static void movie_audio_stop(void) { if (mov_dev) SDL_ClearQueuedAudio(mov_dev); }
 static void movie_audio_start(Movie *m) {
     if (headless || !m->aud) return;
-    if (mov_dev && mov_rate != m->arate) { SDL_CloseAudioDevice(mov_dev); mov_dev = 0; }
-    if (!mov_dev) { SDL_AudioSpec w = {0}, g; w.freq = m->arate; w.format = AUDIO_U8; w.channels = 1; w.samples = 1024; mov_dev = SDL_OpenAudioDevice(NULL, 0, &w, &g, 0); mov_rate = m->arate; if (mov_dev) SDL_PauseAudioDevice(mov_dev, 0); }
+    if (mov_dev && (mov_rate != m->arate || mov_fmt != m->afmt * 4 + m->achan)) { SDL_CloseAudioDevice(mov_dev); mov_dev = 0; }
+    if (!mov_dev) { SDL_AudioSpec w = {0}, g; w.freq = m->arate; w.format = m->afmt ? AUDIO_S16MSB : AUDIO_U8; w.channels = m->achan; w.samples = 1024; mov_dev = SDL_OpenAudioDevice(NULL, 0, &w, &g, 0); mov_rate = m->arate; mov_fmt = m->afmt * 4 + m->achan; if (mov_dev) SDL_PauseAudioDevice(mov_dev, 0); }
     if (mov_dev) { SDL_ClearQueuedAudio(mov_dev); SDL_QueueAudio(mov_dev, m->aud, (Uint32)m->audlen); }
 }
 #else
@@ -62,7 +63,11 @@ static int movie_load(Movie *m, const char *path) {
     const uint8_t *tkhd = atom_find(trak, tlen, "tkhd", &mlen); if (tkhd) { m->w = be16(tkhd + 76); m->h = be16(tkhd + 80); }
     long mdl; const uint8_t *mdia = atom_find(trak, tlen, "mdia", &mdl); const uint8_t *mdhd = atom_find(mdia, mdl, "mdhd", &mlen); if (mdhd) { m->mscale = be32(mdhd + 12); m->mdur = be32(mdhd + 16); }
     long minl; const uint8_t *minf = atom_find(mdia, mdl, "minf", &minl); long stl; const uint8_t *stbl = atom_find(minf, minl, "stbl", &stl);
-    long l1; const uint8_t *stsd = atom_find(stbl, stl, "stsd", &l1); if (stsd && memcmp(stsd + 12, "cvid", 4)) fprintf(stderr, "  [qt] unsupported codec %.4s\n", stsd + 12);
+    long l1; const uint8_t *stsd = atom_find(stbl, stl, "stsd", &l1); if (stsd && !memcmp(stsd + 12, "rle ", 4)) { m->codec = 1; m->depth = be16(stsd + 90); int clut = (int)(int16_t)be16(stsd + 92); const uint8_t *ct = stsd + 94; int gray = m->depth > 32; if (gray) m->depth -= 32;
+        for (int i = 0; i < 256; i++) { int g = m->depth >= 8 ? 255 - i : (m->depth == 4 ? 255 - i * 17 : (m->depth == 2 ? 255 - i * 85 : 255 - i * 255)); m->pal[i][0] = m->pal[i][1] = m->pal[i][2] = (uint8_t)g; }
+        if (!gray && m->depth <= 8 && clut == 0) { int n = be16(ct + 6) + 1; for (int i = 0; i < n && i < 256; i++) { const uint8_t *e = ct + 8 + i * 8; int idx = be16(e); if (idx >= 256) idx = i; m->pal[idx][0] = e[2]; m->pal[idx][1] = e[4]; m->pal[idx][2] = e[6]; } }
+        fprintf(stderr, "  [qt] Animation (rle) video, depth %d%s clut %d\n", m->depth, gray ? " gray" : "", clut); }
+    else if (stsd && memcmp(stsd + 12, "cvid", 4)) fprintf(stderr, "  [qt] unsupported codec %.4s\n", stsd + 12);
     if (stsd) { m->w = be16(stsd + 8 + 32); m->h = be16(stsd + 8 + 34); }
     const uint8_t *stts = atom_find(stbl, stl, "stts", &l1), *stsc = NULL, *stsz = NULL, *stco = NULL; long lstsc, lstsz, lstco, lstts = l1; stsc = atom_find(stbl, stl, "stsc", &lstsc); stsz = atom_find(stbl, stl, "stsz", &lstsz); stco = atom_find(stbl, stl, "stco", &lstco);
     if (!stts || !stsc || !stsz || !stco) { free(rs); return -1; }
@@ -96,6 +101,21 @@ static void cv_codebook(CvCode *cb, int id, const uint8_t *d, int size) {
     }
 }
 static void cv_put(Movie *m, int x, int y, const uint8_t *rgb) { if (x < 0 || y < 0 || x >= m->w || y >= m->h) return; uint8_t *p = m->fb + (y * m->w + x) * 3; p[0] = rgb[0]; p[1] = rgb[1]; p[2] = rgb[2]; }
+static void rle_decode(Movie *m, const uint8_t *d, uint32_t len) {       /* QuickTime Animation ('rle ') */
+    if (len < 8) return; const uint8_t *e = d + len; d += 4; uint32_t hdr = be16(d); d += 2; int y0 = 0, nl = m->h; if (hdr & 8) { if (d + 8 > e) return; y0 = be16(d); nl = be16(d + 4); d += 8; }
+    int bpp = m->depth, W = m->w; if (y0 + nl > m->h) nl = m->h - y0;
+    for (int ln = 0; ln < nl && d < e; ln++) { uint8_t *row = m->fb + (size_t)(y0 + ln) * W * 3; int unit = bpp == 8 ? 4 : bpp == 4 ? 8 : bpp == 2 ? 16 : bpp == 1 ? 32 : 1; int px = (*d++ - 1) * unit; if (px < 0) px = 0;
+        for (;;) { if (d >= e) return; int8_t rc = (int8_t)*d++; if (rc == -1) break;
+            if (rc == 0) { px += (*d++ - 1) * unit; if (px < 0) px = 0; continue; }
+            int pb = bpp == 16 ? 2 : bpp == 24 ? 3 : bpp == 32 ? 4 : 0; int cnt = rc < 0 ? -rc : rc; int rep = rc < 0;
+            const uint8_t *src = d; int per = pb ? pb : 4; if (rep) d += per; else d += (size_t)per * cnt; if (d > e) return;
+            for (int k = 0; k < cnt; k++) { const uint8_t *sp = rep ? src : src + (size_t)k * per;
+                if (bpp == 8) { for (int j = 0; j < 4; j++) { if (px < W) memcpy(row + px * 3, m->pal[sp[j]], 3); px++; } }
+                else if (bpp == 16) { if (px < W) { int v = (sp[0] << 8) | sp[1]; row[px * 3] = ((v >> 10) & 31) * 255 / 31; row[px * 3 + 1] = ((v >> 5) & 31) * 255 / 31; row[px * 3 + 2] = (v & 31) * 255 / 31; } px++; }
+                else if (bpp == 24) { if (px < W) memcpy(row + px * 3, sp, 3); px++; }
+                else if (bpp == 32) { if (px < W) memcpy(row + px * 3, sp + 1, 3); px++; }
+                else { int bits = bpp, n = 8 / bits; uint8_t b = sp[0]; for (int j = 0; j < n; j++) { int ix = (b >> (8 - bits * (j + 1))) & ((1 << bits) - 1); if (px < W) memcpy(row + px * 3, m->pal[ix * (255 / ((1 << bits) - 1))], 3); px++; } } } } }
+}
 static void cv_decode(Movie *m, const uint8_t *d, uint32_t len) {
     if (len < 10) return; int strips = be16(d + 8); const uint8_t *p = d + 10, *end = d + len; int y0 = 0; CvCode *v1 = m->v1, *v4 = m->v4; (void)v1; (void)v4;
     for (int s = 0; s < strips && p + 12 <= end; s++) {
@@ -144,7 +164,7 @@ static int movie_frame_at(Movie *m, uint32_t tmedia) { int lo = 0; for (int i = 
 static void movie_task(Movie *m) {
     if (!m->playing) return; double el = now_ms() - m->start_ms; uint32_t tm = (uint32_t)(el * m->mscale / 1000.0);
     int want = movie_frame_at(m, tm); if (tm >= m->mdur) want = m->ns - 1;
-    if (want > m->cur) { for (int i = m->cur + 1; i <= want; i++) { MSample *s = &m->sm[i]; if (s->off + s->size <= (uint32_t)m->datalen) cv_decode(m, m->data + s->off, s->size); } m->cur = want; movie_draw(m); }
+    if (want > m->cur) { for (int i = m->cur + 1; i <= want; i++) { MSample *s = &m->sm[i]; if (s->off + s->size <= (uint32_t)m->datalen) if (m->codec == 1) rle_decode(m, m->data + s->off, s->size); else cv_decode(m, m->data + s->off, s->size); } m->cur = want; movie_draw(m); }
 }
 static int qt_dispatch(uint16_t w, uint16_t n, uint32_t ret) {
     if (n != 0xAAAA) return 0; uint32_t sp = SP; int sel = D(0) & 0xFFFF; if (getenv("QTDBG")) fprintf(stderr, "  [qt] call sel=%04x sp=%x ret=%06x\n", sel, sp, ret);
