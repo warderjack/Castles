@@ -2,6 +2,7 @@
 # Experimental: build the interpreter-based host for the CD release into cd/build/ (does not touch port/build/ outputs).
 # Reads the shared port sources and the already-built floppy lift objects (unused at run time: run with NOLIFT=1).
 set -e
+mkdir -p "$(dirname "$0")/build"
 HERE=$(cd "$(dirname "$0")" && pwd); P="$HERE/../port"; cd "$P"
 SDLC=""; SDLL=""
 if command -v sdl2-config >/dev/null 2>&1; then SDLC="-DHAVE_SDL $(sdl2-config --cflags)"; SDLL="$(sdl2-config --libs)"
