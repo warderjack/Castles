@@ -220,3 +220,4 @@ Not yet: New Game and play, movies (121 files, new names), CD audio track, lifti
 
 ### CD: New Game crash root cause
 SANE `x80_put` wrote a 12-byte extended (pad word at +10). CodeWarrior's CD build keeps true 10-byte extendeds on the stack, so the pad word clobbered the saved A6 of the caller's frame. Fixed additively: pad word is skipped when the CD marker resource ('CS&C') is present; floppy behavior unchanged. CD now reaches the strategic map (Valois, April 11, 1312) in the interpreter host.
+CD gameplay check: after New Game, clicking a territory selects it (Reims) and the date advances; no unimplemented traps logged (cd/ng3.txt).
