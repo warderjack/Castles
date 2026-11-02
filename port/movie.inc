@@ -24,7 +24,7 @@ static void movie_load_audio(Movie *m, const uint8_t *moov, long moovlen) {
             if (mi && atom_find(mi, b, "smhd", &l)) { const uint8_t *sb = atom_find(mi, b, "stbl", &c); if (!sb) break;
                 const uint8_t *mdh = atom_find(md, a, "mdhd", &l), *sd = atom_find(sb, c, "stsd", &l), *sc = atom_find(sb, c, "stsc", &d), *sz = atom_find(sb, c, "stsz", &d), *co = atom_find(sb, c, "stco", &d);
                 if (!mdh || !sd || !sc || !sz || !co) break; int two = !memcmp(sd + 12, "twos", 4); if (memcmp(sd + 12, "raw ", 4) && !two) { fprintf(stderr, "  [qt] unsupported audio format %.4s\n", sd + 12); break; }
-                m->achan = be16(sd + 8 + 24); if (m->achan < 1 || m->achan > 2) m->achan = 1; int bits = two ? be16(sd + 8 + 26) : 8; if (bits != 16) bits = 8; m->afmt = bits == 16 ? 1 : (two ? 2 : 0); int bps = m->achan * bits / 8;
+                m->achan = be16(sd + 8 + 24); if (m->achan < 1 || m->achan > 2) m->achan = 1; int bits = two ? be16(sd + 8 + 26) : 8; if (bits != 16) bits = 8; m->afmt = bits == 16 ? 1 : (two ? 2 : 0); if (two && m->achan == 2 && bits == 8) { m->afmt = 1; m->achan = 1; }      /* the CD intro declares 2-channel 8-bit 'twos' but its data is 16-bit mono (checked by ear) */ int bps = m->achan * bits / 8;
                 m->arate = be32(mdh + 12); if (m->arate < 4000 || m->arate > 48000) m->arate = 22254;
                 uint32_t nsz = be32(sz + 8), cs = be32(sz + 4), nsc = be32(sc + 4), nco = be32(co + 4); uint32_t ss = cs ? cs : 1; (void)ss;
                 long cap = 0; uint8_t *out = NULL; uint32_t si = 0;
