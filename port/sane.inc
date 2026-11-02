@@ -5,9 +5,10 @@ static long double x80_get(uint32_t a) {
     uint16_t se = rd16(a); uint64_t m = ((uint64_t)rd32(a + 2) << 32) | rd32(a + 6);
     union { long double ld; struct { uint64_t m; uint16_t se; } p; } u; memset(&u, 0, sizeof u); u.p.m = m; u.p.se = se; return u.ld;
 }
+static int sane_ext10;   /* CD release (CodeWarrior): extended is a true 10-byte SANE value, so no pad word may be written */
 static void x80_put(uint32_t a, long double v) {
     union { long double ld; struct { uint64_t m; uint16_t se; } p; } u; memset(&u, 0, sizeof u); u.ld = v;
-    wr16(a, u.p.se); wr32(a + 2, (uint32_t)(u.p.m >> 32)); wr32(a + 6, (uint32_t)u.p.m); wr16(a + 10, 0);
+    wr16(a, u.p.se); wr32(a + 2, (uint32_t)(u.p.m >> 32)); wr32(a + 6, (uint32_t)u.p.m); if (!sane_ext10) wr16(a + 10, 0);
 }
 static long double sane_get(uint32_t a, int fmt) {
     switch (fmt) {

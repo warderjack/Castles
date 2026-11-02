@@ -217,3 +217,6 @@ What was needed from the shared host to get it going (all additive; none is reac
 Result: it creates its Prefs file, starts the sound driver (SndPlayDoubleBuffer), builds the menus (File, Edit, Game, Encyclopedia, Castles, Tutorial) and reaches its title screen and main event loop (screenshot: castle, "Choose New Game from the File menu to begin", (c) 1992,1994,1995). Needs `Castles CD Movies` to exist or it shows "Unable to locate 'Castles CD Movies' folder".
 Verification that the floppy build is unaffected: `port/gen/*` hash identical; floppy headless screenshots (title, recruit script) byte-identical between the previous published sources and the sources with the CD changes.
 Not yet: New Game and play, movies (121 files, new names), CD audio track, lifting the CD code to C, installer producing a playable CD folder.
+
+### CD: New Game crash root cause
+SANE `x80_put` wrote a 12-byte extended (pad word at +10). CodeWarrior's CD build keeps true 10-byte extendeds on the stack, so the pad word clobbered the saved A6 of the caller's frame. Fixed additively: pad word is skipped when the CD marker resource ('CS&C') is present; floppy behavior unchanged. CD now reaches the strategic map (Valois, April 11, 1312) in the interpreter host.

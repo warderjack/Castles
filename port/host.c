@@ -440,7 +440,7 @@ void castles_instr_hook(unsigned int pc) {
         { static int ni = -1; if (ni < 0) ni = getenv("NOINTERP") != NULL; if (ni && (rd16(pc) & 0xF000) != 0xA000 && pc != YIELD_PC && pc != YIELD_PC + 2 && pc != GCONT_PC && pc != SENTINEL) { fprintf(stderr, "[nointerp] unlifted pc=%06x op=%04x sp=%06x\n", pc, rd16(pc), SP); if (getenv("NOINTERP")[0] == '2') quit_requested = 1; else { static int nn; if (nn++ > 40) quit_requested = 1; } } }
         interp_insns++; if (getenv("PCHIST")) { if (!pchist) pchist = calloc(RAM_SIZE / 2, 4); if (pc < RAM_SIZE) pchist[pc >> 1]++; }
         uint32_t op = rd16(pc); if (pc > 0x1000) pcring[pcri++ & 63] = pc;
-        { static FILE *plf; static int pli; if (!pli) { pli = 1; const char *e = getenv("PCLOG"); if (e) plf = fopen(e, "wb"); } if (plf && pc > 0x1000 && !(pc >= STUB_BASE && pc < STUB_END)) { uint32_t rec[2] = { pc, R(M68K_REG_D0) }; fwrite(rec, 4, 2, plf); } }   /* debug: binary log of (pc, d0) per interpreted instruction */
+        { static FILE *plf; static int pli; if (!pli) { pli = 1; const char *e = getenv("PCLOG"); if (e) plf = fopen(e, "wb"); } if (plf && pc > 0x1000 && !(pc >= STUB_BASE && pc < STUB_END)) { uint32_t rec[4] = { pc, R(M68K_REG_D0), R(M68K_REG_A6), R(M68K_REG_A7) }; fwrite(rec, 4, 4, plf); } }   /* debug: binary log of (pc, d0) per interpreted instruction */
         if ((op & 0xF000) != 0xA000 || halted) return;
         uint32_t ret;
         if (pc >= STUB_BASE && pc < STUB_END) ret = pop32();
@@ -508,7 +508,7 @@ int main(int argc, char **argv) {
     W(M68K_REG_PC, a5 + jtoff + 2);
 
     plat_init(); wr16(0xBAA, 20);
-    if (find_res(0x43532643 /* 'CS&C': marks the CD release */, 0)) {      /* CD release only: GrayRgn (low-mem $9EE) = the desktop, i.e. the screen below the menu bar; the floppy build never reads it */
+    if (find_res(0x43532643 /* 'CS&C': marks the CD release */, 0)) { sane_ext10 = 1;      /* CD release only: GrayRgn (low-mem $9EE) = the desktop, i.e. the screen below the menu bar; the floppy build never reads it */
         uint32_t gh = new_handle(10); rgn_set_rect(gh, (Rc){20, 0, 480, 640}); wr32(0x9EE, gh); }
     unsigned long guard = 0, maxslices = getenv("MAXSLICES") ? strtoul(getenv("MAXSLICES"), NULL, 10) : 0; uint32_t last_present = 0;
     while (!halted) {
