@@ -12,7 +12,7 @@ if [ -d "$IMG" ]; then   # a folder: pick the CD image or zip inside it
   [ -n "$F" ] && { say "Using $F"; IMG="$F"; }
 fi
 [ -f "$IMG" ] || { say "Not found: $IMG"; say "Give the real path of the CD .cue/.iso/.bin/.zip (or the folder holding it). Try:  find ~ -iname '*.cue' -o -iname 'CDMCR*'"; exit 2; }
-[ -f "$HERE/port/build/lift_seg1.o" ] || { say "Run ./install.sh first (it builds the shared parts)."; exit 1; }
+
 OUT="$HOME/Castles-game/CD"; rm -rf "$OUT"; mkdir -p "$OUT"
 case "$IMG" in
   *.zip|*.ZIP) command -v unzip >/dev/null 2>&1 || { say "Please install 'unzip'."; exit 1; }
@@ -32,7 +32,7 @@ SRC=$(find "$OUT/_x" -type d -name 'Castles CD Data' | head -1)
 mv "$(dirname "$SRC")" "$OUT/Castles"; rm -rf "$OUT/_x" "$OUT/_l" "$OUT/_z"
 G="$OUT/Castles"; [ -f "$G/Castles CD.rsrc" ] || { say "The program file \"Castles CD\" was not found."; exit 1; }
 say "Building the CD host ..."
-"$HERE/cd/build_host.sh" >/dev/null
+"$HERE/cd/build_host.sh"
 BIN="${XDG_BIN_HOME:-$HOME/.local/bin}"; mkdir -p "$BIN"
 cat > "$BIN/castles-cd" <<EOF
 #!/bin/sh
