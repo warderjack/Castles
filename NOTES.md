@@ -228,3 +228,6 @@ The CD program probes for `Castles CD Movies/Movie9901` at startup. The cut-down
 ### CD: Cinepak codebook inheritance
 Multi-strip Cinepak frames: strips after the first start from the previous strip's codebooks (unless frame flag bit 0 is set); strip 0 keeps its own from the previous frame. Codebooks are now per movie and per strip. This removed the noise/dark speckles in the CD movies and title picture.
 Performance: the 68k path spends ~400M instructions in a bit-test loop (map/territory bitmap scan, CODE offsets near a80a42) on New Game and on each map click; native PPC code did this fast. Real fix: lift the CD's 68k code to C like the floppy build.
+
+### CD: speed
+Interpreter-only build: per-instruction hook has a fast path. The screen-dissolve masked blit (two tiny loops, ~60% of all interpreted instructions on New Game / map screens) is recognised by its instruction words and run natively (`cd_hle_mask` in host.c; `NOHLE=1` turns it off; screenshots are pixel-identical with and without). Remaining profile is flat (no bucket above ~13%); the real fix would be lifting the CD's 68k code to C.

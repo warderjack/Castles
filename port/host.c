@@ -422,9 +422,45 @@ static void det_report(void) {
     if (det_stop && ntraps >= det_stop) { quit_requested = 1; }
     if (det_every && det_slices % det_every == 0) { uint64_t hsh = 1469598103934665603ull; for (uint32_t i = 0; i < 0xC00000; i += 8) hsh = (hsh ^ *(uint64_t *)(ram + i)) * 1099511628211ull; fprintf(stderr, "[det] slice=%lu traps=%lu ram=%016llx\n", det_slices, ntraps, (unsigned long long)hsh); }
 }
+/* CD release: the screen dissolve (masked blit, one pixel at a time) spent ~60% of all interpreted instructions in two tiny loops.
+   Recognise them by their instruction words and run them natively; the register state afterwards is what the 68k code would have left. */
+static int cd_hle_mask(unsigned pc) {
+    static const uint16_t pre[12] = { 0x3003, 0xe640, 0x1032, 0x0000, 0x4880, 0x3203, 0x0241, 0x0007, 0x343c, 0x0080, 0xe262, 0xc440 };
+    for (int i = 0; i < 12; i++) if (rd16(pc + 2 * i) != pre[i]) return 0;
+    int isA = 0, isB = 0, ts;
+    static const uint16_t ta[] = { 0x6714, 0x0c45, 0x0003, 0x6d06, 0x303c, 0x00ff, 0x6004, 0x7000, 0x1006, 0x1780, 0x4000, 0x5243, 0x5244, 0x5245, 0x0245, 0x0003, 0xb66e };
+    static const uint16_t tb[] = { 0x6704, 0x1786, 0x4000, 0x5443, 0x5444, 0xb66e };
+    isA = 1; for (int i = 0; i < 17; i++) if (rd16(pc + 24 + 2 * i) != ta[i]) { isA = 0; break; }
+    if (isA) { if (rd16(pc + 24 + 34 + 2) != 0x6dc2) return 0; ts = 17; }
+    else { isB = 1; for (int i = 0; i < 6; i++) if (rd16(pc + 24 + 2 * i) != tb[i]) { isB = 0; break; } if (!isB) return 0; if (rd16(pc + 24 + 12 + 2) != 0x6dd8) return 0; ts = 6; }
+    (void)ts;
+    uint32_t a6 = R(M68K_REG_A6), a2 = R(M68K_REG_A2), a3 = R(M68K_REG_A3);
+    uint32_t d0 = R(M68K_REG_D0), d1 = R(M68K_REG_D1), d2 = R(M68K_REG_D2), d3 = R(M68K_REG_D3), d4 = R(M68K_REG_D4), d5 = R(M68K_REG_D5), d6 = R(M68K_REG_D6);
+    int disp = (int16_t)rd16(pc + 24 + (isA ? 34 : 12) + 0) ; (void)disp;
+    int16_t lim_disp = (int16_t)rd16(pc + 24 + (isA ? 17 * 2 : 6 * 2));      /* the displacement word of cmp.w d(a6),d3 */
+    int16_t lim = (int16_t)rd16(a6 + lim_disp);
+    int step = isA ? 1 : 2;
+    for (;;) {
+        d0 = (d0 & 0xFFFF0000) | (uint16_t)((int16_t)d3 >> 3);
+        d0 = (d0 & 0xFFFFFF00) | rd8(a2 + (int16_t)d0); d0 = (d0 & 0xFFFF0000) | (uint16_t)(int16_t)(int8_t)d0;
+        d1 = (d1 & 0xFFFF0000) | (d3 & 7);
+        d2 = (d2 & 0xFFFF0000) | (uint16_t)(0x80 >> (d3 & 7)); d2 = (d2 & 0xFFFF0000) | ((d2 & d0) & 0xFFFF);
+        if (d2 & 0xFFFF) {
+            if (isA) { if ((int16_t)d5 < 3) d0 = d6 & 0xFF; else d0 = (d0 & 0xFFFF0000) | 0xFF; wr8(a3 + (int16_t)d4, d0 & 0xFF); }
+            else wr8(a3 + (int16_t)d4, d6 & 0xFF);
+        }
+        d3 = (d3 & 0xFFFF0000) | (uint16_t)(d3 + step); d4 = (d4 & 0xFFFF0000) | (uint16_t)(d4 + step);
+        if (isA) { d5 = (d5 & 0xFFFF0000) | (uint16_t)(d5 + 1); d5 = (d5 & 0xFFFF0000) | ((d5 & 3) & 0xFFFF); }
+        if (!((int16_t)d3 < lim)) break;
+    }
+    W(M68K_REG_D0, d0); W(M68K_REG_D1, d1); W(M68K_REG_D2, d2); W(M68K_REG_D3, d3); W(M68K_REG_D4, d4); W(M68K_REG_D5, d5);
+    W(M68K_REG_PC, pc + 24 + (isA ? 17 * 2 + 4 : 6 * 2 + 4));
+    return 1;
+}
 static int hook_fast = -1;      /* interpreter only (NOLIFT) and no debug env: ordinary instructions need none of the checks below */
 void castles_instr_hook(unsigned int pc) {
     if (hook_fast < 0) { hook_fast = getenv("NOLIFT") && !det && !getenv("PCHIST") && !getenv("PCLOG") && !getenv("PCWATCH") && !getenv("DWATCH") && !getenv("RINGW") && !getenv("NOINTERP") && !getenv("TRACE_FROM") && !lift_chk_active; }
+    { static int nohle = -1; if (nohle < 0) nohle = getenv("NOHLE") != NULL; if (!nohle && rd16(pc) == 0x3003 && cd_hle_mask(pc)) pc = R(M68K_REG_PC); }
     if (hook_fast == 1 && pc != SENTINEL && pc != YIELD_PC + 2 && pc != GCONT_PC && (rd16(pc) & 0xF000) != 0xA000 && !halted) { pcring[pcri++ & 63] = pc; return; }
     for (;;) {
         
