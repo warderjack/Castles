@@ -84,7 +84,7 @@ diagnose() { # explain what is missing from a game folder
   [ -d "$D/Castles Data" ] || say "  - the \"Castles Data\" folder is missing (required)"
   [ -d "$D/Castles Movies" ] || say "  - note: no \"Castles Movies\" folder, so the game will run without movies"
   [ -d "$D/Castle Plans" ] || say "  - note: no \"Castle Plans\" folder (castle design plans will be unavailable)"
-  if ! has_app "$D" && { [ -f "$D/Castles - Siege & Conquest" ] || [ -f "$D/Castles - Siege and Conquest" ]; }; then
+  if ! has_app "$D" && { [ -f "$D/Castles - Siege & Conquest" ] || [ -f "$D/Castles - Siege and Conquest" ] || find "$D" -maxdepth 1 \( -name 'Castles*.rsrc' -o -name '._Castles*' \) 2>/dev/null | grep -q .; }; then
     say "  This looks like files unpacked from a Mac archive without their resource forks joined to the program."
     say "  I can try to repair that (it does not change your original archive)."; FIXABLE=1
   fi
@@ -97,6 +97,13 @@ convert_forks() { # join Mac resource forks (._name AppleDouble, name.rsrc, or _
     for c in "$d/._$b" "$d/$b.rsrc" "$ROOT/__MACOSX$rel/._$b" "$ROOT/../__MACOSX/$(basename "$ROOT")$rel/._$b"; do [ -f "$c" ] && { r="$c"; break; }; done
     [ -n "$r" ] || continue
     "$MB" "$f" "$f.bin" "$r" && rm -f "$f" && echo x >> "$ROOT/.converted"
+  done
+  # resource-fork-only files (e.g. the game program: its data fork is empty, so the unpacker wrote only name.rsrc)
+  find "$ROOT" -type f \( -name '*.rsrc' -o -name '._*' \) 2>/dev/null | while read -r r; do
+    d=$(dirname "$r"); b=$(basename "$r")
+    case "$b" in ._*) base="$d/${b#._}";; *) base="$d/${b%.rsrc}";; esac
+    [ -e "$base" ] || [ -e "$base.bin" ] && continue
+    "$MB" "$base" "$base.bin" "$r"
   done
   find "$ROOT" -name '._*' -type f -delete 2>/dev/null; find "$ROOT" -name '*.rsrc' -type f -delete 2>/dev/null
   rm -rf "$ROOT/__MACOSX" 2>/dev/null; rm -f "$ROOT/.converted"
