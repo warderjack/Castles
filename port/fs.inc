@@ -153,6 +153,9 @@ static int fs_dispatch(uint16_t w, uint16_t n, uint32_t sel, uint32_t pb) {
             if (rd32(pb + 18) && rd8(rd32(pb + 18))) { e = resolve(d, rd32(pb + 18), path, &isdir); if (e) return e; if (!isdir) return -120; d = dir_id_for(path); }
             wr16(pb + 22, 0x100 + d); return 0; }
         case 2: return 0;
+        case 0x1A: {                                                                                               /* HOpenDF (CD release): data fork by name + dirID */
+            e = resolve(dirid, rd32(pb + 18), path, &isdir); if (e) return e; if (isdir) return -43;
+            int perm = rd8(pb + 27); int s = open_fork(path, 0, perm == 2 || perm == 3 || perm == 4); if (s < 0) return s; wr16(pb + 24, s); return 0; }
         case 7: { int16_t v = (int16_t)rd16(pb + 22); uint32_t d = v >= 0x100 ? (uint32_t)(v - 0x100) : cur_dir; wr16(pb + 32, (uint16_t)-1); wr32(pb + 48, d); if (rd32(pb + 18)) put_pstr(rd32(pb + 18), volname); return 0; }
         case 8: {                                                                                                  /* GetFCBInfo */
             int r = rd16(pb + 24); const char *nm = NULL; uint32_t parid = 2; long eof = 0, mark = 0;

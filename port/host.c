@@ -336,6 +336,12 @@ static void hle(uint16_t w, uint32_t ret) {
     /* ---- Trap table ---- */
     case 0xA046: { uint32_t k = trap_key(D(0), (w & 0x200) != 0); SETA(0, patched[k] ? patched[k] : STUB_BASE + k * 4); break; }
     case 0xA047: { uint32_t k = trap_key(D(0), (w & 0x200) != 0); patched[k] = A(0); if (trace_limit > 0) fprintf(stderr, "  SetTrapAddress key=%03x -> %06x\n", k, A(0)); break; }
+    case 0xA823: {   /* AliasDispatch (CD release): selector 0x0C = ResolveAliasFile(FSSpec*, Boolean chains, Boolean *targetIsFolder, Boolean *wasAliased): OSErr; nothing here is an alias */
+        if (D(0) == 0x0C) { uint32_t wa = rd32(sp), tf = rd32(sp + 4); if (wa) wr8(wa, 0); if (tf) wr8(tf, 0); setsp(sp + 14); wr16(sp + 14, 0); break; }
+        die("AliasDispatch selector %u not implemented", D(0)); break; }
+    case 0xAAA3: if ((D(0) >> 16) == 0x0E && (D(0) & 0xFFFF) == 0x4D) { setsp(sp + 14); break; }   /* (CD release) window call with selector 0x4D, 14 bytes of parameters, no result; its effect is cosmetic, so ignored */
+        die("trap AAA3 selector %08x not implemented", D(0)); break;
+    case 0xA098: break;   /* HWPriv: cache flush after the CodeWarrior startup relocates code (CD release only; the floppy build never calls it) */
     /* ---- Resource Manager ---- */
     case 0xA9A0: { uint32_t id = rd16(sp), type = rd32(sp + 2); Res *r = find_res(type, (int16_t)id); setsp(sp + 6); wr32(sp + 6, r ? res_get_handle(r) : 0); res_err = r ? 0 : -192; break; }
     case 0xA9A1: case 0xA820: {      /* GetNamedResource / Get1NamedResource(type, name) : Handle */
@@ -434,6 +440,7 @@ void castles_instr_hook(unsigned int pc) {
         { static int ni = -1; if (ni < 0) ni = getenv("NOINTERP") != NULL; if (ni && (rd16(pc) & 0xF000) != 0xA000 && pc != YIELD_PC && pc != YIELD_PC + 2 && pc != GCONT_PC && pc != SENTINEL) { fprintf(stderr, "[nointerp] unlifted pc=%06x op=%04x sp=%06x\n", pc, rd16(pc), SP); if (getenv("NOINTERP")[0] == '2') quit_requested = 1; else { static int nn; if (nn++ > 40) quit_requested = 1; } } }
         interp_insns++; if (getenv("PCHIST")) { if (!pchist) pchist = calloc(RAM_SIZE / 2, 4); if (pc < RAM_SIZE) pchist[pc >> 1]++; }
         uint32_t op = rd16(pc); if (pc > 0x1000) pcring[pcri++ & 63] = pc;
+        { static FILE *plf; static int pli; if (!pli) { pli = 1; const char *e = getenv("PCLOG"); if (e) plf = fopen(e, "wb"); } if (plf && pc > 0x1000 && !(pc >= STUB_BASE && pc < STUB_END)) { uint32_t rec[2] = { pc, R(M68K_REG_D0) }; fwrite(rec, 4, 2, plf); } }   /* debug: binary log of (pc, d0) per interpreted instruction */
         if ((op & 0xF000) != 0xA000 || halted) return;
         uint32_t ret;
         if (pc >= STUB_BASE && pc < STUB_END) ret = pop32();
@@ -501,6 +508,8 @@ int main(int argc, char **argv) {
     W(M68K_REG_PC, a5 + jtoff + 2);
 
     plat_init(); wr16(0xBAA, 20);
+    if (find_res(0x43532643 /* 'CS&C': marks the CD release */, 0)) {      /* CD release only: GrayRgn (low-mem $9EE) = the desktop, i.e. the screen below the menu bar; the floppy build never reads it */
+        uint32_t gh = new_handle(10); rgn_set_rect(gh, (Rc){20, 0, 480, 640}); wr32(0x9EE, gh); }
     unsigned long guard = 0, maxslices = getenv("MAXSLICES") ? strtoul(getenv("MAXSLICES"), NULL, 10) : 0; uint32_t last_present = 0;
     while (!halted) {
         m68k_execute(10000); if (lift_chk_active && ++chk_slices > 300) { lift_chk_active = 0; lift_on = 1; chk_skip++; chk_slices = 0; } if (!lift_chk_active && (!det || det_yield)) { det_yield = 0; chk_slices = 0; wr32(0x16A, ticks_now()); wr32(0x20C, (uint32_t)((det ? 3900000000u - 2082844800u : time(NULL)) + 2082844800u)); run_tasks(); ev_pump(); }
