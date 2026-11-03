@@ -133,6 +133,11 @@ static void snd_tick_body(void) {
     filep_poll();
     /* keep ~300 ms of audio queued ahead in SDL; the buffer is free as soon as it has been copied, so refill immediately */
     if (!dbp.on) return; uint32_t hdr = dbp.hdr; double ms = now_ms();
+    if (!dbp.pf) { dbp.pf = 1;      /* a voice that starts with both buffers empty: the Sound Manager asks the game to fill them (callback once per buffer, in order) */
+        uint32_t b0 = rd32(hdr + 12), b1 = rd32(hdr + 16);
+        if (!(rd32(b0 + 4) & 1) && !(rd32(b1 + 4) & 1) && rd32(hdr + 20)) { fprintf(stderr, "  [snd] both buffers empty: asking the game to fill them\n");
+            call_args[0] = dbp.chan; call_args[1] = b0; call_nargs = 2; call68k(rd32(hdr + 20), 0, 0);
+            call_args[0] = dbp.chan; call_args[1] = b1; call_nargs = 2; call68k(rd32(hdr + 20), 0, 0); } }
     if (headless || snd_nodev()) { /* no device: keep the original real-time pacing so guest timing matches */
         dbp_pick(hdr); uint32_t buf = rd32(hdr + 12 + 4 * dbp.cur);
         if (dbp.t_end < 0) { if (!(rd32(buf + 4) & 1)) { dbp.on = 0; return; } dbp.t_end = ms + snd_buf_ms(buf, hdr); return; }

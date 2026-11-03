@@ -298,6 +298,7 @@ static int dlg_dispatch(uint16_t w, uint16_t n, uint32_t ret) {
         return 1; }
     case 0xA985: case 0xA986: case 0xA987: case 0xA988: {      /* Alert family: (alertID, filterProc): INTEGER */
         uint32_t filter = rd32(sp); int id = (int16_t)rd16(sp + 4);
+        if (!al.active) fprintf(stderr, "[alert] id=%d ret=%06x trap=%04X\n", id, ret, w);
         if (!al.active && getenv("ALERTDBG")) fprintf(stderr, "[alert] id=%d p0=\"%s\" p1=\"%s\" p2=\"%s\" p3=\"%s\"\n", id, ptxt[0], ptxt[1], ptxt[2], ptxt[3]);
         if (!al.active) { Res *r = find_res(0x414C5254, id); if (!r) { setsp(sp + 6); wr16(sp + 6, 1); return 1; } const uint8_t *b = res_bytes(r); Rc bd = {(int16_t)be16(b), (int16_t)be16(b + 2), (int16_t)be16(b + 4), (int16_t)be16(b + 6)};
             Res *ir = find_res(0x4449544C, (int16_t)be16(b + 8)); if (!ir) { setsp(sp + 6); wr16(sp + 6, 1); return 1; }
