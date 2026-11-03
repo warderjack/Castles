@@ -100,6 +100,7 @@ static void filep_poll(void) {
     done = now_ms() >= fp.t_end;
     if (done) { uint32_t comp = fp.completion, chan = fp.chan; filep_stop(); if (comp) { call_args[0] = chan; call_nargs = 1; call68k(comp, 0, 0); } }
 }
+static uint32_t poll_pc;   /* resume pc of the lifted loop that triggered this poll (Musashi's PC is stale while lifted code runs) */
 static void snd_tick_body(void);
 static int snd_in_tick;
 static void snd_tick(void) {
@@ -112,7 +113,7 @@ static void cd_stop_service(void) {
     /* CD release sound object (CODE 1 0x5197x): to stop a streamed voice the game sets stop-request ($44a) and spins at 0xa51a12..a51a1a until its double-buffer callback acknowledges ($44b).
        If that stream is no longer being pumped (it finished, or another double buffer took over), nothing would ever call the callback: run it here; if that does not release the loop, acknowledge by hand. */
     static double t_in = 0; static int nsvc = 0;
-    uint32_t pc = R(M68K_REG_PC); if (pc < 0xa51a12 || pc > 0xa51a1c) { t_in = 0; nsvc = 0; return; }
+    uint32_t pc = poll_pc ? poll_pc : R(M68K_REG_PC); if (pc < 0xa51a12 || pc > 0xa51a1c) { t_in = 0; nsvc = 0; return; }
     double now = now_ms(); if (!t_in) t_in = now;
     uint32_t a2 = R(M68K_REG_A2), hdr = a2 + 0x432, proc = rd32(hdr + 20), chan = rd32(a2 + 0x42e);
     if (rd8(a2 + 0x44b)) return;

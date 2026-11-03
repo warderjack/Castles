@@ -49,7 +49,7 @@ void lift_poll(u32 resume_pc) {
     static uint32_t last_t; uint32_t t = ticks_now(); if (t == last_t) return; last_t = t;
     lift_sync_out();
     wr32(0x16A, t); wr32(0x20C, (uint32_t)(time(NULL) + 2082844800u));
-    run_tasks(); ev_pump();
+    poll_pc = resume_pc; run_tasks(); poll_pc = 0; ev_pump();
     if (t - lift_last_present >= 2) { plat_present(); gfx_dirty = 0; lift_last_present = t; }
     if (quit_requested || halted) { lift_synced = 1; lift_bail_pc = resume_pc; lift_bails++; longjmp(lift_jb, 1); }
     lift_sync_in();
