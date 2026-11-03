@@ -221,7 +221,7 @@ static int trap_key(uint32_t w, int newtool) {
 
 static uint32_t pcring[64]; static int pcri = 0;
 static unsigned long ntraps;
-static unsigned long thist[65536]; static struct { uint16_t w; uint32_t d0, a0, a1, sp, ret; } tring[600]; static int tri = 0;
+static volatile int f12_req; static unsigned long thist[65536]; static struct { uint16_t w; uint32_t d0, a0, a1, sp, ret; } tring[600]; static int tri = 0;
 static int trace_limit = 150; static int trace_init_done;
 
 static void do_loadseg(uint32_t ret) {
@@ -288,6 +288,7 @@ static void hle(uint16_t w, uint32_t ret) {
     int redirected = 0;
     uint16_t n = (w & 0x800) ? (w & 0xFBFF) : (w & 0xF8FF);   /* normalised trap word */
     thist[w]++; if (!trace_init_done) { trace_init_done = 1; if (getenv("TRACEN")) trace_limit = atoi(getenv("TRACEN")); }
+    if (f12_req) { f12_req = 0; fprintf(stderr, "[f12] recent traps:\n"); for (int i = 0; i < 600; i++) { int k_ = (tri + i) % 600; if (tring[k_].w) fprintf(stderr, "  [trap %04X %-18s] D0=%08x A0=%08x A1=%08x SP=%06x ret=%06x\n", tring[k_].w, tname(tring[k_].w), tring[k_].d0, tring[k_].a0, tring[k_].a1, tring[k_].sp, tring[k_].ret); } fprintf(stderr, "[f12] pc=%06x sp=%06x\n", R(M68K_REG_PC), SP); }
     { int ri_ = tri++ % 600; tring[ri_].w = w; tring[ri_].d0 = D(0); tring[ri_].a0 = A(0); tring[ri_].a1 = A(1); tring[ri_].sp = SP; tring[ri_].ret = ret; }
     { static uint32_t tf; static int tfi; if (!tfi) { tfi = 1; tf = getenv("TRACE_FROM") ? atoi(getenv("TRACE_FROM")) : 0; } if (tf && ticks_now() >= tf) { tf = 0; trace_limit = getenv("TRACE_COUNT") ? atoi(getenv("TRACE_COUNT")) : 2000; } }
     if (trace_limit > 0) {
