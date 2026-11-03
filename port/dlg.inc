@@ -268,7 +268,7 @@ static int dlg_dispatch(uint16_t w, uint16_t n, uint32_t ret) {
 
     /* ---- Dialog Manager ---- */
     case 0xA97B: setsp(sp + 4); return 1;      /* InitDialogs */
-    case 0xA98B: { for (int i = 0; i < 4; i++) { uint32_t p = rd32(sp + 12 - 4 * i); pstring(p, ptxt[i], 256); } fprintf(stderr, "[paramtext] ret=%06x \"%.50s\" \"%.50s\" \"%.50s\" \"%.30s\"\n", ret, ptxt[0], ptxt[1], ptxt[2], ptxt[3]); setsp(sp + 16); return 1; }
+    case 0xA98B: { for (int i = 0; i < 4; i++) { uint32_t p = rd32(sp + 12 - 4 * i); pstring(p, ptxt[i], 256); } fprintf(stderr, "[paramtext] ret=%06x \"%.50s\" \"%.50s\" \"%.50s\" \"%.30s\"\n", ret, ptxt[0], ptxt[1], ptxt[2], ptxt[3]); if (strstr(ptxt[0], "internal error")) { fprintf(stderr, "[paramtext] stack:"); for (int k = 0; k < 40; k++) { uint32_t v = rd32(sp + 16 + 2 * k); if (v >= 0xa50000 && v < 0xad0000) fprintf(stderr, " +%d:%06x", 2 * k, v); } fprintf(stderr, "\n"); } setsp(sp + 16); return 1; }
     case 0xA97C: { fprintf(stderr, "  [dlg] GetNewDialog id=%d ret=%06x\n", (int16_t)rd16(SP + 8), ret); uint32_t behind = rd32(sp), storage = rd32(sp + 4); int id = (int16_t)rd16(sp + 8); setsp(sp + 10); uint32_t wn = 0; Res *r = find_res(0x444C4F47, id);
         if (r) { const uint8_t *b = res_bytes(r); Rc bd = {(int16_t)be16(b), (int16_t)be16(b + 2), (int16_t)be16(b + 4), (int16_t)be16(b + 6)}; int proc = (int16_t)be16(b + 8), vis = b[10] != 0, go = b[12] != 0; uint32_t ref = be32(b + 14); int iid = (int16_t)be16(b + 18);
             uint8_t tp[256]; int tl = b[20]; tp[0] = tl; memcpy(tp + 1, b + 21, tl); uint32_t tmp = alloc_block(260); for (int i = 0; i <= tl; i++) wr8(tmp + i, tp[i]);
@@ -294,7 +294,7 @@ static int dlg_dispatch(uint16_t w, uint16_t n, uint32_t ret) {
         if (!md.active) { uint32_t front = 0; for (uint32_t p = win_list_head(); p; p = rd32(p + WR_NEXT)) if (dlg_of(p)) { front = p; break; }
             if (!front) { setsp(sp + 8); wr16(ihp, 0); return 1; }
             md_start(front); dlg_begin_draw(front, 1); }
-        if (modal_step(ret, filter)) { wr16(ihp, md.hit); md.active = 0; setsp(sp + 8); return 1; }
+        if (modal_step(ret, filter)) { fprintf(stderr, "[dlg] ModalDialog hit=%d ret=%06x\n", md.hit, ret); wr16(ihp, md.hit); md.active = 0; setsp(sp + 8); return 1; }
         return 1; }
     case 0xA985: case 0xA986: case 0xA987: case 0xA988: {      /* Alert family: (alertID, filterProc): INTEGER */
         uint32_t filter = rd32(sp); int id = (int16_t)rd16(sp + 4);
