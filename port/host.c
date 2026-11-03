@@ -221,7 +221,8 @@ static int trap_key(uint32_t w, int newtool) {
 
 static uint32_t pcring[64]; static int pcri = 0;
 static unsigned long ntraps;
-static volatile int f12_req; static unsigned long thist[65536]; static struct { uint16_t w; uint32_t d0, a0, a1, sp, ret; } tring[600]; static int tri = 0;
+#define TRING_N 262144
+static volatile int f12_req; static unsigned long thist[65536]; static struct { uint16_t w; uint32_t d0, a0, a1, sp, ret; } tring[TRING_N]; static int tri = 0;
 static int trace_limit = 150; static int trace_init_done;
 
 static void do_loadseg(uint32_t ret) {
@@ -288,8 +289,9 @@ static void hle(uint16_t w, uint32_t ret) {
     int redirected = 0;
     uint16_t n = (w & 0x800) ? (w & 0xFBFF) : (w & 0xF8FF);   /* normalised trap word */
     thist[w]++; if (!trace_init_done) { trace_init_done = 1; if (getenv("TRACEN")) trace_limit = atoi(getenv("TRACEN")); }
-    if (f12_req) { f12_req = 0; fprintf(stderr, "[f12] recent traps:\n"); for (int i = 0; i < 600; i++) { int k_ = (tri + i) % 600; if (tring[k_].w) fprintf(stderr, "  [trap %04X %-18s] D0=%08x A0=%08x A1=%08x SP=%06x ret=%06x\n", tring[k_].w, tname(tring[k_].w), tring[k_].d0, tring[k_].a0, tring[k_].a1, tring[k_].sp, tring[k_].ret); } fprintf(stderr, "[f12] pc=%06x sp=%06x\n", R(M68K_REG_PC), SP); }
-    { int ri_ = tri++ % 600; tring[ri_].w = w; tring[ri_].d0 = D(0); tring[ri_].a0 = A(0); tring[ri_].a1 = A(1); tring[ri_].sp = SP; tring[ri_].ret = ret; }
+    { static int ft_ = -1; if (ft_ < 0) ft_ = getenv("F12TICK") ? atoi(getenv("F12TICK")) : 0; if (ft_ > 0 && ticks_now() >= (uint32_t)ft_) { ft_ = 0; f12_req = 1; } }
+    if (f12_req) { f12_req = 0; FILE *tf_ = fopen("/tmp/castles_traps.txt", "w"); if (tf_) { for (int i = 0; i < TRING_N; i++) { int k_ = (tri + i) % TRING_N; unsigned w_ = tring[k_].w; if (!w_) continue; if (w_ == 0xAB1D || (w_ >= 0xAA14 && w_ <= 0xAA2C) || w_ == 0xA870 || w_ == 0xA871 || (w_ >= 0xA885 && w_ <= 0xA88A) || w_ == 0xA893 || w_ == 0xA87B || w_ == 0xA924 || w_ == 0xA92C || w_ == 0xA860 || w_ == 0xA975 || w_ == 0xA974 || w_ == 0xA030 || w_ == 0xAAAA) continue; fprintf(tf_, "[trap %04X %-18s] D0=%08x A0=%08x A1=%08x SP=%06x ret=%06x\n", w_, tname(w_), tring[k_].d0, tring[k_].a0, tring[k_].a1, tring[k_].sp, tring[k_].ret); } fclose(tf_); fprintf(stderr, "[f12] wrote /tmp/castles_traps.txt\n"); } }
+    { int ri_ = tri++ % TRING_N; tring[ri_].w = w; tring[ri_].d0 = D(0); tring[ri_].a0 = A(0); tring[ri_].a1 = A(1); tring[ri_].sp = SP; tring[ri_].ret = ret; }
     { static uint32_t tf; static int tfi; if (!tfi) { tfi = 1; tf = getenv("TRACE_FROM") ? atoi(getenv("TRACE_FROM")) : 0; } if (tf && ticks_now() >= tf) { tf = 0; trace_limit = getenv("TRACE_COUNT") ? atoi(getenv("TRACE_COUNT")) : 2000; } }
     if (trace_limit > 0) {
         trace_limit--;
@@ -570,7 +572,7 @@ int main(int argc, char **argv) {
     }
     if (getenv("CASTLES_SHOT")) { write_ppm(getenv("CASTLES_SHOT")); fprintf(stderr, "screenshot -> %s\n", getenv("CASTLES_SHOT")); }
     { fprintf(stderr, "trap histogram:"); for (int k = 0; k < 60; k++) { int b = -1; for (int i = 0; i < 65536; i++) if (thist[i] && (b < 0 || thist[i] > thist[b])) b = i; if (b < 0) break; fprintf(stderr, " %04X(%s)=%lu", b, tname(b), thist[b]); thist[b] = 0; } fprintf(stderr, "\n"); }
-    { fprintf(stderr, "recent traps:\n"); for (int i = 0; i < 600; i++) { int k_ = (tri + i) % 600; if (tring[k_].w) fprintf(stderr, "  [trap %04X %-18s] D0=%08x A0=%08x A1=%08x SP=%06x ret=%06x\n", tring[k_].w, tname(tring[k_].w), tring[k_].d0, tring[k_].a0, tring[k_].a1, tring[k_].sp, tring[k_].ret); } }
+    { fprintf(stderr, "recent traps:\n"); for (int i = 0; i < TRING_N; i++) { int k_ = (tri + i) % TRING_N; if (tring[k_].w) fprintf(stderr, "  [trap %04X %-18s] D0=%08x A0=%08x A1=%08x SP=%06x ret=%06x\n", tring[k_].w, tname(tring[k_].w), tring[k_].d0, tring[k_].a0, tring[k_].a1, tring[k_].sp, tring[k_].ret); } }
     if (!halted) { fprintf(stderr, "last pcs:"); for (int i = 0; i < 40; i++) fprintf(stderr, " %06x", pcring[(pcri - 40 + i) & 63]); fprintf(stderr, "\n"); }
     { const char *dr = getenv("DUMPRAM"); if (dr) { FILE *f = fopen(dr, "wb"); if (f) { fwrite(ram, 1, 0xC10000, f); fclose(f); } } }
     { const char *cl = getenv("COVLOG"); if (cl) { FILE *f = fopen(cl, "a"); if (f) { for (int z = 0; z < 16; z++) for (int o = 0; o < (1 << 15); o++) if (lift_fcov[z][o]) fprintf(f, "%d:%x\n", z, o << 1); fclose(f); } } }
