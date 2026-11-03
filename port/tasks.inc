@@ -108,8 +108,17 @@ static void snd_tick(void) {
     if (snd_in_tick) { if (getenv("SNDLOG")) fprintf(stderr, "  [snd] nested snd_tick skipped\n"); return; }
     snd_in_tick = 1; snd_tick_body(); snd_in_tick = 0;
 }
+static void cd_stop_service(void) {
+    /* CD release sound object (CODE 1 0x5197x): to stop a streamed voice the game sets stop-request ($44a) and spins at 0xa51a12..a51a1a until its double-buffer callback acknowledges ($44b).
+       If that stream is no longer being pumped (it finished, or another double buffer took over), nothing would ever call the callback: run it here. */
+    uint32_t pc = R(M68K_REG_PC); if (pc < 0xa51a12 || pc > 0xa51a1c) return;
+    uint32_t a2 = R(M68K_REG_A2), hdr = a2 + 0x432, proc = rd32(hdr + 20), chan = rd32(a2 + 0x42e); if (!proc || !chan || !rd8(a2 + 0x44a) || rd8(a2 + 0x44b)) return;
+    uint32_t buf = rd32(hdr + 12); for (int k = 0; k < 2; k++) { uint32_t b = rd32(hdr + 12 + 4 * k); if (!(rd32(b + 4) & 1)) { buf = b; break; } }
+    fprintf(stderr, "  [snd] servicing voice stop handshake (proc=%06x)\n", proc); call_args[0] = chan; call_args[1] = buf; call_nargs = 2; call68k(proc, 0, 0);
+}
 static void snd_tick_body(void) {
     snd_fx_hook(); snd_voice_dump();
+    if (cd_mode) cd_stop_service();
     filep_poll();
     /* keep ~300 ms of audio queued ahead in SDL; the buffer is free as soon as it has been copied, so refill immediately */
     if (!dbp.on) return; uint32_t hdr = dbp.hdr; double ms = now_ms();
