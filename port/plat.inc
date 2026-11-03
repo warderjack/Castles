@@ -108,6 +108,7 @@ static int plat_poll(PEvt *e, uint32_t ticks) {
             plat_mx = ev.button.x; plat_my = ev.button.y; int down = ev.type == SDL_MOUSEBUTTONDOWN; plat_btn = down; e->type = down ? PE_DOWN : PE_UP; e->x = plat_mx; e->y = plat_my; e->btn = down;
             e->mods = 0; return 1; }
         case SDL_KEYDOWN: case SDL_KEYUP: {
+            if (ev.type == SDL_KEYDOWN && ev.key.keysym.sym == SDLK_F12) { char fn[64]; snprintf(fn, sizeof fn, "/tmp/castles_f12_%ld.ppm", (long)time(NULL)); write_ppm(fn); fprintf(stderr, "[f12] saved %s\n", fn); break; }   /* debug: dump the emulated screen */
             int mac = sdl2mac(ev.key.keysym.scancode); int down = ev.type == SDL_KEYDOWN; if (mac < 0) break; plat_set_key(mac, down);
             int m = 0; SDL_Keymod km = SDL_GetModState(); if (km & KMOD_GUI) m |= 0x100; if (km & KMOD_CTRL) m |= (km & KMOD_GUI) ? 0 : 0x100; if (km & KMOD_SHIFT) m |= 0x200; if (km & KMOD_CAPS) m |= 0x400; if (km & KMOD_ALT) m |= 0x800;
             plat_mods = m; if (mac == 0x38 || mac == 0x3B || mac == 0x3A || mac == 0x37 || mac == 0x39) break;

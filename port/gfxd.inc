@@ -116,7 +116,7 @@ static int gfx_dispatch(uint16_t w, uint16_t n, uint32_t ret) {
         wr16(p, f ? f->ascent : 9); wr16(p + 2, f ? f->descent : 3); wr16(p + 4, f ? f->size : 12); wr16(p + 6, 0); return 1; }
     case 0xA883: { uint8_t c = rd16(sp) & 0xFF; setsp(sp + 2); if (port) { DC d; dc_init(&d, port); draw_text(&d, &c, 1); dc_free(&d); } return 1; }
     case 0xA884: { uint32_t p = rd32(sp); setsp(sp + 4); if (port) { uint8_t b[256]; int l; get_str(p, b, &l); DC d; dc_init(&d, port); draw_text(&d, b, l); dc_free(&d); } return 1; }
-    case 0xA885: { int cnt = rd16(sp), first = rd16(sp + 2); uint32_t buf = rd32(sp + 4); setsp(sp + 8); if (port && cnt > 0) { DC d; dc_init(&d, port); draw_text(&d, ram + ((buf + first) & 0xFFFFFF), cnt); dc_free(&d); } return 1; }
+    case 0xA885: { int cnt = rd16(sp), first = rd16(sp + 2); uint32_t buf = rd32(sp + 4); setsp(sp + 8); if (getenv("TEXTDBG") && cnt > 0) { fprintf(stderr, "[text] port=%06x \"", port); for (int i = 0; i < cnt && i < 70; i++) fputc(rd8(buf + first + i) >= 32 ? rd8(buf + first + i) : '?', stderr); fprintf(stderr, "\"\n"); } if (port && cnt > 0) { DC d; dc_init(&d, port); draw_text(&d, ram + ((buf + first) & 0xFFFFFF), cnt); dc_free(&d); } return 1; }
     case 0xA886: { int cnt = rd16(sp), first = rd16(sp + 2); uint32_t buf = rd32(sp + 4); setsp(sp + 8); wr16(sp + 8, port && cnt > 0 ? str_width(port, ram + ((buf + first) & 0xFFFFFF), cnt) : 0); return 1; }
     case 0xA88C: { uint32_t p = rd32(sp); setsp(sp + 4); uint8_t b[256]; int l; get_str(p, b, &l); wr16(sp + 4, port ? str_width(port, b, l) : 0); return 1; }
     case 0xA88D: { uint8_t c = rd16(sp) & 0xFF; setsp(sp + 2); wr16(sp + 2, port ? str_width(port, &c, 1) : 0); return 1; }
