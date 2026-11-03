@@ -102,7 +102,7 @@ static void filep_poll(void) {
 }
 static uint32_t poll_pc;   /* resume pc of the lifted loop that triggered this poll (Musashi's PC is stale while lifted code runs) */
 static void snd_tick_body(void);
-static int snd_in_tick;
+static int snd_in_tick; static unsigned long dbp_bytes;
 static void snd_tick(void) {
     /* The mixer keeps its voice-loop counter in driver memory ($2952(a4)), so it must never run nested inside itself: a poll fired from one of its own loop back-edges
        would reset the counter and the outer pass would wrap the 16-bit counter and clear the heap. */
@@ -143,9 +143,10 @@ static void snd_tick_body(void) {
     }
     for (int g = 0; g < 8 && dbp.on && (!aud_tried || snd_queued_ms(hdr) < 300); g++) {
         uint32_t buf = rd32(hdr + 12 + 4 * dbp.cur), fl = rd32(buf + 4);
-        if (!(fl & 1)) { if (dbp.t_end < 0) dbp.on = 0; break; }     /* not ready: wait (or never started) */
+        if (!(fl & 1)) { if (dbp.t_end < 0) { dbp.on = 0; fprintf(stderr, "  [snd] double buffer dropped: first buffer %06x not ready (flags=%08x)\n", buf, fl); } break; }     /* not ready: wait (or never started) */
         dbp.t_end = 0; snd_out(buf, hdr);
-        if (fl & 4) { dbp.on = 0; fprintf(stderr, "  [snd] double buffer finished\n"); return; }
+        if (fl & 4) { dbp.on = 0; fprintf(stderr, "  [snd] double buffer finished (last buffer %06x: %u bytes, flags=%08x, %lu bytes in total)\n", buf, rd32(buf), fl, dbp_bytes + rd32(buf)); dbp_bytes = 0; return; }
+        dbp_bytes += rd32(buf);
         wr32(buf + 4, fl & ~1u); call_args[0] = dbp.chan; call_args[1] = buf; call_nargs = 2; call68k(rd32(hdr + 20), 0, 0);
         dbp.cur ^= 1;
     }

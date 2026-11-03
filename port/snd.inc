@@ -17,6 +17,7 @@ static int snd_dispatch(uint16_t w, uint16_t n, uint32_t ret) {
         if (sel == 0x00200008 || sel == 0x04200008) {        /* SndPlayDoubleBuffer(chan, SndDoubleBufferHeader*): OSErr -- accepted, silent for now */
             uint32_t hdr = rd32(sp); fprintf(stderr, "  SndPlayDoubleBuffer chan=%06x hdr=%06x chans=%d bits=%d rate=%u buf0=%06x buf1=%06x proc=%06x\n", rd32(sp + 4), hdr,
                 rd16(hdr), rd16(hdr + 2), rd32(hdr + 8) >> 16, rd32(hdr + 12), rd32(hdr + 16), rd32(hdr + 20));
+            { uint32_t b0 = rd32(hdr + 12), b1 = rd32(hdr + 16); fprintf(stderr, "  [snd] buf0: %u bytes flags=%08x   buf1: %u bytes flags=%08x\n", rd32(b0), rd32(b0 + 4), rd32(b1), rd32(b1 + 4)); }
             { uint32_t a4 = rd32(hdr + 20) + 0x3b20; if (getenv("SNDLOG")) fprintf(stderr, "  [snd] driver state a4=%06x [58]=%08x voices=%d+%d\n", a4, rd32(a4 + 0x58), rd16(a4 + 0x11c0), rd16(a4 + 0x11c4)); }
             dbp.on = 1; dbp.chan = rd32(sp + 4); dbp.hdr = hdr; dbp.cur = 0; dbp.t_end = -1;
             setsp(sp + 8); wr16(sp + 8, 0); return 1; }
