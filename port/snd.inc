@@ -1,6 +1,6 @@
 static int fp_chan_match(uint32_t chan); static int filep_start(uint32_t chan, int fref, uint32_t completion); static void filep_stop(void);
 /* ---- Sound Manager (timing-accurate simulated playback; real mixing via SDL audio later) ---- */
-static struct { int on; uint32_t chan, hdr; int cur; double t_end; } dbp;
+static struct { int on; uint32_t chan, hdr; int cur; double t_end; } dbp; static unsigned long dbp_bytes;
 static double snd_buf_ms(uint32_t buf, uint32_t hdr) { uint32_t rate = rd32(hdr + 8) >> 16; if (!rate) rate = 22254; return rd32(buf) * 1000.0 / rate; }
 static int snd_dispatch(uint16_t w, uint16_t n, uint32_t ret) {
     uint32_t sp = SP;
@@ -19,7 +19,7 @@ static int snd_dispatch(uint16_t w, uint16_t n, uint32_t ret) {
                 rd16(hdr), rd16(hdr + 2), rd32(hdr + 8) >> 16, rd32(hdr + 12), rd32(hdr + 16), rd32(hdr + 20));
             { uint32_t b0 = rd32(hdr + 12), b1 = rd32(hdr + 16); fprintf(stderr, "  [snd] buf0: %u bytes flags=%08x   buf1: %u bytes flags=%08x\n", rd32(b0), rd32(b0 + 4), rd32(b1), rd32(b1 + 4)); }
             { uint32_t a4 = rd32(hdr + 20) + 0x3b20; if (getenv("SNDLOG")) fprintf(stderr, "  [snd] driver state a4=%06x [58]=%08x voices=%d+%d\n", a4, rd32(a4 + 0x58), rd16(a4 + 0x11c0), rd16(a4 + 0x11c4)); }
-            dbp.on = 1; dbp.chan = rd32(sp + 4); dbp.hdr = hdr; dbp.cur = 0; dbp.t_end = -1;
+            dbp.on = 1; dbp_bytes = 0; dbp.chan = rd32(sp + 4); dbp.hdr = hdr; dbp.cur = 0; dbp.t_end = -1;
             setsp(sp + 8); wr16(sp + 8, 0); return 1; }
         fprintf(stderr, "  SoundDispatch selector %08x not implemented\n", sel); return 0; }
     case 0xA807: { uint32_t chp = rd32(sp + 10), ch = rd32(chp);      /* SndNewChannel(VAR chan, synth, init, userRoutine): allocate a full zeroed SndChannel (queue[128]) */

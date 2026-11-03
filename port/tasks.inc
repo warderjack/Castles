@@ -102,7 +102,7 @@ static void filep_poll(void) {
 }
 static uint32_t poll_pc;   /* resume pc of the lifted loop that triggered this poll (Musashi's PC is stale while lifted code runs) */
 static void snd_tick_body(void);
-static int snd_in_tick; static unsigned long dbp_bytes;
+static int snd_in_tick;
 static void snd_tick(void) {
     /* The mixer keeps its voice-loop counter in driver memory ($2952(a4)), so it must never run nested inside itself: a poll fired from one of its own loop back-edges
        would reset the counter and the outer pass would wrap the 16-bit counter and clear the heap. */
@@ -119,7 +119,7 @@ static void cd_stop_service(void) {
     if (rd8(a2 + 0x44b)) return;
     if (nsvc < 3 && proc && chan && rd8(a2 + 0x44a)) {
         uint32_t buf = rd32(hdr + 12); for (int k = 0; k < 2; k++) { uint32_t b = rd32(hdr + 12 + 4 * k); if (!(rd32(b + 4) & 1)) { buf = b; break; } }
-        nsvc++; fprintf(stderr, "  [snd] servicing voice stop handshake (proc=%06x obj=%06x)\n", proc, a2); call_args[0] = chan; call_args[1] = buf; call_nargs = 2; call68k(proc, 0, 0); return;
+        nsvc++; fprintf(stderr, "  [snd] servicing voice stop handshake (proc=%06x obj=%06x)\n", proc, a2); call_args[0] = chan; call_args[1] = buf; call_nargs = 2; call68k(proc, 0, 0); wr32(buf + 4, rd32(buf + 4) & ~5u); return;   /* the real Sound Manager consumes the final buffer and clears ready+last, so a stale flag must not end the next voice */
     }
     if (now - t_in > 700) { fprintf(stderr, "  [snd] voice stop wait did not clear (obj=%06x 44a=%d proc=%06x chan=%06x): acknowledging by hand\n", a2, rd8(a2 + 0x44a), proc, chan); wr8(a2 + 0x44b, 1); t_in = 0; nsvc = 0; }
 }
@@ -145,7 +145,7 @@ static void snd_tick_body(void) {
         uint32_t buf = rd32(hdr + 12 + 4 * dbp.cur), fl = rd32(buf + 4);
         if (!(fl & 1)) { if (dbp.t_end < 0) { dbp.on = 0; fprintf(stderr, "  [snd] double buffer dropped: first buffer %06x not ready (flags=%08x)\n", buf, fl); } break; }     /* not ready: wait (or never started) */
         dbp.t_end = 0; snd_out(buf, hdr);
-        if (fl & 4) { dbp.on = 0; fprintf(stderr, "  [snd] double buffer finished (last buffer %06x: %u bytes, flags=%08x, %lu bytes in total)\n", buf, rd32(buf), fl, dbp_bytes + rd32(buf)); dbp_bytes = 0; return; }
+        if (fl & 4) { dbp.on = 0; fprintf(stderr, "  [snd] double buffer finished (last buffer %06x: %u bytes, flags=%08x, %lu bytes in total)\n", buf, rd32(buf), fl, dbp_bytes + rd32(buf)); dbp_bytes = 0; wr32(buf + 4, fl & ~5u); return; }
         dbp_bytes += rd32(buf);
         wr32(buf + 4, fl & ~1u); call_args[0] = dbp.chan; call_args[1] = buf; call_nargs = 2; call68k(rd32(hdr + 20), 0, 0);
         dbp.cur ^= 1;
