@@ -107,6 +107,12 @@ static int sane_dispatch(uint16_t w, uint16_t n, uint32_t ret) {
     }
     if (n == 0xA9EE) {      /* Pack7 */
         int sel = rd16(sp);
+        if (cd_mode && sel <= 1) {      /* CD release glue: A0 = string, D0 = number (in for NumToString, out for StringToNum); only the selector is on the stack */
+            uint32_t s = R(M68K_REG_A0); setsp(sp + 2);
+            if (sel == 0) { char b[20]; snprintf(b, sizeof b, "%d", (int32_t)R(M68K_REG_D0)); wr8(s, strlen(b)); for (size_t i = 0; i < strlen(b); i++) wr8(s + 1 + i, b[i]); }
+            else { char b[300]; int l = rd8(s); for (int i = 0; i < l; i++) b[i] = rd8(s + 1 + i); b[l] = 0; SETD(0, (uint32_t)atoi(b)); }
+            return 1;
+        }
         if (sel == 0) { int32_t v = (int32_t)rd32(sp + 6); uint32_t s = rd32(sp + 2); setsp(sp + 10); char b[20]; snprintf(b, sizeof b, "%d", v); wr8(s, strlen(b)); for (size_t i = 0; i < strlen(b); i++) wr8(s + 1 + i, b[i]); return 1; }
         if (sel == 1) { uint32_t outp = rd32(sp + 2), s = rd32(sp + 6); setsp(sp + 10); char b[300]; int l = rd8(s); for (int i = 0; i < l; i++) b[i] = rd8(s + 1 + i); b[l] = 0; wr32(outp, (uint32_t)atoi(b)); return 1; }
         fprintf(stderr, "  [sane] Pack7 selector %d not implemented\n", sel); return 0;
