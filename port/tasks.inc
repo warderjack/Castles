@@ -110,11 +110,17 @@ static void snd_tick(void) {
 }
 static void cd_stop_service(void) {
     /* CD release sound object (CODE 1 0x5197x): to stop a streamed voice the game sets stop-request ($44a) and spins at 0xa51a12..a51a1a until its double-buffer callback acknowledges ($44b).
-       If that stream is no longer being pumped (it finished, or another double buffer took over), nothing would ever call the callback: run it here. */
-    uint32_t pc = R(M68K_REG_PC); if (pc < 0xa51a12 || pc > 0xa51a1c) return;
-    uint32_t a2 = R(M68K_REG_A2), hdr = a2 + 0x432, proc = rd32(hdr + 20), chan = rd32(a2 + 0x42e); if (!proc || !chan || !rd8(a2 + 0x44a) || rd8(a2 + 0x44b)) return;
-    uint32_t buf = rd32(hdr + 12); for (int k = 0; k < 2; k++) { uint32_t b = rd32(hdr + 12 + 4 * k); if (!(rd32(b + 4) & 1)) { buf = b; break; } }
-    fprintf(stderr, "  [snd] servicing voice stop handshake (proc=%06x)\n", proc); call_args[0] = chan; call_args[1] = buf; call_nargs = 2; call68k(proc, 0, 0);
+       If that stream is no longer being pumped (it finished, or another double buffer took over), nothing would ever call the callback: run it here; if that does not release the loop, acknowledge by hand. */
+    static double t_in = 0; static int nsvc = 0;
+    uint32_t pc = R(M68K_REG_PC); if (pc < 0xa51a12 || pc > 0xa51a1c) { t_in = 0; nsvc = 0; return; }
+    double now = now_ms(); if (!t_in) t_in = now;
+    uint32_t a2 = R(M68K_REG_A2), hdr = a2 + 0x432, proc = rd32(hdr + 20), chan = rd32(a2 + 0x42e);
+    if (rd8(a2 + 0x44b)) return;
+    if (nsvc < 3 && proc && chan && rd8(a2 + 0x44a)) {
+        uint32_t buf = rd32(hdr + 12); for (int k = 0; k < 2; k++) { uint32_t b = rd32(hdr + 12 + 4 * k); if (!(rd32(b + 4) & 1)) { buf = b; break; } }
+        nsvc++; fprintf(stderr, "  [snd] servicing voice stop handshake (proc=%06x obj=%06x)\n", proc, a2); call_args[0] = chan; call_args[1] = buf; call_nargs = 2; call68k(proc, 0, 0); return;
+    }
+    if (now - t_in > 700) { fprintf(stderr, "  [snd] voice stop wait did not clear (obj=%06x 44a=%d proc=%06x chan=%06x): acknowledging by hand\n", a2, rd8(a2 + 0x44a), proc, chan); wr8(a2 + 0x44b, 1); t_in = 0; nsvc = 0; }
 }
 static void snd_tick_body(void) {
     snd_fx_hook(); snd_voice_dump();
