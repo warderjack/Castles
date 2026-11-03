@@ -173,8 +173,8 @@ static void free_block_real(uint32_t p) {
 }
 static uint32_t new_handle(uint32_t n) {
     uint32_t s;
-    if (nfree_slots) s = free_slots[--nfree_slots]; else { if (next_slot >= MP_COUNT) { die("out of master pointers"); return 0; } s = next_slot++; }
-    uint32_t p = alloc_block(n); if (!p) { if (s == next_slot - 1) next_slot--; else free_slots[nfree_slots++] = s; return 0; }
+    if (nfree_slots) s = free_slots[--nfree_slots]; else { if (next_slot >= MP_COUNT) { fprintf(stderr, "[host] out of master pointers\n"); die("out of master pointers"); return 0; } s = next_slot++; }
+    uint32_t p = alloc_block(n); if (!p) { fprintf(stderr, "[host] new_handle(%u) failed\n", n); if (s == next_slot - 1) next_slot--; else free_slots[nfree_slots++] = s; return 0; }
     wr32(MP_BASE + s * 4, p); hsize[s] = n; hflags[s] = 0;
     return MP_BASE + s * 4;
 }

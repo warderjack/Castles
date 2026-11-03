@@ -54,7 +54,7 @@ static int mb_parse(const char *p, long *dlen, long *rlen) {
     *dlen = be32(h + 83); *rlen = be32(h + 87); return 1;
 }
 static int open_fork(const char *path, int rf, int wr) {
-    int slot = -1; for (int i = cd_mode ? 3 : 1; i < MAXOPEN; i++) if (!ofiles[i].f) { slot = i; break; } if (slot < 0) return -42;
+    int slot = -1; for (int i = cd_mode ? 3 : 1; i < MAXOPEN; i++) if (!ofiles[i].f) { slot = i; break; } if (slot < 0) { fprintf(stderr, "[host] open_fork: no free file slot\n"); return -42; }
     OF *o = &ofiles[slot]; memset(o, 0, sizeof *o); o->rf = rf; strncpy(o->path, path, sizeof o->path - 1);
     size_t L = strlen(path); int isbin = L > 4 && !strcasecmp(path + L - 4, ".bin");
     char other[1200];
