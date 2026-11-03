@@ -219,7 +219,7 @@ static int trap_key(uint32_t w, int newtool) {
 #include "trapnames.h"
 #define tname tname_tbl
 
-static uint32_t pcring[64]; static int pcri = 0;
+static uint32_t pcring[64]; static int pcri = 0; int own_left;
 static unsigned long ntraps;
 #define TRING_N 262144
 static volatile int f12_req; static unsigned long thist[65536]; static struct { uint16_t w; uint32_t d0, a0, a1, sp, ret; } tring[TRING_N]; static int tri = 0;
@@ -291,6 +291,7 @@ static void hle(uint16_t w, uint32_t ret) {
     thist[w]++; if (!trace_init_done) { trace_init_done = 1; if (getenv("TRACEN")) trace_limit = atoi(getenv("TRACEN")); }
     { static int ft_ = -1; if (ft_ < 0) ft_ = getenv("F12TICK") ? atoi(getenv("F12TICK")) : 0; if (ft_ > 0 && ticks_now() >= (uint32_t)ft_) { ft_ = 0; f12_req = 1; } }
     if (f12_req) { f12_req = 0; FILE *tf_ = fopen("/tmp/castles_traps.txt", "w"); if (tf_) { for (int i = 0; i < TRING_N; i++) { int k_ = (tri + i) % TRING_N; unsigned w_ = tring[k_].w; if (!w_) continue; if (w_ == 0xAB1D || (w_ >= 0xAA14 && w_ <= 0xAA2C) || w_ == 0xA870 || w_ == 0xA871 || (w_ >= 0xA885 && w_ <= 0xA88A) || w_ == 0xA893 || w_ == 0xA87B || w_ == 0xA924 || w_ == 0xA92C || w_ == 0xA860 || w_ == 0xA975 || w_ == 0xA974 || w_ == 0xA030 || w_ == 0xAAAA) continue; fprintf(tf_, "[trap %04X %-18s] D0=%08x A0=%08x A1=%08x SP=%06x ret=%06x\n", w_, tname(w_), tring[k_].d0, tring[k_].a0, tring[k_].a1, tring[k_].sp, tring[k_].ret); } fclose(tf_); fprintf(stderr, "[f12] wrote /tmp/castles_traps.txt\n"); } }
+    { extern int own_left; if (own_left > 0 && w != 0xAB1D) fprintf(stderr, "[ow-trap] %04X %s D0=%08x A0=%08x\n", w, tname(w), D(0), A(0)); }
     if (!(w == 0xAB1D || (w >= 0xAA14 && w <= 0xAA2C) || w == 0xA870 || w == 0xA871 || (w >= 0xA885 && w <= 0xA88A) || w == 0xA893 || w == 0xA87B || w == 0xA924 || w == 0xA92C || w == 0xA860 || w == 0xA975 || w == 0xA974 || w == 0xA030 || w == 0xAAAA || w == 0xA8EC || w == 0xA02E)) { int ri_ = tri++ % TRING_N; tring[ri_].w = w; tring[ri_].d0 = D(0); tring[ri_].a0 = A(0); tring[ri_].a1 = A(1); tring[ri_].sp = SP; tring[ri_].ret = ret; }
     { static uint32_t tf; static int tfi; if (!tfi) { tfi = 1; tf = getenv("TRACE_FROM") ? atoi(getenv("TRACE_FROM")) : 0; } if (tf && ticks_now() >= tf) { tf = 0; trace_limit = getenv("TRACE_COUNT") ? atoi(getenv("TRACE_COUNT")) : 2000; } }
     if (trace_limit > 0) {
@@ -493,7 +494,8 @@ void castles_instr_hook(unsigned int pc) {
         if (((pc >= lift_lo && pc < lift_hi) || lift_special(pc)) && lift_try(pc)) { pc = R(M68K_REG_PC); continue; }
         { static int ni = -1; if (ni < 0) ni = getenv("NOINTERP") != NULL; if (ni && (rd16(pc) & 0xF000) != 0xA000 && pc != YIELD_PC && pc != YIELD_PC + 2 && pc != GCONT_PC && pc != SENTINEL) { fprintf(stderr, "[nointerp] unlifted pc=%06x op=%04x sp=%06x\n", pc, rd16(pc), SP); if (getenv("NOINTERP")[0] == '2') quit_requested = 1; else { static int nn; if (nn++ > 40) quit_requested = 1; } } }
         interp_insns++; static int pch_on = -1; if (pch_on < 0) pch_on = getenv("PCHIST") != NULL; if (pch_on) { if (!pchist) pchist = calloc(RAM_SIZE / 2, 4); if (pc < RAM_SIZE) pchist[pc >> 1]++; }
-        uint32_t op = rd16(pc); if (pc > 0x1000) pcring[pcri++ & 63] = pc;
+        uint32_t op = rd16(pc); if (pc > 0x1000) pcring[pcri++ & 63] = pc; { static int od = -1; if (od < 0) od = getenv("OBJDBG") != NULL; if (od && pc == 0xa80ac6) { uint32_t o = R(M68K_REG_D0 + 5); fprintf(stderr, "[obj] %06x kind? w22=%04x w24=%04x p0e=%06x str=\"", o, rd16(o + 0x22), rd16(o + 0x24), rd32(o + 0xe)); uint32_t sp_ = rd32(o + 0xe); for (int q = 0; q < 24 && sp_ && sp_ < 0xC00000; q++) { uint8_t c = rd8(sp_ + q); fputc(c >= 32 && c < 127 ? c : '.', stderr); } fprintf(stderr, "\"\n"); } }
+        if (own_left > 0 && pc > 0x1000) { own_left--; if (pc >= 0xa50000 && pc < 0xa7ffff) fprintf(stderr, "[ot] %06x\n", pc); }
         { static FILE *plf; static int pli; if (!pli) { pli = 1; const char *e = getenv("PCLOG"); if (e) plf = fopen(e, "wb"); } if (plf && pc > 0x1000 && !(pc >= STUB_BASE && pc < STUB_END)) { uint32_t rec[4] = { pc, R(M68K_REG_D0), R(M68K_REG_A6), R(M68K_REG_A7) }; fwrite(rec, 4, 4, plf); } }   /* debug: binary log of (pc, d0) per interpreted instruction */
         if ((op & 0xF000) != 0xA000 || halted) return;
         uint32_t ret;
