@@ -12,6 +12,7 @@ static int snd_dispatch(uint16_t w, uint16_t n, uint32_t ret) {
         if (sel == 0x03020008) { filep_stop(); setsp(sp + 6); wr16(sp + 6, 0); return 1; }   /* SndStopFilePlay(chan, quietNow) */
         if (sel == 0x03080008) { uint32_t st = rd32(sp); int len = (int16_t)rd16(sp + 4); for (int i = 0; i < len && i < 6; i++) wr8(st + i, i == 3 ? 1 : 0); setsp(sp + 6); wr16(sp + 6, 0); return 1; }   /* SndManagerStatus(len, SMStatus*) */
         if (sel == 0x022C0018) { uint32_t p = rd32(sp); if (p) wr32(p, 0x01000100); setsp(sp + 4); wr16(sp + 4, 0); return 1; }   /* GetDefaultOutputVolume(long *level): full volume both channels (CD release) */
+        if (sel == 0x05100008) { uint32_t st = rd32(sp); int len = (int16_t)rd16(sp + 4); for (int i = 0; i < len && i < 64; i++) wr8(st + i, 0); setsp(sp + 10); wr16(sp + 10, 0); return 1; }   /* SndChannelStatus(chan, len, SCStatus*): idle channel (scChannelBusy=0) */
         if (sel == 0x000C0008) { wr32(sp, 0x03008000); return 1; }       /* SndSoundManagerVersion: NumVersion 3.0 */
         if (sel == 0x00200008 || sel == 0x04200008) {        /* SndPlayDoubleBuffer(chan, SndDoubleBufferHeader*): OSErr -- accepted, silent for now */
             uint32_t hdr = rd32(sp); fprintf(stderr, "  SndPlayDoubleBuffer chan=%06x hdr=%06x chans=%d bits=%d rate=%u buf0=%06x buf1=%06x proc=%06x\n", rd32(sp + 4), hdr,
