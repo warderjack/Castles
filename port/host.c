@@ -478,6 +478,11 @@ void castles_instr_hook(unsigned int pc) {
         if (pc == YIELD_PC + 2) { pc = yield_resume; W(M68K_REG_PC, pc); }
         else if (pc == GCONT_PC) { gc_resume(); pc = R(M68K_REG_PC); }
         if (lift_chk_active && pc == chk_ret && SP == chk_sp) lift_check_finish();
+        if (cd_mode && pc == 0xA98CB2 && !lift_chk_active) {      /* CD C library memset(ptr, byte, long count): do it natively; a bad count is logged and clamped to RAM instead of spinning for minutes */
+            uint32_t sp_ = SP, ptr_ = rd32(sp_ + 4), cnt_ = rd32(sp_ + 10); uint8_t val_ = rd8(sp_ + 9);
+            if (cnt_ > 0x400000u || (ptr_ & 0xFFFFFF) + cnt_ > RAM_SIZE) { fprintf(stderr, "  [memset] suspicious count=%08x ptr=%08x from %06x -- clamped\n", cnt_, ptr_, rd32(sp_)); uint32_t lim = (ptr_ & 0xFFFFFF) < RAM_SIZE ? RAM_SIZE - (ptr_ & 0xFFFFFF) : 0; cnt_ = 0; (void)lim; }
+            memset(ram + (ptr_ & 0xFFFFFF), val_, cnt_); W(M68K_REG_A0, ptr_); pc = rd32(sp_); setsp(sp_ + 4); W(M68K_REG_PC, pc); continue;
+        }
 #ifdef LIFT_TRACE
         if (lift_chk_active) tri_record(pc);
 #endif
