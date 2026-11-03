@@ -383,6 +383,7 @@ static void hle(uint16_t w, uint32_t ret) {
         if (trace_limit > 0) { fprintf(stderr, "    PB:"); for (int i = 0; i < 64; i += 2) fprintf(stderr, " %04x", rd16(A(0) + i)); fprintf(stderr, "\n"); }
         int err = fs_dispatch(w, n, D(0), A(0)); wr16(A(0) + 16, (uint16_t)err); SETD(0, (uint32_t)err);
         { uint32_t np = rd32(A(0) + 18); char nm[80] = ""; if (np && np < RAM_SIZE) { int l = rd8(np); if (l > 70) l = 70; for (int i = 0; i < l; i++) nm[i] = rd8(np + 1 + i); nm[l] = 0; }
+          { static int ntr; if (!strncmp(nm, "Narration", 9)) ntr = 120; if (ntr > 0 && (n == 0xA002 || n == 0xA003 || n == 0xA044)) { ntr--; fprintf(stderr, "  [nfs] %04X ref=%d buf=%06x req=%u act=%u mode=%d off=%u err=%d\n", w, (int16_t)rd16(A(0) + 24), rd32(A(0) + 32), rd32(A(0) + 36), rd32(A(0) + 40), (int16_t)rd16(A(0) + 44), rd32(A(0) + 46), err); } }
           if (n != 0xA002 && n != 0xA003) fprintf(stderr, "  [fs] %04X \"%s\" vol/dir=%d/%u -> %d\n", w, nm, (int16_t)rd16(A(0) + 22), rd32(A(0) + 48), err); }
         if (trace_limit > 0) fprintf(stderr, "    -> FS err=%d\n", err); break; }
     case 0xA98B: {      /* ParamText(p0,p1,p2,p3) */

@@ -123,6 +123,10 @@ static void cd_stop_service(void) {
     }
     if (now - t_in > 700) { fprintf(stderr, "  [snd] voice stop wait did not clear (obj=%06x 44a=%d proc=%06x chan=%06x): acknowledging by hand\n", a2, rd8(a2 + 0x44a), proc, chan); wr8(a2 + 0x44b, 1); t_in = 0; nsvc = 0; }
 }
+static void dbp_pick(uint32_t hdr) {   /* play whichever buffer is ready (a later voice may start with only the second one filled) */
+    uint32_t b = rd32(hdr + 12 + 4 * dbp.cur); if (rd32(b + 4) & 1) return;
+    uint32_t o = rd32(hdr + 12 + 4 * (dbp.cur ^ 1)); if (rd32(o + 4) & 1) { dbp.cur ^= 1; fprintf(stderr, "  [snd] starting from the second buffer (first not ready)\n"); }
+}
 static void snd_tick_body(void) {
     snd_fx_hook(); snd_voice_dump();
     if (cd_mode) cd_stop_service();
@@ -130,7 +134,7 @@ static void snd_tick_body(void) {
     /* keep ~300 ms of audio queued ahead in SDL; the buffer is free as soon as it has been copied, so refill immediately */
     if (!dbp.on) return; uint32_t hdr = dbp.hdr; double ms = now_ms();
     if (headless || snd_nodev()) { /* no device: keep the original real-time pacing so guest timing matches */
-        uint32_t buf = rd32(hdr + 12 + 4 * dbp.cur);
+        dbp_pick(hdr); uint32_t buf = rd32(hdr + 12 + 4 * dbp.cur);
         if (dbp.t_end < 0) { if (!(rd32(buf + 4) & 1)) { dbp.on = 0; return; } dbp.t_end = ms + snd_buf_ms(buf, hdr); return; }
         for (int g = 0; g < 4 && ms >= dbp.t_end; g++) {
             uint32_t fl = rd32(buf + 4);
@@ -142,7 +146,7 @@ static void snd_tick_body(void) {
         return;
     }
     for (int g = 0; g < 8 && dbp.on && (!aud_tried || snd_queued_ms(hdr) < 300); g++) {
-        uint32_t buf = rd32(hdr + 12 + 4 * dbp.cur), fl = rd32(buf + 4);
+        dbp_pick(hdr); uint32_t buf = rd32(hdr + 12 + 4 * dbp.cur), fl = rd32(buf + 4);
         if (!(fl & 1)) { if (dbp.t_end < 0) { dbp.on = 0; fprintf(stderr, "  [snd] double buffer dropped: first buffer %06x not ready (flags=%08x)\n", buf, fl); } break; }     /* not ready: wait (or never started) */
         dbp.t_end = 0; snd_out(buf, hdr);
         if (fl & 4) { dbp.on = 0; fprintf(stderr, "  [snd] double buffer finished (last buffer %06x: %u bytes, flags=%08x, %lu bytes in total)\n", buf, rd32(buf), fl, dbp_bytes + rd32(buf)); dbp_bytes = 0; wr32(buf + 4, fl & ~5u); return; }
