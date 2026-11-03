@@ -109,6 +109,9 @@ static void snd_tick(void) {
     if (snd_in_tick) { if (getenv("SNDLOG")) fprintf(stderr, "  [snd] nested snd_tick skipped\n"); return; }
     snd_in_tick = 1; snd_tick_body(); snd_in_tick = 0;
 }
+static void dbp_clear(uint32_t hdr) {   /* the Sound Manager has consumed the stream: both buffers go back to "empty" so no stale ready/last flag leaks into the next voice */
+    for (int k = 0; k < 2; k++) { uint32_t b = rd32(hdr + 12 + 4 * k); if (b && b < 0xC00000) wr32(b + 4, rd32(b + 4) & ~5u); }
+}
 static void cd_stop_service(void) {
     /* CD release sound object (CODE 1 0x5197x): to stop a streamed voice the game sets stop-request ($44a) and spins at 0xa51a12..a51a1a until its double-buffer callback acknowledges ($44b).
        If that stream is no longer being pumped (it finished, or another double buffer took over), nothing would ever call the callback: run it here; if that does not release the loop, acknowledge by hand. */
@@ -119,7 +122,7 @@ static void cd_stop_service(void) {
     if (rd8(a2 + 0x44b)) return;
     if (nsvc < 3 && proc && chan && rd8(a2 + 0x44a)) {
         uint32_t buf = rd32(hdr + 12); for (int k = 0; k < 2; k++) { uint32_t b = rd32(hdr + 12 + 4 * k); if (!(rd32(b + 4) & 1)) { buf = b; break; } }
-        nsvc++; fprintf(stderr, "  [snd] servicing voice stop handshake (proc=%06x obj=%06x)\n", proc, a2); call_args[0] = chan; call_args[1] = buf; call_nargs = 2; call68k(proc, 0, 0); wr32(buf + 4, rd32(buf + 4) & ~5u); return;   /* the real Sound Manager consumes the final buffer and clears ready+last, so a stale flag must not end the next voice */
+        nsvc++; fprintf(stderr, "  [snd] servicing voice stop handshake (proc=%06x obj=%06x)\n", proc, a2); call_args[0] = chan; call_args[1] = buf; call_nargs = 2; call68k(proc, 0, 0); dbp_clear(hdr); return;   /* the real Sound Manager consumes the final buffer and clears ready+last, so a stale flag must not end the next voice */
     }
     if (now - t_in > 700) { fprintf(stderr, "  [snd] voice stop wait did not clear (obj=%06x 44a=%d proc=%06x chan=%06x): acknowledging by hand\n", a2, rd8(a2 + 0x44a), proc, chan); wr8(a2 + 0x44b, 1); t_in = 0; nsvc = 0; }
 }
@@ -154,7 +157,7 @@ static void snd_tick_body(void) {
         dbp_pick(hdr); uint32_t buf = rd32(hdr + 12 + 4 * dbp.cur), fl = rd32(buf + 4);
         if (!(fl & 1)) { if (dbp.t_end < 0) { dbp.on = 0; fprintf(stderr, "  [snd] double buffer dropped: first buffer %06x not ready (flags=%08x)\n", buf, fl); } break; }     /* not ready: wait (or never started) */
         dbp.t_end = 0; snd_out(buf, hdr);
-        if (fl & 4) { dbp.on = 0; fprintf(stderr, "  [snd] double buffer finished (last buffer %06x: %u bytes, flags=%08x, %lu bytes in total)\n", buf, rd32(buf), fl, dbp_bytes + rd32(buf)); dbp_bytes = 0; wr32(buf + 4, fl & ~5u); return; }
+        if (fl & 4) { dbp.on = 0; fprintf(stderr, "  [snd] double buffer finished (last buffer %06x: %u bytes, flags=%08x, %lu bytes in total)\n", buf, rd32(buf), fl, dbp_bytes + rd32(buf)); dbp_bytes = 0; dbp_clear(hdr); return; }
         dbp_bytes += rd32(buf);
         wr32(buf + 4, fl & ~1u); call_args[0] = dbp.chan; call_args[1] = buf; call_nargs = 2; call68k(rd32(hdr + 20), 0, 0);
         dbp.cur ^= 1;
