@@ -12,8 +12,8 @@ Everything the CD release needed from the shared host is additive and does not c
 (new trap handlers it never calls, plus one start-up step guarded by the CD-only resource 'CS&C'). See NOTES.md, "CD release".
 
 ## Installing the CD release (experimental)
-`./install.sh` first (builds the shared parts), then `./cd/install_cd.sh /path/to/CD.cue` (.iso/.bin/.zip also work).
-It extracts the game to `~/Castles-game/CD/Castles` and adds the command `castles-cd`. The floppy install is untouched.
+`./cd/install_cd.sh /path/to/CD.cue` (.iso/.bin/.zip, or the folder holding it, also work). It is stand-alone: it needs neither `./install.sh` nor any floppy game files; it checks for gcc, SDL2 headers, python3 and git and offers to install them.
+It extracts the game to `~/Castles-game/CD/Castles` and adds a menu entry (Games), a Desktop icon and the command `castles-cd` (the short command works after your next login; until then use `~/.local/bin/castles-cd`). The floppy install is untouched.
 Start it with `castles-cd` (or `./cd/run_cd.sh`).
 Status: plays the game from the title screen through New Game and the strategic map. Working: intro movie (with sound), Encyclopedia, Castles and Tutorial movies (Cinepak and Animation video, 8/16-bit sound), About Castles, in-game music from the game files. Not done: the CD's own audio tracks, translation of the CD's 68k code to C (the interpreter is slower than the floppy build).
 
