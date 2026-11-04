@@ -6,7 +6,7 @@
 # Result: dist/Castles-x86_64.AppImage
 set -e
 HERE=$(cd "$(dirname "$0")/.." && pwd); cd "$HERE"
-[ -x port/build/castles_native ] || port/build_native.sh
+port/build_native.sh      # always rebuild so the package matches the current sources
 OUT="$HERE/dist"; AD="$OUT/Castles.AppDir"; rm -rf "$AD"; mkdir -p "$AD/usr/bin" "$AD/usr/lib" "$OUT"
 cp port/build/castles_native "$AD/usr/bin/castles_native"
 # bundle the system SDL2 (it loads X11/Wayland/ALSA/PulseAudio/PipeWire itself at run time)
