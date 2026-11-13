@@ -80,3 +80,6 @@ Nothing from the game is stored in this repository. See NOTES.md ("Lifter") for 
 See NOTES.md. The 68k code is now fully translated and runs natively; the Musashi build is kept as the reference/fallback.
 Open Game / Save dialogs (Standard File) are implemented natively; hiring, battles, the Black Market and movies have been played through and behave correctly. A rare sound-driver crash on very slow or loaded machines is documented in NOTES.md. Where behaviour is uncertain the Mac version is the reference;
 the DOS demo is only used for cross-checking game data and logic.
+
+## License
+MIT for the original work in this repository; see `LICENSE` for exactly what it does and does not cover (the game, the translated game code in `port/gen/`, Musashi and the fonts are excluded or keep their own terms).
