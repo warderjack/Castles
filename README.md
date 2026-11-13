@@ -10,8 +10,9 @@ This project contains only the port, not the game. Castles: Siege & Conquest is 
 (Interplay), so its files cannot be distributed here. You need your own copy of the **Macintosh** version
 (the **floppy-disk version**; see below) (the folder containing `Castles - Siege & Conquest.bin` plus "Castles Data", "Castles Movies", "Castle Plans").
 Typical sources are your original Mac CD/disks, or a disk image or archive made from them (extract archives as
-described in Quick start). This port is built for and tested with the **floppy-disk release** of the Mac game. A CD-ROM release also exists;
-it is a different release that has not been tested here and may not work.
+described in Quick start). The main port is built for and tested with the **floppy-disk release** of the Mac game. The MacPlay **Enhanced CD-ROM release (v1.1)** is
+also supported, experimentally, through a separate installer: see `cd/README.md` (`./cd/install_cd.sh /path/to/CD.cue`). It plays from the title screen through
+New Game, the strategic map and the movies, but is slower than the floppy build and the CD's own audio tracks are not done.
 The Windows/DOS release of "Castles II" sold on some stores is a different program
 and does not work with this port. No Apple ROM or system software is needed.
 
@@ -43,10 +44,12 @@ Four kinds of download are handled:
    joins the pieces of the StuffIt installer stored on them, and unpacks the result.
 
 4. **A CD image** (`.cue`/`.bin` or `.iso`, also when it is inside a zip): the installer reads the Mac disc itself and copies out only the game's folder.
-   (The CD release is a different release from the floppy one; support for it is experimental.)
+   (The CD release is a different release from the floppy one; this installer covers the floppy release only. For the CD, use `./cd/install_cd.sh`, described in `cd/README.md`; it works with or without the floppy files.)
 
 `.dmg` disk images are not unpacked automatically; copy the files out of them first.
 If the game starts with a "no game folder set" message, run `castles "/path/to/game folder"` once; it remembers the folder.
+
+Single-file AppImage (floppy release): `./packaging/build_appimage.sh` builds `dist/Castles-x86_64.AppImage`; on first start it asks for your game folder.
 
 Manual build, if you prefer (needs gcc or clang, and SDL2 development files):
 
