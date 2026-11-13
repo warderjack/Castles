@@ -70,6 +70,12 @@ please report that line. Automated checks without a display: `SDL_VIDEODRIVER=du
 Saves and preferences are written into that folder (as MacBinary `.bin` files / plain files).
 Headless testing: `CASTLES_HEADLESS=1 CASTLES_SCRIPT=script.txt` (see NOTES.md).
 
+## Regenerating the translated C (optional)
+`port/gen/lift_*.c` is produced from the game's own 68k code by the translator in `tools/` (`lift.py`, with `analyze.py`, `m68k.py`, `segs.py`, `mdrv.py`, `rsrc.py`). The
+generated files are published so you can build without it, and a normal build never needs it. To regenerate them you need your own copy of the game:
+the translator reads the program's CODE segments (and the MDRV/SMOD resources) from `extracted/app/`, which you produce from your copy with `scripts/list_rsrc.py`.
+Nothing from the game is stored in this repository. See NOTES.md ("Lifter") for how it works and how it is verified against the Musashi interpreter.
+
 ## Status
 See NOTES.md. The 68k code is now fully translated and runs natively; the Musashi build is kept as the reference/fallback.
 Open Game / Save dialogs (Standard File) are implemented natively; hiring, battles, the Black Market and movies have been played through and behave correctly. A rare sound-driver crash on very slow or loaded machines is documented in NOTES.md. Where behaviour is uncertain the Mac version is the reference;
