@@ -4,5 +4,11 @@ extract/
 fonts/
 musashi-upstream/
 port/fontdata_local.h
-tools/
+tools/*
+!tools/lift.py
+!tools/analyze.py
+!tools/m68k.py
+!tools/segs.py
+!tools/mdrv.py
+!tools/rsrc.py
 work/
